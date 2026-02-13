@@ -2,37 +2,41 @@ package com.openclaw.android.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// OpenClaw brand colors
-val ClawOrange = Color(0xFFFF6B35)
-val ClawOrangeDark = Color(0xFFE55A25)
-val ClawOrangeLight = Color(0xFFFFE0CC)
+// Claymorphism palette — soft, warm, tactile
+val ClayPeach = Color(0xFFFF8A65)       // Primary warm
+val ClayPeachDark = Color(0xFFE57350)
+val ClayPeachLight = Color(0xFFFFE8DF)
+val ClayCream = Color(0xFFFFF5EE)       // Background warmth
+val ClayLavender = Color(0xFFB39DDB)    // Accent purple
+val ClayMint = Color(0xFF80CBC4)        // Accent teal
+val ClaySand = Color(0xFFF5E6D3)       // Card surfaces
 
-// Light theme
-val LightPrimary = ClawOrange
+// Light theme — claymorphism
+val LightPrimary = ClayPeach
 val LightOnPrimary = Color.White
-val LightPrimaryContainer = ClawOrangeLight
-val LightSecondary = Color(0xFF1E1E2E)
-val LightBackground = Color(0xFFFAFAFA)
-val LightSurface = Color.White
-val LightSurfaceVariant = Color(0xFFF0F0F0)
-val LightOnSurface = Color(0xFF1C1B1F)
-val LightOnSurfaceVariant = Color(0xFF666666)
-val LightOutline = Color(0xFFE0E0E0)
+val LightPrimaryContainer = ClayPeachLight
+val LightSecondary = ClayLavender
+val LightBackground = ClayCream
+val LightSurface = Color(0xFFFFFBF8)
+val LightSurfaceVariant = ClaySand
+val LightOnSurface = Color(0xFF2D2420)
+val LightOnSurfaceVariant = Color(0xFF7A6B5D)
+val LightOutline = Color(0xFFE8D8C8)
 
-// Dark theme
-val DarkPrimary = ClawOrange
-val DarkOnPrimary = Color.White
-val DarkPrimaryContainer = Color(0xFF3D1800)
-val DarkSecondary = Color(0xFFCCC2DC)
-val DarkBackground = Color(0xFF0D0D12)
-val DarkSurface = Color(0xFF1C1C24)
-val DarkSurfaceVariant = Color(0xFF2A2A35)
-val DarkOnSurface = Color(0xFFE6E1E5)
-val DarkOnSurfaceVariant = Color(0xFF999999)
-val DarkOutline = Color(0xFF3A3A45)
+// Dark theme — clay dark
+val DarkPrimary = Color(0xFFFFAB91)
+val DarkOnPrimary = Color(0xFF2D1600)
+val DarkPrimaryContainer = Color(0xFF4E2600)
+val DarkSecondary = Color(0xFFCE93D8)
+val DarkBackground = Color(0xFF1A1512)
+val DarkSurface = Color(0xFF261F1A)
+val DarkSurfaceVariant = Color(0xFF352C24)
+val DarkOnSurface = Color(0xFFF5E6D8)
+val DarkOnSurfaceVariant = Color(0xFFB5A393)
+val DarkOutline = Color(0xFF4A3D32)
 
 // Semantic colors
-val ToolCallBg = Color(0xFFF5F0EB)
+val ToolCallBg = Color(0xFFF5EDE5)
 val ToolCallBgDark = Color(0xFF2A2520)
-val ErrorRed = Color(0xFFFF4444)
-val SuccessGreen = Color(0xFF4CAF50)
+val ErrorRed = Color(0xFFEF5350)
+val SuccessGreen = Color(0xFF66BB6A)

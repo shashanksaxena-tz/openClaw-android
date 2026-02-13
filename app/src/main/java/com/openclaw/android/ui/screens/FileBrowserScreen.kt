@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.openclaw.android.sandbox.SandboxedFileSystem
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -36,6 +37,7 @@ fun FileBrowserScreen(
     var files by remember { mutableStateOf<List<SandboxedFileSystem.FileInfo>>(emptyList()) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
     var fileToDelete by remember { mutableStateOf<SandboxedFileSystem.FileInfo?>(null) }
+    var fileToView by remember { mutableStateOf<File?>(null) }
 
     LaunchedEffect(currentPath, isShowingShared, refreshTrigger) {
         files = if (isShowingShared) {
@@ -47,6 +49,20 @@ fun FileBrowserScreen(
 
     val usage = remember(refreshTrigger) { fs.getUsage() }
 
+    // File viewer overlay
+    fileToView?.let { file ->
+        FileViewerScreen(
+            file = file,
+            onBack = { fileToView = null },
+            onShare = {
+                shareResolvedFile(context, file)
+                fileToView = null
+            },
+        )
+        return
+    }
+
+    // Delete confirmation dialog
     fileToDelete?.let { file ->
         AlertDialog(
             onDismissRequest = { fileToDelete = null },
@@ -189,11 +205,26 @@ fun FileBrowserScreen(
                                 currentPath = if (currentPath.isEmpty()) file.name
                                     else "$currentPath/${file.name}"
                             } else if (!file.isDirectory) {
-                                shareFile(context, fs, file, isShowingShared)
+                                // Open file viewer
+                                val resolved = if (isShowingShared) {
+                                    fs.resolveShared(file.path).getOrNull()
+                                } else {
+                                    fs.resolve(file.path).getOrNull()
+                                }
+                                if (resolved != null && resolved.exists()) {
+                                    fileToView = resolved
+                                }
                             }
                         },
                         onDelete = { fileToDelete = file },
-                        onShare = { shareFile(context, fs, file, isShowingShared) },
+                        onShare = {
+                            val resolved = if (isShowingShared) {
+                                fs.resolveShared(file.path).getOrNull()
+                            } else {
+                                fs.resolve(file.path).getOrNull()
+                            }
+                            if (resolved != null) shareResolvedFile(context, resolved)
+                        },
                     )
                 }
             }
@@ -258,12 +289,11 @@ private fun FileRow(
     }
 }
 
-private fun shareFile(context: Context, fs: SandboxedFileSystem, file: SandboxedFileSystem.FileInfo, isShared: Boolean) {
-    val resolvedFile = if (isShared) fs.resolveShared(file.path).getOrNull() else fs.resolve(file.path).getOrNull() ?: return
-    if (resolvedFile == null || !resolvedFile.exists() || resolvedFile.isDirectory) return
+private fun shareResolvedFile(context: Context, file: File) {
+    if (!file.exists() || file.isDirectory) return
     try {
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", resolvedFile)
-        val mimeType = getMimeTypeForFile(resolvedFile.extension)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val mimeType = getMimeTypeForFile(file.extension)
         val shareIntent = Intent(Intent.ACTION_SEND).apply {
             type = mimeType
             putExtra(Intent.EXTRA_STREAM, uri)

@@ -2,6 +2,7 @@ package com.openclaw.android.agent
 
 import com.openclaw.android.data.SpaceManager
 import com.openclaw.android.llm.*
+import com.openclaw.android.sandbox.SandboxedFileSystem
 import com.openclaw.android.tools.ToolRegistry
 import com.openclaw.android.tools.ToolResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +26,7 @@ class AgentRuntime(
     private val toolRegistry: ToolRegistry,
     private val conversationManager: ConversationManager,
     private val spaceManager: SpaceManager? = null,
+    private val sandboxedFileSystem: SandboxedFileSystem? = null,
 ) {
     companion object {
         const val MAX_TOOL_ITERATIONS = 10
@@ -47,6 +49,7 @@ class AgentRuntime(
 
     fun setActiveSpace(spaceId: String?) {
         _activeSpaceId = spaceId
+        sandboxedFileSystem?.setActiveSpace(spaceId)
     }
 
     private fun emit(event: AgentEvent) {
@@ -78,8 +81,8 @@ class AgentRuntime(
                 appendLine(knowledge)
             }
             appendLine()
-            appendLine("Files for this space are in workspace/spaces/${space.id}/files/")
-            appendLine("Use that directory when the user asks to create or find files for this project.")
+            appendLine("All file operations (read_file, write_file, list_files, etc.) now automatically")
+            appendLine("route to this space's directory. Just use paths like 'myfile.txt' directly.")
         }
     }
 

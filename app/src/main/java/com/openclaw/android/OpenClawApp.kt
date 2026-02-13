@@ -84,6 +84,7 @@ class OpenClawApp : Application() {
             toolRegistry = toolRegistry,
             conversationManager = conversationManager,
             spaceManager = spaceManager,
+            sandboxedFileSystem = sandboxedFileSystem,
         ).apply {
             systemPrompt = settings.getSystemPrompt()
             preferredModelId = settings.getDefaultModel().ifBlank { null }

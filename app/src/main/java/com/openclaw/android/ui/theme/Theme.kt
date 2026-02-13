@@ -2,11 +2,13 @@ package com.openclaw.android.ui.theme
 
 import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
 private val LightColorScheme = lightColorScheme(
@@ -20,6 +22,9 @@ private val LightColorScheme = lightColorScheme(
     onSurface = LightOnSurface,
     onSurfaceVariant = LightOnSurfaceVariant,
     outline = LightOutline,
+    surfaceContainerLow = ClaySand.copy(alpha = 0.5f),
+    surfaceContainer = ClaySand,
+    surfaceContainerHigh = ClaySand.copy(alpha = 0.8f),
 )
 
 private val DarkColorScheme = darkColorScheme(
@@ -33,6 +38,15 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = DarkOnSurface,
     onSurfaceVariant = DarkOnSurfaceVariant,
     outline = DarkOutline,
+)
+
+/** Claymorphism-inspired shapes: big rounded corners for that soft, tactile feel. */
+val ClayShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(18.dp),
+    large = RoundedCornerShape(24.dp),
+    extraLarge = RoundedCornerShape(32.dp),
 )
 
 @Composable
@@ -54,6 +68,7 @@ fun OpenClawTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
+        shapes = ClayShapes,
         content = content,
     )
 }
