@@ -47,6 +47,12 @@ class WriteFileTool(
                     return ToolResult.error("Cannot write to this location. Only workspace/ is writable.")
                 }
 
+                // Check available disk space
+                val freeSpace = file.parentFile?.usableSpace ?: 0
+                if (freeSpace < content.length * 2) {
+                    return ToolResult.error("Not enough disk space. Available: ${freeSpace / 1024}KB, needed: ~${content.length / 1024}KB")
+                }
+
                 try {
                     file.parentFile?.mkdirs()
                     if (append) {

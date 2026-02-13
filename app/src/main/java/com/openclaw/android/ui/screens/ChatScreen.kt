@@ -1,6 +1,7 @@
 package com.openclaw.android.ui.screens
 
 import android.net.Uri
+import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -26,14 +27,16 @@ import com.openclaw.android.agent.AgentRuntime
 import com.openclaw.android.agent.AgentState
 import com.openclaw.android.llm.ContentPart
 import com.openclaw.android.ui.components.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import android.util.Base64
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     runtime: AgentRuntime,
     onNavigateToSettings: () -> Unit,
+    onOpenDrawer: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     initialMessage: String? = null,
     initialMedia: List<Pair<String, Uri>>? = null,
@@ -46,6 +49,7 @@ fun ChatScreen(
     var inputText by remember { mutableStateOf("") }
     var pendingMedia by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
     val listState = rememberLazyListState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // Handle initial shared content (only once)
     var initialHandled by remember { mutableStateOf(false) }
@@ -54,7 +58,7 @@ fun ChatScreen(
             initialHandled = true
             val text = initialMessage ?: "I shared some content with you."
             val media = initialMedia?.mapNotNull { (mimeType, uri) ->
-                uriToContentPart(context, mimeType, uri)
+                withContext(Dispatchers.IO) { uriToContentPart(context, mimeType, uri) }
             } ?: emptyList()
             runtime.sendMessage(text, media)
         }
@@ -67,7 +71,7 @@ fun ChatScreen(
         }
     }
 
-    // File picker
+    // File picker - only safe types
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris ->
@@ -86,20 +90,10 @@ fun ChatScreen(
 
         for (event in events) {
             when (event) {
-                is AgentEvent.StreamStart -> {
-                    lastStreamChunk = null
-                    streamComplete = false
-                }
-                is AgentEvent.StreamChunk -> {
-                    lastStreamChunk = event
-                }
-                is AgentEvent.StreamEnd -> {
-                    streamComplete = true
-                }
-                is AgentEvent.AssistantMessage -> {
-                    lastStreamChunk = null
-                    filtered.add(event)
-                }
+                is AgentEvent.StreamStart -> { lastStreamChunk = null; streamComplete = false }
+                is AgentEvent.StreamChunk -> lastStreamChunk = event
+                is AgentEvent.StreamEnd -> streamComplete = true
+                is AgentEvent.AssistantMessage -> { lastStreamChunk = null; filtered.add(event) }
                 is AgentEvent.TokenUsage -> { /* skip */ }
                 else -> {
                     if (lastStreamChunk != null && !streamComplete) {
@@ -110,149 +104,197 @@ fun ChatScreen(
                 }
             }
         }
-
-        if (lastStreamChunk != null && !streamComplete) {
-            filtered.add(lastStreamChunk!!)
-        }
+        if (lastStreamChunk != null && !streamComplete) filtered.add(lastStreamChunk!!)
         filtered
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        // Top bar
-        Surface(tonalElevation = 2.dp) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "OpenClaw",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
+    val isRunning = state is AgentState.Running || state is AgentState.ExecutingTool
 
-                runtime.activeSpaceName?.let { spaceName ->
-                    Spacer(Modifier.width(8.dp))
-                    AssistChip(
-                        onClick = {},
-                        label = { Text(spaceName, style = MaterialTheme.typography.labelSmall) },
-                        modifier = Modifier.height(28.dp),
-                    )
-                }
-
-                Spacer(Modifier.weight(1f))
-
-                IconButton(onClick = { runtime.clearConversation() }) {
-                    Icon(Icons.Default.ClearAll, contentDescription = "Clear chat")
-                }
-            }
-        }
-
-        // Messages list
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            state = listState,
-            contentPadding = PaddingValues(vertical = 8.dp),
-        ) {
-            if (displayEvents.isEmpty()) {
-                item { EmptyState() }
-            }
-            items(displayEvents) { event ->
-                MessageBubble(event = event)
-            }
-
-            if (state is AgentState.Running || state is AgentState.ExecutingTool) {
-                item { LoadingIndicator(state) }
-            }
-        }
-
-        // Pending media preview strip
-        AnimatedVisibility(
-            visible = pendingMedia.isNotEmpty(),
-            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-        ) {
-            MediaPreviewStrip(
-                media = pendingMedia,
-                onRemove = { index ->
-                    pendingMedia = pendingMedia.toMutableList().also { it.removeAt(index) }
-                },
-                modifier = Modifier.padding(vertical = 4.dp),
+    // Show snackbar on network errors
+    LaunchedEffect(events) {
+        val lastEvent = events.lastOrNull()
+        if (lastEvent is AgentEvent.Error) {
+            snackbarHostState.showSnackbar(
+                message = lastEvent.message ?: "A network error occurred. Please try again.",
+                duration = SnackbarDuration.Short,
             )
         }
+    }
 
-        // Input bar
-        Surface(
-            tonalElevation = 2.dp,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.Bottom,
-            ) {
-                IconButton(
-                    onClick = { filePickerLauncher.launch("*/*") },
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        modifier = modifier,
+    ) { scaffoldPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(scaffoldPadding)) {
+            // Top bar
+            Surface(tonalElevation = 2.dp) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(
-                        Icons.Default.AttachFile,
-                        contentDescription = "Attach",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    if (onOpenDrawer != null) {
+                        IconButton(onClick = onOpenDrawer) {
+                            Icon(Icons.Default.Menu, contentDescription = "Open drawer")
+                        }
+                    }
+
+                    Text("OpenClaw", style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = if (onOpenDrawer != null) 0.dp else 8.dp))
+
+                    runtime.activeSpaceName?.let { spaceName ->
+                        Spacer(Modifier.width(8.dp))
+                        AssistChip(onClick = {}, label = { Text(spaceName, style = MaterialTheme.typography.labelSmall) },
+                            modifier = Modifier.height(28.dp))
+                    }
+
+                    // Model indicator chip
+                    runtime.activeModelName?.let { modelName ->
+                        Spacer(Modifier.width(8.dp))
+                        AssistChip(
+                            onClick = onNavigateToSettings,
+                            label = { Text(modelName, style = MaterialTheme.typography.labelSmall) },
+                            leadingIcon = {
+                                Icon(Icons.Default.Memory, contentDescription = null,
+                                    modifier = Modifier.size(16.dp))
+                            },
+                            modifier = Modifier.height(28.dp),
+                        )
+                    }
+
+                    Spacer(Modifier.weight(1f))
+
+                    // New conversation button
+                    IconButton(onClick = { scope.launch { runtime.startNewConversation() } }) {
+                        Icon(Icons.Default.Add, contentDescription = "New conversation")
+                    }
+
+                    // Clear button
+                    IconButton(onClick = { scope.launch { runtime.clearConversation() } }) {
+                        Icon(Icons.Default.ClearAll, contentDescription = "Clear chat")
+                    }
+                }
+            }
+
+            // Messages list
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                state = listState,
+                contentPadding = PaddingValues(vertical = 8.dp),
+            ) {
+                if (displayEvents.isEmpty()) {
+                    item {
+                        EmptyState(
+                            onSuggestionClick = { prompt ->
+                                inputText = prompt
+                            },
+                        )
+                    }
+                }
+                items(displayEvents) { event ->
+                    MessageBubble(
+                        event = event,
+                        onRetry = if (event is AgentEvent.Error) {
+                            { scope.launch { runtime.retryLastMessage() } }
+                        } else null,
                     )
                 }
 
-                OutlinedTextField(
-                    value = inputText,
-                    onValueChange = { inputText = it },
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("Message OpenClaw...") },
-                    maxLines = 5,
-                    shape = RoundedCornerShape(24.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                    ),
+                if (isRunning) {
+                    item { LoadingIndicator(state) }
+                }
+            }
+
+            // Pending media preview strip
+            AnimatedVisibility(
+                visible = pendingMedia.isNotEmpty(),
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+            ) {
+                MediaPreviewStrip(
+                    media = pendingMedia,
+                    onRemove = { index -> pendingMedia = pendingMedia.toMutableList().also { it.removeAt(index) } },
+                    modifier = Modifier.padding(vertical = 4.dp),
                 )
+            }
 
-                Spacer(Modifier.width(4.dp))
-
-                VoiceInputButton(
-                    onResult = { spokenText ->
-                        if (spokenText.isNotBlank()) {
-                            scope.launch {
-                                runtime.sendMessage(spokenText, emptyList())
-                            }
-                        }
-                    },
-                    enabled = state is AgentState.Idle,
-                )
-
-                val canSend = state is AgentState.Idle && (inputText.isNotBlank() || pendingMedia.isNotEmpty())
-                IconButton(
-                    onClick = {
-                        if (canSend) {
-                            val text = inputText.ifBlank { "Here are the files I'm sharing." }
-                            val media = pendingMedia.mapNotNull { item ->
-                                mediaItemToContentPart(context, item)
-                            }
-                            inputText = ""
-                            pendingMedia = emptyList()
-                            scope.launch {
-                                runtime.sendMessage(text, media)
-                            }
-                        }
-                    },
-                    enabled = canSend,
+            // Input bar
+            Surface(tonalElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.Bottom,
                 ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "Send",
-                        tint = if (canSend) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    // Attach (only safe types)
+                    IconButton(onClick = { filePickerLauncher.launch("image/*") }) {
+                        Icon(Icons.Default.AttachFile, "Attach",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+
+                    OutlinedTextField(
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Message OpenClaw...") },
+                        maxLines = 15,
+                        shape = RoundedCornerShape(24.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                        ),
                     )
+
+                    Spacer(Modifier.width(4.dp))
+
+                    if (isRunning) {
+                        // Stop button
+                        IconButton(onClick = { runtime.cancel() }) {
+                            Icon(Icons.Default.Stop, "Stop",
+                                tint = MaterialTheme.colorScheme.error)
+                        }
+                    } else {
+                        // Voice input - includes pending media
+                        VoiceInputButton(
+                            onResult = { spokenText ->
+                                if (spokenText.isNotBlank()) {
+                                    scope.launch {
+                                        val media = pendingMedia.mapNotNull { item ->
+                                            withContext(Dispatchers.IO) { mediaItemToContentPart(context, item) }
+                                        }
+                                        pendingMedia = emptyList()
+                                        runtime.sendMessage(spokenText, media)
+                                    }
+                                }
+                            },
+                            enabled = !isRunning,
+                        )
+                    }
+
+                    val canSend = !isRunning && (inputText.isNotBlank() || pendingMedia.isNotEmpty())
+                    IconButton(
+                        onClick = {
+                            if (canSend) {
+                                val text = inputText.ifBlank { "Here are the files I'm sharing." }
+                                val mediaItems = pendingMedia.toList()
+                                inputText = ""
+                                pendingMedia = emptyList()
+                                scope.launch {
+                                    val media = withContext(Dispatchers.IO) {
+                                        mediaItems.mapNotNull { mediaItemToContentPart(context, it) }
+                                    }
+                                    runtime.sendMessage(text, media)
+                                }
+                            }
+                        },
+                        enabled = canSend,
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.Send, "Send",
+                            tint = if (canSend) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                    }
                 }
             }
         }
@@ -260,45 +302,32 @@ fun ChatScreen(
 }
 
 @Composable
-private fun EmptyState() {
+private fun EmptyState(onSuggestionClick: (String) -> Unit) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(48.dp),
+        modifier = Modifier.fillMaxWidth().padding(48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         val infiniteTransition = rememberInfiniteTransition(label = "pulse")
         val scale by infiniteTransition.animateFloat(
-            initialValue = 0.95f,
-            targetValue = 1.05f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1500, easing = EaseInOutCubic),
-                repeatMode = RepeatMode.Reverse,
-            ),
+            initialValue = 0.95f, targetValue = 1.05f,
+            animationSpec = infiniteRepeatable(tween(1500, easing = EaseInOutCubic), RepeatMode.Reverse),
             label = "scale",
         )
 
-        Icon(
-            Icons.Default.AutoAwesome,
-            contentDescription = null,
+        Icon(Icons.Default.AutoAwesome, null,
             tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier
-                .size(56.dp)
-                .scale(scale),
-        )
+            modifier = Modifier.size(56.dp).scale(scale))
         Spacer(Modifier.height(16.dp))
-        Text(
-            text = "OpenClaw",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        Text("OpenClaw", style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.height(8.dp))
-        Text(
-            text = "Your personal AI assistant.\nType a message, use voice, or share media from any app.",
+        Text("Your personal AI assistant.\nType a message, use voice, or share media from any app.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
+            textAlign = TextAlign.Center)
+        Spacer(Modifier.height(24.dp))
+
+        SuggestedPrompts(onSuggestionClick = onSuggestionClick)
     }
 }
 
@@ -306,26 +335,17 @@ private fun EmptyState() {
 private fun LoadingIndicator(state: AgentState) {
     val infiniteTransition = rememberInfiniteTransition(label = "loading")
     val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800),
-            repeatMode = RepeatMode.Reverse,
-        ),
+        initialValue = 0.3f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse),
         label = "alpha",
     )
 
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(16.dp),
-            strokeWidth = 2.dp,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp,
+            color = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(8.dp))
         Text(
             text = when (state) {
@@ -338,47 +358,30 @@ private fun LoadingIndicator(state: AgentState) {
     }
 }
 
-private fun uriToContentPart(
-    context: android.content.Context,
-    mimeType: String,
-    uri: Uri,
-): ContentPart? {
+private fun uriToContentPart(context: android.content.Context, mimeType: String, uri: Uri): ContentPart? {
     return try {
         val inputStream = context.contentResolver.openInputStream(uri) ?: return null
-        val bytes = inputStream.readBytes()
-        inputStream.close()
+        val bytes = inputStream.use { it.readBytes() }
+
+        // Skip files over 10MB
+        if (bytes.size > 10 * 1024 * 1024) {
+            return ContentPart(type = "text", text = "File too large (${bytes.size / 1024 / 1024}MB). Max 10MB.")
+        }
 
         val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
 
         when {
-            mimeType.startsWith("image/") -> ContentPart(
-                type = "image_base64",
-                mediaType = mimeType,
-                data = base64,
-            )
-            mimeType.startsWith("audio/") -> ContentPart(
-                type = "audio_base64",
-                mediaType = mimeType,
-                data = base64,
-            )
-            mimeType.startsWith("text/") -> {
-                val text = String(bytes)
-                ContentPart(type = "text", text = "Shared file content:\n$text")
-            }
-            else -> ContentPart(
-                type = "text",
-                text = "Shared file: ${uri.lastPathSegment} (type: $mimeType, ${bytes.size} bytes)",
-            )
+            mimeType.startsWith("image/") -> ContentPart(type = "image_base64", mediaType = mimeType, data = base64)
+            mimeType.startsWith("audio/") -> ContentPart(type = "audio_base64", mediaType = mimeType, data = base64)
+            mimeType.startsWith("text/") -> ContentPart(type = "text", text = "Shared file content:\n${String(bytes)}")
+            else -> ContentPart(type = "text", text = "Shared file: ${uri.lastPathSegment} (type: $mimeType, ${bytes.size} bytes)")
         }
     } catch (e: Exception) {
         ContentPart(type = "text", text = "Failed to read shared file: ${e.message}")
     }
 }
 
-private fun mediaItemToContentPart(
-    context: android.content.Context,
-    item: MediaItem,
-): ContentPart? {
+private fun mediaItemToContentPart(context: android.content.Context, item: MediaItem): ContentPart? {
     val uri = when (item) {
         is MediaItem.Image -> item.uri
         is MediaItem.Video -> item.uri

@@ -3,21 +3,14 @@ package com.openclaw.android
 import android.app.Application
 import com.openclaw.android.agent.AgentRuntime
 import com.openclaw.android.agent.ConversationManager
+import com.openclaw.android.agent.NotificationHelper
 import com.openclaw.android.data.SettingsRepository
 import com.openclaw.android.data.SpaceManager
+import com.openclaw.android.data.db.AppDatabase
 import com.openclaw.android.llm.*
 import com.openclaw.android.sandbox.SandboxedFileSystem
 import com.openclaw.android.tools.*
 
-/**
- * Application singleton. Wires up all components:
- * - Settings (encrypted API key storage)
- * - Sandboxed file system
- * - LLM providers (Gemini, Groq, Cerebras)
- * - Tool registry (file ops, web search, share, export)
- * - Space manager (projects with knowledge bases)
- * - Agent runtime
- */
 class OpenClawApp : Application() {
 
     lateinit var settings: SettingsRepository
@@ -38,8 +31,14 @@ class OpenClawApp : Application() {
     lateinit var spaceManager: SpaceManager
         private set
 
+    lateinit var conversationManager: ConversationManager
+        private set
+
     override fun onCreate() {
         super.onCreate()
+
+        // Notification channel
+        NotificationHelper.createChannel(this)
 
         // Settings
         settings = SettingsRepository(this)
@@ -50,6 +49,13 @@ class OpenClawApp : Application() {
         // Space manager
         spaceManager = SpaceManager(this)
 
+        // Database
+        val database = AppDatabase.getInstance(this)
+        val dao = database.conversationDao()
+
+        // Conversation manager (Room-backed)
+        conversationManager = ConversationManager(dao)
+
         // LLM providers
         val providers = mapOf(
             "gemini" to GeminiProvider(apiKeyProvider = { settings.getGeminiKey() }),
@@ -57,9 +63,6 @@ class OpenClawApp : Application() {
             "cerebras" to CerebrasProvider(apiKeyProvider = { settings.getCerebrasKey() }),
         )
         modelRouter = ModelRouter(providers)
-
-        // Conversation
-        val conversationManager = ConversationManager()
 
         // Tools
         toolRegistry = ToolRegistry().apply {
@@ -85,6 +88,9 @@ class OpenClawApp : Application() {
             conversationManager = conversationManager,
             spaceManager = spaceManager,
             sandboxedFileSystem = sandboxedFileSystem,
+            onBackgroundResponse = { preview ->
+                NotificationHelper.showResponseReady(this@OpenClawApp, preview)
+            },
         ).apply {
             systemPrompt = settings.getSystemPrompt()
             preferredModelId = settings.getDefaultModel().ifBlank { null }

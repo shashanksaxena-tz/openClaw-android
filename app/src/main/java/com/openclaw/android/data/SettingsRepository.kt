@@ -42,6 +42,10 @@ class SettingsRepository(context: Context) {
     fun getSystemPrompt(): String = prefs.getString(KEY_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT) ?: DEFAULT_SYSTEM_PROMPT
     fun setSystemPrompt(prompt: String) { prefs.edit().putString(KEY_SYSTEM_PROMPT, prompt).apply() }
 
+    // Onboarding
+    fun getOnboardingComplete(): Boolean = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
+    fun setOnboardingComplete(complete: Boolean) { prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETE, complete).apply() }
+
     // Check if any provider is configured
     fun hasAnyApiKey(): Boolean = getGeminiKey().isNotBlank() ||
             getGroqKey().isNotBlank() ||
@@ -53,5 +57,6 @@ class SettingsRepository(context: Context) {
         private const val KEY_CEREBRAS = "api_key_cerebras"
         private const val KEY_DEFAULT_MODEL = "default_model"
         private const val KEY_SYSTEM_PROMPT = "system_prompt"
+        private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
     }
 }

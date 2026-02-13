@@ -7,101 +7,146 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Workspaces
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import com.openclaw.android.ui.screens.ChatScreen
-import com.openclaw.android.ui.screens.FileBrowserScreen
-import com.openclaw.android.ui.screens.SettingsScreen
-import com.openclaw.android.ui.screens.SpacesScreen
+import com.openclaw.android.data.db.ConversationEntity
+import com.openclaw.android.ui.screens.*
 import com.openclaw.android.ui.theme.OpenClawTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
         val app = application as OpenClawApp
 
         setContent {
             OpenClawTheme {
-                MainNavigation(app)
+                MainApp(app)
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MainNavigation(app: OpenClawApp) {
-    var currentTab by remember { mutableIntStateOf(0) }
+private fun MainApp(app: OpenClawApp) {
+    val scope = rememberCoroutineScope()
 
-    Scaffold(
-        bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = NavigationBarDefaults.Elevation,
-            ) {
-                NavigationBarItem(
-                    selected = currentTab == 0,
-                    onClick = { currentTab = 0 },
-                    icon = { Icon(Icons.Default.Chat, contentDescription = "Chat") },
-                    label = { Text("Chat") },
-                )
-                NavigationBarItem(
-                    selected = currentTab == 1,
-                    onClick = { currentTab = 1 },
-                    icon = { Icon(Icons.Default.Workspaces, contentDescription = "Spaces") },
-                    label = { Text("Spaces") },
-                )
-                NavigationBarItem(
-                    selected = currentTab == 2,
-                    onClick = { currentTab = 2 },
-                    icon = { Icon(Icons.Default.Folder, contentDescription = "Files") },
-                    label = { Text("Files") },
-                )
-                NavigationBarItem(
-                    selected = currentTab == 3,
-                    onClick = { currentTab = 3 },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                    label = { Text("Settings") },
+    // Check onboarding
+    var showOnboarding by remember {
+        mutableStateOf(!app.settings.hasAnyApiKey() && !app.settings.getOnboardingComplete())
+    }
+
+    if (showOnboarding) {
+        OnboardingScreen(
+            settings = app.settings,
+            onComplete = {
+                app.settings.setOnboardingComplete(true)
+                showOnboarding = false
+            },
+        )
+        return
+    }
+
+    // Redirect to settings if no API key after onboarding
+    var currentTab by remember { mutableIntStateOf(if (app.settings.hasAnyApiKey()) 0 else 2) }
+
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val conversations by app.conversationManager.allConversations.collectAsState(initial = emptyList())
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                ConversationHistoryPanel(
+                    conversations = conversations,
+                    activeConversationId = app.conversationManager.activeConversationId,
+                    onNewConversation = {
+                        scope.launch {
+                            app.agentRuntime.startNewConversation()
+                            drawerState.close()
+                            currentTab = 0
+                        }
+                    },
+                    onSelectConversation = { id ->
+                        scope.launch {
+                            app.agentRuntime.loadConversation(id)
+                            drawerState.close()
+                            currentTab = 0
+                        }
+                    },
+                    onDeleteConversation = { id ->
+                        scope.launch {
+                            app.conversationManager.deleteConversation(id)
+                        }
+                    },
+                    onSearchConversations = { query ->
+                        app.conversationManager.searchConversations(query)
+                    },
                 )
             }
         },
-    ) { padding ->
-        Crossfade(targetState = currentTab, label = "tab_transition") { tab ->
-            when (tab) {
-                0 -> ChatScreen(
-                    runtime = app.agentRuntime,
-                    onNavigateToSettings = { currentTab = 3 },
-                    modifier = Modifier.padding(padding),
-                )
-                1 -> SpacesScreen(
-                    spaceManager = app.spaceManager,
-                    agentRuntime = app.agentRuntime,
-                    modifier = Modifier.padding(padding),
-                )
-                2 -> FileBrowserScreen(
-                    fs = app.sandboxedFileSystem,
-                    modifier = Modifier.padding(padding),
-                )
-                3 -> SettingsScreen(
-                    settings = app.settings,
-                    modelRouter = app.modelRouter,
-                    onBack = { currentTab = 0 },
-                    modifier = Modifier.padding(padding),
-                )
+    ) {
+        Scaffold(
+            bottomBar = {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = NavigationBarDefaults.Elevation,
+                ) {
+                    NavigationBarItem(
+                        selected = currentTab == 0,
+                        onClick = { currentTab = 0 },
+                        icon = { Icon(Icons.Default.Chat, "Chat") },
+                        label = { Text("Chat") },
+                    )
+                    NavigationBarItem(
+                        selected = currentTab == 1,
+                        onClick = { currentTab = 1 },
+                        icon = { Icon(Icons.Default.Folder, "Files") },
+                        label = { Text("Files") },
+                    )
+                    NavigationBarItem(
+                        selected = currentTab == 2,
+                        onClick = { currentTab = 2 },
+                        icon = { Icon(Icons.Default.Settings, "Settings") },
+                        label = { Text("Settings") },
+                    )
+                }
+            },
+        ) { padding ->
+            Crossfade(targetState = currentTab, label = "tab") { tab ->
+                when (tab) {
+                    0 -> ChatScreen(
+                        runtime = app.agentRuntime,
+                        onNavigateToSettings = { currentTab = 2 },
+                        modifier = Modifier.padding(padding),
+                        onOpenDrawer = { scope.launch { drawerState.open() } },
+                    )
+                    1 -> FileBrowserScreen(
+                        fs = app.sandboxedFileSystem,
+                        activeSpaceName = app.agentRuntime.activeSpaceName,
+                        onAskAi = { file ->
+                            scope.launch {
+                                val text = "Tell me about this file: ${file.name}"
+                                app.agentRuntime.sendMessage(text)
+                                currentTab = 0
+                            }
+                        },
+                        modifier = Modifier.padding(padding),
+                    )
+                    2 -> SettingsScreen(
+                        settings = app.settings,
+                        modelRouter = app.modelRouter,
+                        spaceManager = app.spaceManager,
+                        agentRuntime = app.agentRuntime,
+                        onBack = { currentTab = 0 },
+                        modifier = Modifier.padding(padding),
+                    )
+                }
             }
-        }
-    }
-
-    if (!app.settings.hasAnyApiKey()) {
-        LaunchedEffect(Unit) {
-            currentTab = 3
         }
     }
 }

@@ -5,31 +5,22 @@ import com.openclaw.android.llm.*
 import com.openclaw.android.sandbox.SandboxedFileSystem
 import com.openclaw.android.tools.ToolRegistry
 import com.openclaw.android.tools.ToolResult
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * The agent runtime: orchestrates the LLM <-> Tool loop.
- *
- * Flow:
- * 1. User sends message (text + optional media)
- * 2. Runtime sends to LLM with tool definitions
- * 3. If LLM returns tool calls, execute them and feed results back
- * 4. Repeat until LLM returns a text response (no tool calls)
- * 5. Display final response to user
- *
- * Supports spaces/projects with per-space context and knowledge bases.
- */
 class AgentRuntime(
     private val modelRouter: ModelRouter,
     private val toolRegistry: ToolRegistry,
     private val conversationManager: ConversationManager,
     private val spaceManager: SpaceManager? = null,
     private val sandboxedFileSystem: SandboxedFileSystem? = null,
+    private val onBackgroundResponse: ((String) -> Unit)? = null,
 ) {
     companion object {
         const val MAX_TOOL_ITERATIONS = 10
+        const val TOOL_TIMEOUT_MS = 30_000L
     }
 
     private val _state = MutableStateFlow<AgentState>(AgentState.Idle)
@@ -47,9 +38,24 @@ class AgentRuntime(
             spaceManager?.getSpaces()?.find { it.id == id }?.let { "${it.emoji} ${it.name}" }
         }
 
+    val activeModelName: String?
+        get() = preferredModelId?.let { id ->
+            modelRouter.resolveModel(id)?.modelInfo?.displayName
+        }
+
+    // Cancel support
+    private var currentJob: Job? = null
+    private var _isCancelled = false
+
     fun setActiveSpace(spaceId: String?) {
         _activeSpaceId = spaceId
         sandboxedFileSystem?.setActiveSpace(spaceId)
+    }
+
+    fun cancel() {
+        _isCancelled = true
+        currentJob?.cancel()
+        _state.value = AgentState.Idle
     }
 
     private fun emit(event: AgentEvent) {
@@ -59,7 +65,6 @@ class AgentRuntime(
     private fun buildSystemPrompt(): String {
         val base = systemPrompt
         val spaceId = _activeSpaceId ?: return base
-
         val space = spaceManager?.getSpaces()?.find { it.id == spaceId } ?: return base
         val knowledge = spaceManager?.getKnowledgeBase(spaceId) ?: ""
 
@@ -67,9 +72,7 @@ class AgentRuntime(
             appendLine(base)
             appendLine()
             appendLine("## Active Space: ${space.emoji} ${space.name}")
-            if (space.description.isNotBlank()) {
-                appendLine("Description: ${space.description}")
-            }
+            if (space.description.isNotBlank()) appendLine("Description: ${space.description}")
             space.systemPrompt?.let {
                 appendLine()
                 appendLine("### Space-specific instructions:")
@@ -81,30 +84,50 @@ class AgentRuntime(
                 appendLine(knowledge)
             }
             appendLine()
-            appendLine("All file operations (read_file, write_file, list_files, etc.) now automatically")
-            appendLine("route to this space's directory. Just use paths like 'myfile.txt' directly.")
+            appendLine("All file operations now automatically route to this space's directory.")
+        }
+    }
+
+    private var lastUserText: String = ""
+    private var lastUserMedia: List<ContentPart> = emptyList()
+
+    suspend fun retryLastMessage() {
+        if (lastUserText.isNotBlank() || lastUserMedia.isNotEmpty()) {
+            // Remove the last error event
+            _events.value = _events.value.dropLastWhile { it is AgentEvent.Error }
+            sendMessage(lastUserText, lastUserMedia, isRetry = true)
         }
     }
 
     suspend fun sendMessage(
         text: String,
         media: List<ContentPart> = emptyList(),
+        isRetry: Boolean = false,
     ) {
         if (_state.value is AgentState.Running) return
 
+        _isCancelled = false
         _state.value = AgentState.Running
+        lastUserText = text
+        lastUserMedia = media
 
-        conversationManager.addUserMessage(text, media)
-        emit(AgentEvent.UserMessage(text, media))
+        if (!isRetry) {
+            conversationManager.addUserMessage(text, media)
+            emit(AgentEvent.UserMessage(text, media))
+        }
 
         val hasImages = media.any { it.type == "image_base64" }
         val hasAudio = media.any { it.type == "audio_base64" }
 
         val selection = modelRouter.selectBestModel(preferredModelId, hasImages, hasAudio)
         if (selection == null) {
-            val errorMsg = "No LLM provider configured. Please add an API key in Settings."
-            emit(AgentEvent.AssistantMessage(errorMsg))
-            conversationManager.addAssistantMessage(errorMsg)
+            val error = ErrorHandler.UserError(
+                title = "No AI configured",
+                message = "Add an API key in Settings to start chatting.",
+                action = ErrorHandler.ErrorAction.OpenSettings,
+            )
+            emit(AgentEvent.Error(ErrorHandler.formatForChat(error)))
+            conversationManager.addAssistantMessage(ErrorHandler.formatForChat(error))
             _state.value = AgentState.Idle
             return
         }
@@ -112,94 +135,150 @@ class AgentRuntime(
         emit(AgentEvent.ModelSelected(selection.modelInfo.displayName))
 
         val fullSystemPrompt = buildSystemPrompt()
-
         var iterations = 0
-        while (iterations < MAX_TOOL_ITERATIONS) {
-            iterations++
 
-            val request = ChatRequest(
-                model = selection.modelId,
-                messages = conversationManager.getMessagesForRequest(),
-                tools = if (selection.modelInfo.supportsToolUse) toolRegistry.getDefinitions() else null,
-                systemPrompt = fullSystemPrompt,
-            )
+        currentJob = CoroutineScope(Dispatchers.Default).launch {
+            try {
+                while (iterations < MAX_TOOL_ITERATIONS && !_isCancelled) {
+                    iterations++
 
-            var responseText = ""
-            var responseToolCalls = listOf<ToolCallRequest>()
-            var error: Exception? = null
+                    val request = ChatRequest(
+                        model = selection.modelId,
+                        messages = conversationManager.getMessagesForRequest(),
+                        tools = if (selection.modelInfo.supportsToolUse) toolRegistry.getDefinitions() else null,
+                        systemPrompt = fullSystemPrompt,
+                    )
 
-            _state.value = AgentState.Running
+                    var responseText = ""
+                    var responseToolCalls = listOf<ToolCallRequest>()
+                    var error: Exception? = null
 
-            val streamBuffer = StringBuilder()
-            emit(AgentEvent.StreamStart)
+                    val streamBuffer = StringBuilder()
+                    emit(AgentEvent.StreamStart)
 
-            selection.provider.chatCompletion(
-                request = request,
-                onChunk = { chunk ->
-                    streamBuffer.append(chunk)
-                    emit(AgentEvent.StreamChunk(chunk, streamBuffer.toString()))
-                },
-                onToolCall = { /* collected in onDone */ },
-                onDone = { response ->
-                    responseText = response.content
-                    responseToolCalls = response.toolCalls
-                    response.usage?.let { emit(AgentEvent.TokenUsage(it)) }
-                },
-                onError = { e -> error = e },
-            )
+                    selection.provider.chatCompletion(
+                        request = request,
+                        onChunk = { chunk ->
+                            if (_isCancelled) return@chatCompletion
+                            streamBuffer.append(chunk)
+                            emit(AgentEvent.StreamChunk(chunk, streamBuffer.toString()))
+                        },
+                        onToolCall = { /* collected in onDone */ },
+                        onDone = { response ->
+                            responseText = response.content
+                            responseToolCalls = response.toolCalls
+                            response.usage?.let { emit(AgentEvent.TokenUsage(it)) }
+                        },
+                        onError = { e -> error = e },
+                    )
 
-            emit(AgentEvent.StreamEnd)
+                    emit(AgentEvent.StreamEnd)
 
-            if (error != null) {
-                val errorMsg = "Error: ${error!!.message}"
-                emit(AgentEvent.Error(errorMsg))
-                conversationManager.addAssistantMessage(errorMsg)
-                break
-            }
-
-            if (responseToolCalls.isEmpty()) {
-                conversationManager.addAssistantMessage(responseText)
-                emit(AgentEvent.AssistantMessage(responseText))
-                break
-            }
-
-            conversationManager.addAssistantMessage(responseText, responseToolCalls)
-            if (responseText.isNotBlank()) {
-                emit(AgentEvent.AssistantMessage(responseText))
-            }
-
-            for (toolCall in responseToolCalls) {
-                emit(AgentEvent.ToolCallStart(toolCall.name, toolCall.arguments.toString()))
-                _state.value = AgentState.ExecutingTool(toolCall.name)
-
-                val tool = toolRegistry.get(toolCall.name)
-                val result = if (tool != null) {
-                    try {
-                        tool.execute(toolCall.arguments)
-                    } catch (e: Exception) {
-                        ToolResult.error("Tool execution failed: ${e.message}")
+                    if (_isCancelled) {
+                        if (streamBuffer.isNotEmpty()) {
+                            val partial = streamBuffer.toString()
+                            conversationManager.addAssistantMessage("$partial\n\n[Generation stopped]")
+                            emit(AgentEvent.AssistantMessage("$partial\n\n*[Generation stopped]*"))
+                        }
+                        break
                     }
-                } else {
-                    ToolResult.error("Unknown tool: ${toolCall.name}")
+
+                    if (error != null) {
+                        val userError = ErrorHandler.mapError(error!!)
+                        val errorMsg = ErrorHandler.formatForChat(userError)
+                        emit(AgentEvent.Error(errorMsg))
+                        conversationManager.addAssistantMessage(errorMsg)
+                        break
+                    }
+
+                    if (responseToolCalls.isEmpty()) {
+                        conversationManager.addAssistantMessage(responseText)
+                        emit(AgentEvent.AssistantMessage(responseText))
+                        onBackgroundResponse?.invoke(responseText)
+                        break
+                    }
+
+                    conversationManager.addAssistantMessage(responseText, responseToolCalls)
+                    if (responseText.isNotBlank()) emit(AgentEvent.AssistantMessage(responseText))
+
+                    for (toolCall in responseToolCalls) {
+                        if (_isCancelled) break
+                        emit(AgentEvent.ToolCallStart(toolCall.name, toolCall.arguments.toString()))
+                        _state.value = AgentState.ExecutingTool(toolCall.name)
+
+                        val tool = toolRegistry.get(toolCall.name)
+                        val result = if (tool != null) {
+                            try {
+                                withTimeoutOrNull(TOOL_TIMEOUT_MS) {
+                                    tool.execute(toolCall.arguments)
+                                } ?: ToolResult.error("Tool '${toolCall.name}' timed out after ${TOOL_TIMEOUT_MS / 1000}s")
+                            } catch (e: Exception) {
+                                ToolResult.error("Tool execution failed: ${e.message}")
+                            }
+                        } else {
+                            ToolResult.error("Unknown tool: ${toolCall.name}")
+                        }
+
+                        conversationManager.addToolResult(toolCall.id, toolCall.name, result.output)
+                        emit(AgentEvent.ToolCallResult(toolCall.name, result.output, result.isError))
+                    }
                 }
 
-                conversationManager.addToolResult(toolCall.id, toolCall.name, result.output)
-                emit(AgentEvent.ToolCallResult(toolCall.name, result.output, result.isError))
+                if (iterations >= MAX_TOOL_ITERATIONS && !_isCancelled) {
+                    val msg = "Reached maximum tool iterations ($MAX_TOOL_ITERATIONS). Stopping."
+                    emit(AgentEvent.Error(msg))
+                    conversationManager.addAssistantMessage(msg)
+                }
+            } catch (e: CancellationException) {
+                // Job was cancelled
+            } catch (e: Exception) {
+                val userError = ErrorHandler.mapError(e)
+                emit(AgentEvent.Error(ErrorHandler.formatForChat(userError)))
+            } finally {
+                _state.value = AgentState.Idle
             }
         }
 
-        if (iterations >= MAX_TOOL_ITERATIONS) {
-            val msg = "Reached maximum tool iterations ($MAX_TOOL_ITERATIONS). Stopping."
-            emit(AgentEvent.Error(msg))
-            conversationManager.addAssistantMessage(msg)
-        }
-
-        _state.value = AgentState.Idle
+        currentJob?.join()
     }
 
-    fun clearConversation() {
+    suspend fun clearConversation() {
+        cancel()
         conversationManager.clear()
         _events.value = emptyList()
+    }
+
+    suspend fun startNewConversation() {
+        cancel()
+        conversationManager.startNewConversation(_activeSpaceId)
+        _events.value = emptyList()
+    }
+
+    suspend fun loadConversation(conversationId: String) {
+        cancel()
+        conversationManager.loadConversation(conversationId)
+        _events.value = emptyList()
+        // Rebuild events from loaded messages
+        for (msg in conversationManager.messages) {
+            when (msg.role) {
+                "user" -> emit(AgentEvent.UserMessage(
+                    text = msg.content.firstOrNull { it.type == "text" }?.text ?: "",
+                    media = msg.content.filter { it.type != "text" },
+                ))
+                "assistant" -> {
+                    val text = msg.content.firstOrNull { it.type == "text" }?.text ?: ""
+                    if (text.isNotBlank()) emit(AgentEvent.AssistantMessage(text))
+                    msg.toolCalls?.forEach { tc ->
+                        emit(AgentEvent.ToolCallStart(tc.name, tc.arguments.toString()))
+                    }
+                }
+                "tool" -> emit(AgentEvent.ToolCallResult(
+                    msg.toolCallId ?: "unknown",
+                    msg.content.firstOrNull()?.text ?: "",
+                    msg.content.firstOrNull()?.text?.startsWith("Error:") == true,
+                ))
+            }
+        }
     }
 }
 
