@@ -194,7 +194,7 @@ fun SettingsScreen(
                         if (isActive) agentRuntime.setActiveSpace(null)
                         else {
                             agentRuntime.setActiveSpace(space.id)
-                            scope.launch { agentRuntime.clearConversation() }
+                            scope.launch { agentRuntime.startNewConversation() }
                         }
                     },
                 ) {
@@ -253,7 +253,7 @@ fun SettingsScreen(
         )
 
         Spacer(Modifier.height(32.dp))
-        Text("OpenClaw Android v0.3.0",
+        Text("OpenClaw Android v0.3.1",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
     }

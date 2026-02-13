@@ -46,16 +46,24 @@ class AgentRuntime(
     // Cancel support
     private var currentJob: Job? = null
     private var _isCancelled = false
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     fun setActiveSpace(spaceId: String?) {
         _activeSpaceId = spaceId
         sandboxedFileSystem?.setActiveSpace(spaceId)
+        // Notify conversation manager about the space change
+        // Using runBlocking is safe here since setActiveSpace just sets a field
+        kotlinx.coroutines.runBlocking { conversationManager.setActiveSpace(spaceId) }
     }
 
     fun cancel() {
         _isCancelled = true
         currentJob?.cancel()
         _state.value = AgentState.Idle
+    }
+
+    fun destroy() {
+        scope.cancel()
     }
 
     private fun emit(event: AgentEvent) {
@@ -137,7 +145,7 @@ class AgentRuntime(
         val fullSystemPrompt = buildSystemPrompt()
         var iterations = 0
 
-        currentJob = CoroutineScope(Dispatchers.Default).launch {
+        currentJob = scope.launch {
             try {
                 while (iterations < MAX_TOOL_ITERATIONS && !_isCancelled) {
                     iterations++
@@ -239,7 +247,7 @@ class AgentRuntime(
             }
         }
 
-        currentJob?.join()
+        // Job runs in background, UI observes state via StateFlow
     }
 
     suspend fun clearConversation() {

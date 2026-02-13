@@ -150,25 +150,6 @@ fun MediaThumbnail(
     }
 }
 
-/**
- * Larger image preview shown inside chat bubbles.
- */
-@Composable
-fun InlinImagePreview(
-    uri: Uri,
-    modifier: Modifier = Modifier,
-) {
-    AsyncImage(
-        model = uri,
-        contentDescription = "Shared image",
-        contentScale = ContentScale.FillWidth,
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(max = 200.dp)
-            .clip(RoundedCornerShape(8.dp)),
-    )
-}
-
 sealed class MediaItem {
     data class Image(val uri: Uri, val name: String = "") : MediaItem()
     data class Video(val uri: Uri, val name: String = "") : MediaItem()

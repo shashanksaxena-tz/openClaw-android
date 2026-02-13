@@ -83,6 +83,9 @@ private fun MainApp(app: OpenClawApp) {
                             app.conversationManager.deleteConversation(id)
                         }
                     },
+                    onRenameConversation = { id, newTitle ->
+                        app.conversationManager.renameConversation(id, newTitle)
+                    },
                     onSearchConversations = { query ->
                         app.conversationManager.searchConversations(query)
                     },
@@ -124,13 +127,47 @@ private fun MainApp(app: OpenClawApp) {
                         onNavigateToSettings = { currentTab = 2 },
                         modifier = Modifier.padding(padding),
                         onOpenDrawer = { scope.launch { drawerState.open() } },
+                        modelRouter = app.modelRouter,
+                        onExportChat = { filename ->
+                            try {
+                                val text = app.conversationManager.getConversationAsText()
+                                if (text.isNotBlank()) {
+                                    val file = app.sandboxedFileSystem.resolve(filename).getOrNull()
+                                    if (file != null) {
+                                        file.parentFile?.mkdirs()
+                                        val content = buildString {
+                                            appendLine("# Conversation Export")
+                                            appendLine("_Exported on ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}_")
+                                            appendLine()
+                                            appendLine("---")
+                                            appendLine()
+                                            append(text)
+                                        }
+                                        file.writeText(content)
+                                        true
+                                    } else false
+                                } else false
+                            } catch (_: Exception) { false }
+                        },
                     )
                     1 -> FileBrowserScreen(
                         fs = app.sandboxedFileSystem,
                         activeSpaceName = app.agentRuntime.activeSpaceName,
                         onAskAi = { file ->
                             scope.launch {
-                                val text = "Tell me about this file: ${file.name}"
+                                val content = try {
+                                    if (file.length() < 100_000 && file.isFile) {
+                                        file.readText()
+                                    } else if (file.isFile) {
+                                        file.readText().take(5000) + "\n... (truncated, file is ${file.length() / 1024}KB)"
+                                    } else null
+                                } catch (_: Exception) { null }
+
+                                val text = if (content != null) {
+                                    "Here's the file **${file.name}**:\n\n```\n$content\n```\n\nWhat can you tell me about this file?"
+                                } else {
+                                    "I have a file called ${file.name} (${file.length() / 1024}KB). What would you like to know about it?"
+                                }
                                 app.agentRuntime.sendMessage(text)
                                 currentTab = 0
                             }

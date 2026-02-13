@@ -96,4 +96,9 @@ class OpenClawApp : Application() {
             preferredModelId = settings.getDefaultModel().ifBlank { null }
         }
     }
+
+    override fun onTerminate() {
+        super.onTerminate()
+        agentRuntime.destroy()
+    }
 }

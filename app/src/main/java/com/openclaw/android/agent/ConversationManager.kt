@@ -117,7 +117,7 @@ class ConversationManager(
         val msg = ChatMessage(
             role = "tool",
             content = listOf(ContentPart(type = "text", text = result)),
-            toolCallId = toolName,
+            toolCallId = toolCallId,
         )
         _messages.add(msg)
         persistMessage(convId, msg)
@@ -135,6 +135,10 @@ class ConversationManager(
             _messages.clear()
             _activeConversationId = null
         }
+    }
+
+    suspend fun renameConversation(conversationId: String, newTitle: String) {
+        dao.updateTitle(conversationId, newTitle)
     }
 
     fun getMessagesForRequest(): List<ChatMessage> = _messages.toList()

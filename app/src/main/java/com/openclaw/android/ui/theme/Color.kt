@@ -35,8 +35,3 @@ val DarkOnSurface = Color(0xFFF5E6D8)
 val DarkOnSurfaceVariant = Color(0xFFB5A393)
 val DarkOutline = Color(0xFF4A3D32)
 
-// Semantic colors
-val ToolCallBg = Color(0xFFF5EDE5)
-val ToolCallBgDark = Color(0xFF2A2520)
-val ErrorRed = Color(0xFFEF5350)
-val SuccessGreen = Color(0xFF66BB6A)

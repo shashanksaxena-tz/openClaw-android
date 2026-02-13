@@ -1,7 +1,9 @@
 package com.openclaw.android.ui.screens
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -28,12 +30,14 @@ fun ConversationHistoryPanel(
     onNewConversation: () -> Unit,
     onSelectConversation: (String) -> Unit,
     onDeleteConversation: (String) -> Unit,
+    onRenameConversation: suspend (String, String) -> Unit,
     onSearchConversations: suspend (String) -> List<ConversationEntity>,
     modifier: Modifier = Modifier,
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<ConversationEntity>?>(null) }
     var conversationToDelete by remember { mutableStateOf<ConversationEntity?>(null) }
+    var conversationToRename by remember { mutableStateOf<ConversationEntity?>(null) }
     val scope = rememberCoroutineScope()
     val dateFormat = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
     val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
@@ -55,6 +59,36 @@ fun ConversationHistoryPanel(
                 ) { Text("Delete") }
             },
             dismissButton = { TextButton(onClick = { conversationToDelete = null }) { Text("Cancel") } },
+        )
+    }
+
+    // Rename dialog
+    conversationToRename?.let { conv ->
+        var newTitle by remember { mutableStateOf(conv.title) }
+        AlertDialog(
+            onDismissRequest = { conversationToRename = null },
+            title = { Text("Rename conversation") },
+            text = {
+                OutlinedTextField(
+                    value = newTitle,
+                    onValueChange = { newTitle = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Title") },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            onRenameConversation(conv.id, newTitle.trim())
+                            conversationToRename = null
+                        }
+                    },
+                    enabled = newTitle.isNotBlank(),
+                ) { Text("Rename") }
+            },
+            dismissButton = { TextButton(onClick = { conversationToRename = null }) { Text("Cancel") } },
         )
     }
 
@@ -173,6 +207,7 @@ fun ConversationHistoryPanel(
                             timeFormat = timeFormat,
                             onClick = { onSelectConversation(conv.id) },
                             onDelete = { conversationToDelete = conv },
+                            onRename = { conversationToRename = conv },
                         )
                     }
                 }
@@ -181,6 +216,7 @@ fun ConversationHistoryPanel(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ConversationItem(
     conversation: ConversationEntity,
@@ -188,16 +224,20 @@ private fun ConversationItem(
     timeFormat: SimpleDateFormat,
     onClick: () -> Unit,
     onDelete: () -> Unit,
+    onRename: () -> Unit,
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp)
-            .animateContentSize(),
+            .animateContentSize()
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onRename,
+            ),
         shape = RoundedCornerShape(12.dp),
         color = if (isActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
             else MaterialTheme.colorScheme.surface,
-        onClick = onClick,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
