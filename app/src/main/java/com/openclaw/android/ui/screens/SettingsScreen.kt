@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -24,6 +23,7 @@ fun SettingsScreen(
     settings: SettingsRepository,
     modelRouter: ModelRouter,
     onBack: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
 
@@ -34,207 +34,189 @@ fun SettingsScreen(
     var systemPrompt by remember { mutableStateOf(settings.getSystemPrompt()) }
     var showModelPicker by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Settings") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        Column(
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+    ) {
+        Text(
+            text = "Settings",
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+
+        Spacer(Modifier.height(24.dp))
+
+        Text(
+            text = "API Keys",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "Keys are stored encrypted on device. Never sent anywhere except to the respective API provider.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(12.dp))
+
+        ApiKeyField(
+            label = "Gemini API Key",
+            value = geminiKey,
+            onValueChange = {
+                geminiKey = it
+                scope.launch { settings.setGeminiKey(it) }
+            },
+            hint = "Free tier: 250-1500 req/day",
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        ApiKeyField(
+            label = "Groq API Key",
+            value = groqKey,
+            onValueChange = {
+                groqKey = it
+                scope.launch { settings.setGroqKey(it) }
+            },
+            hint = "Free tier: fast inference",
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        ApiKeyField(
+            label = "Cerebras API Key",
+            value = cerebrasKey,
+            onValueChange = {
+                cerebrasKey = it
+                scope.launch { settings.setCerebrasKey(it) }
+            },
+            hint = "Free tier: fastest inference",
+        )
+
+        Spacer(Modifier.height(24.dp))
+
+        Text(
+            text = "Default Model",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "The model used for text conversations. Vision-capable models are auto-selected when sharing images.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+
+        val availableModels = modelRouter.getAvailableModels()
+        val currentModel = availableModels.find { (_, info) -> info.id == selectedModel }
+
+        OutlinedCard(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .fillMaxWidth()
+                .clickable { showModelPicker = true },
         ) {
-            // API Keys section
-            Text(
-                text = "API Keys",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Keys are stored encrypted on device. Never sent anywhere except to the respective API provider.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(12.dp))
-
-            ApiKeyField(
-                label = "Gemini API Key",
-                value = geminiKey,
-                onValueChange = {
-                    geminiKey = it
-                    scope.launch { settings.setGeminiKey(it) }
-                },
-                hint = "Free tier: 1500 req/day",
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            ApiKeyField(
-                label = "Groq API Key",
-                value = groqKey,
-                onValueChange = {
-                    groqKey = it
-                    scope.launch { settings.setGroqKey(it) }
-                },
-                hint = "Free tier: fast inference",
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            ApiKeyField(
-                label = "Cerebras API Key",
-                value = cerebrasKey,
-                onValueChange = {
-                    cerebrasKey = it
-                    scope.launch { settings.setCerebrasKey(it) }
-                },
-                hint = "Free tier: fastest inference",
-            )
-
-            Spacer(Modifier.height(24.dp))
-
-            // Model selection
-            Text(
-                text = "Default Model",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "The model used for text conversations. Vision-capable models are auto-selected when sharing images.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(8.dp))
-
-            val availableModels = modelRouter.getAvailableModels()
-            val currentModel = availableModels.find { (_, info) -> info.id == selectedModel }
-
-            OutlinedCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showModelPicker = true },
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = currentModel?.second?.displayName ?: "Auto (best available)",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                if (currentModel != null) {
                     Text(
-                        text = currentModel?.second?.displayName ?: "Auto (best available)",
-                        style = MaterialTheme.typography.bodyLarge,
+                        text = "${currentModel.first.displayName} · ${currentModel.second.contextWindow / 1000}K context" +
+                                if (currentModel.second.supportsVision) " · Vision" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    if (currentModel != null) {
-                        Text(
-                            text = "${currentModel.first.displayName} - ${currentModel.second.contextWindow / 1000}K context",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
                 }
             }
+        }
 
-            if (showModelPicker) {
-                AlertDialog(
-                    onDismissRequest = { showModelPicker = false },
-                    title = { Text("Select Model") },
-                    text = {
-                        Column {
-                            // Auto option
+        if (showModelPicker) {
+            AlertDialog(
+                onDismissRequest = { showModelPicker = false },
+                title = { Text("Select Model") },
+                text = {
+                    Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedModel = ""
+                                    settings.setDefaultModel("")
+                                    showModelPicker = false
+                                }
+                                .padding(12.dp),
+                        ) {
+                            RadioButton(selected = selectedModel.isBlank(), onClick = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Auto (best available)")
+                        }
+
+                        for ((provider, model) in availableModels) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        selectedModel = ""
-                                        settings.setDefaultModel("")
+                                        selectedModel = model.id
+                                        settings.setDefaultModel(model.id)
                                         showModelPicker = false
                                     }
                                     .padding(12.dp),
                             ) {
-                                RadioButton(
-                                    selected = selectedModel.isBlank(),
-                                    onClick = null,
-                                )
+                                RadioButton(selected = selectedModel == model.id, onClick = null)
                                 Spacer(Modifier.width(8.dp))
-                                Text("Auto (best available)")
-                            }
-
-                            for ((provider, model) in availableModels) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            selectedModel = model.id
-                                            settings.setDefaultModel(model.id)
-                                            showModelPicker = false
-                                        }
-                                        .padding(12.dp),
-                                ) {
-                                    RadioButton(
-                                        selected = selectedModel == model.id,
-                                        onClick = null,
+                                Column {
+                                    Text(model.displayName)
+                                    Text(
+                                        text = provider.displayName +
+                                                (if (model.supportsVision) " · Vision" else "") +
+                                                " · ${model.contextWindow / 1000}K",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
-                                    Spacer(Modifier.width(8.dp))
-                                    Column {
-                                        Text(model.displayName)
-                                        Text(
-                                            text = provider.displayName +
-                                                    (if (model.supportsVision) " | Vision" else "") +
-                                                    " | ${model.contextWindow / 1000}K",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
                                 }
                             }
                         }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { showModelPicker = false }) {
-                            Text("Close")
-                        }
-                    },
-                )
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            // System prompt
-            Text(
-                text = "System Prompt",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = systemPrompt,
-                onValueChange = {
-                    systemPrompt = it
-                    settings.setSystemPrompt(it)
+                    }
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 120.dp),
-                maxLines = 10,
-                textStyle = MaterialTheme.typography.bodySmall,
-            )
-
-            Spacer(Modifier.height(32.dp))
-
-            // Info
-            Text(
-                text = "OpenClaw Android v0.1.0",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                confirmButton = {
+                    TextButton(onClick = { showModelPicker = false }) { Text("Close") }
+                },
             )
         }
+
+        Spacer(Modifier.height(24.dp))
+
+        Text(
+            text = "System Prompt",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = systemPrompt,
+            onValueChange = {
+                systemPrompt = it
+                settings.setSystemPrompt(it)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 120.dp),
+            maxLines = 10,
+            textStyle = MaterialTheme.typography.bodySmall,
+        )
+
+        Spacer(Modifier.height(32.dp))
+
+        Text(
+            text = "OpenClaw Android v0.2.0",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+        )
     }
 }
 

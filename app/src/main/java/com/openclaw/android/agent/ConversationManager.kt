@@ -40,7 +40,7 @@ class ConversationManager(
             ChatMessage(
                 role = "tool",
                 content = listOf(ContentPart(type = "text", text = result)),
-                toolCallId = toolName, // Gemini uses the function name, OpenAI uses the call ID
+                toolCallId = toolName,
             )
         )
         trimIfNeeded()
@@ -50,13 +50,46 @@ class ConversationManager(
         _messages.clear()
     }
 
-    /** Get messages trimmed to fit within the context. */
     fun getMessagesForRequest(): List<ChatMessage> = _messages.toList()
 
     /**
-     * Estimate token count for a message (rough approximation: ~4 chars per token).
-     * Images count as ~1000 tokens each.
+     * Export the conversation as human-readable text for the export_chat tool.
      */
+    fun getConversationAsText(): String {
+        val sb = StringBuilder()
+        for (msg in _messages) {
+            when (msg.role) {
+                "user" -> {
+                    sb.appendLine("**User:**")
+                    for (part in msg.content) {
+                        when (part.type) {
+                            "text" -> sb.appendLine(part.text)
+                            "image_base64" -> sb.appendLine("[Image attachment]")
+                            "audio_base64" -> sb.appendLine("[Audio attachment]")
+                        }
+                    }
+                    sb.appendLine()
+                }
+                "assistant" -> {
+                    sb.appendLine("**Assistant:**")
+                    for (part in msg.content) {
+                        if (part.type == "text") sb.appendLine(part.text)
+                    }
+                    msg.toolCalls?.forEach { tc ->
+                        sb.appendLine("[Used tool: ${tc.name}]")
+                    }
+                    sb.appendLine()
+                }
+                "tool" -> {
+                    sb.appendLine("**Tool (${msg.toolCallId}):**")
+                    sb.appendLine(msg.content.firstOrNull()?.text?.take(500) ?: "")
+                    sb.appendLine()
+                }
+            }
+        }
+        return sb.toString().trim()
+    }
+
     fun estimateTokens(): Int {
         var tokens = 0
         for (msg in _messages) {
@@ -72,9 +105,7 @@ class ConversationManager(
     }
 
     private fun trimIfNeeded() {
-        // Keep at most maxMessages, but always keep at least the last user message
         while (_messages.size > maxMessages) {
-            // Don't remove if only the system-relevant messages remain
             _messages.removeAt(0)
         }
     }

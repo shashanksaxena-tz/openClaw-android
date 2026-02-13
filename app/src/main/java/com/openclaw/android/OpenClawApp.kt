@@ -4,6 +4,7 @@ import android.app.Application
 import com.openclaw.android.agent.AgentRuntime
 import com.openclaw.android.agent.ConversationManager
 import com.openclaw.android.data.SettingsRepository
+import com.openclaw.android.data.SpaceManager
 import com.openclaw.android.llm.*
 import com.openclaw.android.sandbox.SandboxedFileSystem
 import com.openclaw.android.tools.*
@@ -13,7 +14,8 @@ import com.openclaw.android.tools.*
  * - Settings (encrypted API key storage)
  * - Sandboxed file system
  * - LLM providers (Gemini, Groq, Cerebras)
- * - Tool registry
+ * - Tool registry (file ops, web search, share, export)
+ * - Space manager (projects with knowledge bases)
  * - Agent runtime
  */
 class OpenClawApp : Application() {
@@ -33,6 +35,9 @@ class OpenClawApp : Application() {
     lateinit var agentRuntime: AgentRuntime
         private set
 
+    lateinit var spaceManager: SpaceManager
+        private set
+
     override fun onCreate() {
         super.onCreate()
 
@@ -42,6 +47,9 @@ class OpenClawApp : Application() {
         // File system
         sandboxedFileSystem = SandboxedFileSystem(this)
 
+        // Space manager
+        spaceManager = SpaceManager(this)
+
         // LLM providers
         val providers = mapOf(
             "gemini" to GeminiProvider(apiKeyProvider = { settings.getGeminiKey() }),
@@ -49,6 +57,9 @@ class OpenClawApp : Application() {
             "cerebras" to CerebrasProvider(apiKeyProvider = { settings.getCerebrasKey() }),
         )
         modelRouter = ModelRouter(providers)
+
+        // Conversation
+        val conversationManager = ConversationManager()
 
         // Tools
         toolRegistry = ToolRegistry().apply {
@@ -60,16 +71,19 @@ class OpenClawApp : Application() {
             register(MoveFileTool(sandboxedFileSystem))
             register(CreateDirectoryTool(sandboxedFileSystem))
             register(FetchUrlTool())
+            register(WebSearchTool())
+            register(ShareFileTool(this@OpenClawApp, sandboxedFileSystem))
+            register(ExportChatTool(sandboxedFileSystem) {
+                conversationManager.getConversationAsText()
+            })
         }
-
-        // Conversation
-        val conversationManager = ConversationManager()
 
         // Agent runtime
         agentRuntime = AgentRuntime(
             modelRouter = modelRouter,
             toolRegistry = toolRegistry,
             conversationManager = conversationManager,
+            spaceManager = spaceManager,
         ).apply {
             systemPrompt = settings.getSystemPrompt()
             preferredModelId = settings.getDefaultModel().ifBlank { null }

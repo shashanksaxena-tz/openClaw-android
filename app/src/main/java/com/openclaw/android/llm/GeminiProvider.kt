@@ -11,8 +11,14 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /**
- * Google Gemini provider. Uses the Gemini REST API with streaming.
- * Free tier: 15 RPM, 1500 RPD, 1M TPM for Gemini 2.0 Flash.
+ * Google Gemini provider. Uses the native Gemini REST API with SSE streaming.
+ *
+ * Model tiers (free):
+ *   - Gemini 2.5 Flash:      10 RPM, 250 RPD, 1M context
+ *   - Gemini 2.5 Pro:         5 RPM, 100 RPD, 1M context
+ *   - Gemini 2.5 Flash Lite: 15 RPM, 1000 RPD, 1M context
+ *   - Gemini 2.0 Flash:      15 RPM, 1500 RPD (deprecated March 2026)
+ *   - Gemini 3 Flash Preview: 10 RPM, free preview
  */
 class GeminiProvider(
     private val apiKeyProvider: () -> String,
@@ -25,23 +31,37 @@ class GeminiProvider(
 
     override val availableModels = listOf(
         ModelInfo(
+            id = "gemini-2.5-flash",
+            displayName = "Gemini 2.5 Flash",
+            contextWindow = 1_048_576,
+            supportsVision = true,
+            supportsToolUse = true,
+        ),
+        ModelInfo(
+            id = "gemini-2.5-pro",
+            displayName = "Gemini 2.5 Pro",
+            contextWindow = 1_048_576,
+            supportsVision = true,
+            supportsToolUse = true,
+        ),
+        ModelInfo(
+            id = "gemini-2.5-flash-lite",
+            displayName = "Gemini 2.5 Flash Lite",
+            contextWindow = 1_048_576,
+            supportsVision = true,
+            supportsToolUse = true,
+        ),
+        ModelInfo(
+            id = "gemini-3-flash-preview",
+            displayName = "Gemini 3 Flash Preview",
+            contextWindow = 1_048_576,
+            supportsVision = true,
+            supportsToolUse = true,
+        ),
+        ModelInfo(
             id = "gemini-2.0-flash",
-            displayName = "Gemini 2.0 Flash",
+            displayName = "Gemini 2.0 Flash (Legacy)",
             contextWindow = 1_048_576,
-            supportsVision = true,
-            supportsToolUse = true,
-        ),
-        ModelInfo(
-            id = "gemini-2.0-flash-lite",
-            displayName = "Gemini 2.0 Flash Lite",
-            contextWindow = 1_048_576,
-            supportsVision = true,
-            supportsToolUse = true,
-        ),
-        ModelInfo(
-            id = "gemini-1.5-pro",
-            displayName = "Gemini 1.5 Pro",
-            contextWindow = 2_097_152,
             supportsVision = true,
             supportsToolUse = true,
         ),
@@ -94,7 +114,6 @@ class GeminiProvider(
             var totalCompletionTokens = 0
 
             response.body?.source()?.let { source ->
-                val buffer = StringBuilder()
                 while (!source.exhausted()) {
                     val line = source.readUtf8Line() ?: break
 
@@ -112,6 +131,9 @@ class GeminiProvider(
 
                                 for (part in parts) {
                                     val partObj = part.jsonObject
+
+                                    // Skip thinking/thought parts (Gemini 3)
+                                    if (partObj["thought"]?.jsonPrimitive?.booleanOrNull == true) continue
 
                                     // Text content
                                     partObj["text"]?.jsonPrimitive?.contentOrNull?.let { text ->
@@ -164,7 +186,6 @@ class GeminiProvider(
         putJsonArray("contents") {
             for (msg in request.messages) {
                 if (msg.role == "tool") {
-                    // Tool results go as functionResponse
                     addJsonObject {
                         put("role", "user")
                         putJsonArray("parts") {
@@ -204,7 +225,6 @@ class GeminiProvider(
                             }
                         }
 
-                        // If assistant had tool calls, include them
                         msg.toolCalls?.forEach { tc ->
                             addJsonObject {
                                 putJsonObject("functionCall") {

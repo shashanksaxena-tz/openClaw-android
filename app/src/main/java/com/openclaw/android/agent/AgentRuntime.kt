@@ -1,5 +1,6 @@
 package com.openclaw.android.agent
 
+import com.openclaw.android.data.SpaceManager
 import com.openclaw.android.llm.*
 import com.openclaw.android.tools.ToolRegistry
 import com.openclaw.android.tools.ToolResult
@@ -17,12 +18,13 @@ import kotlinx.coroutines.flow.asStateFlow
  * 4. Repeat until LLM returns a text response (no tool calls)
  * 5. Display final response to user
  *
- * Max tool iterations prevents runaway loops.
+ * Supports spaces/projects with per-space context and knowledge bases.
  */
 class AgentRuntime(
     private val modelRouter: ModelRouter,
     private val toolRegistry: ToolRegistry,
     private val conversationManager: ConversationManager,
+    private val spaceManager: SpaceManager? = null,
 ) {
     companion object {
         const val MAX_TOOL_ITERATIONS = 10
@@ -37,8 +39,48 @@ class AgentRuntime(
     var systemPrompt: String = DEFAULT_SYSTEM_PROMPT
     var preferredModelId: String? = null
 
+    private var _activeSpaceId: String? = null
+    val activeSpaceName: String?
+        get() = _activeSpaceId?.let { id ->
+            spaceManager?.getSpaces()?.find { it.id == id }?.let { "${it.emoji} ${it.name}" }
+        }
+
+    fun setActiveSpace(spaceId: String?) {
+        _activeSpaceId = spaceId
+    }
+
     private fun emit(event: AgentEvent) {
         _events.value = _events.value + event
+    }
+
+    private fun buildSystemPrompt(): String {
+        val base = systemPrompt
+        val spaceId = _activeSpaceId ?: return base
+
+        val space = spaceManager?.getSpaces()?.find { it.id == spaceId } ?: return base
+        val knowledge = spaceManager?.getKnowledgeBase(spaceId) ?: ""
+
+        return buildString {
+            appendLine(base)
+            appendLine()
+            appendLine("## Active Space: ${space.emoji} ${space.name}")
+            if (space.description.isNotBlank()) {
+                appendLine("Description: ${space.description}")
+            }
+            space.systemPrompt?.let {
+                appendLine()
+                appendLine("### Space-specific instructions:")
+                appendLine(it)
+            }
+            if (knowledge.isNotBlank()) {
+                appendLine()
+                appendLine("### Knowledge base for this space:")
+                appendLine(knowledge)
+            }
+            appendLine()
+            appendLine("Files for this space are in workspace/spaces/${space.id}/files/")
+            appendLine("Use that directory when the user asks to create or find files for this project.")
+        }
     }
 
     suspend fun sendMessage(
@@ -49,15 +91,12 @@ class AgentRuntime(
 
         _state.value = AgentState.Running
 
-        // Add user message to conversation
         conversationManager.addUserMessage(text, media)
         emit(AgentEvent.UserMessage(text, media))
 
-        // Determine if we need vision
         val hasImages = media.any { it.type == "image_base64" }
         val hasAudio = media.any { it.type == "audio_base64" }
 
-        // Select model
         val selection = modelRouter.selectBestModel(preferredModelId, hasImages, hasAudio)
         if (selection == null) {
             val errorMsg = "No LLM provider configured. Please add an API key in Settings."
@@ -69,7 +108,8 @@ class AgentRuntime(
 
         emit(AgentEvent.ModelSelected(selection.modelInfo.displayName))
 
-        // Tool calling loop
+        val fullSystemPrompt = buildSystemPrompt()
+
         var iterations = 0
         while (iterations < MAX_TOOL_ITERATIONS) {
             iterations++
@@ -78,7 +118,7 @@ class AgentRuntime(
                 model = selection.modelId,
                 messages = conversationManager.getMessagesForRequest(),
                 tools = if (selection.modelInfo.supportsToolUse) toolRegistry.getDefinitions() else null,
-                systemPrompt = systemPrompt,
+                systemPrompt = fullSystemPrompt,
             )
 
             var responseText = ""
@@ -87,7 +127,6 @@ class AgentRuntime(
 
             _state.value = AgentState.Running
 
-            // Stream the response
             val streamBuffer = StringBuilder()
             emit(AgentEvent.StreamStart)
 
@@ -108,7 +147,6 @@ class AgentRuntime(
 
             emit(AgentEvent.StreamEnd)
 
-            // Handle error
             if (error != null) {
                 val errorMsg = "Error: ${error!!.message}"
                 emit(AgentEvent.Error(errorMsg))
@@ -116,14 +154,12 @@ class AgentRuntime(
                 break
             }
 
-            // No tool calls — final response
             if (responseToolCalls.isEmpty()) {
                 conversationManager.addAssistantMessage(responseText)
                 emit(AgentEvent.AssistantMessage(responseText))
                 break
             }
 
-            // Has tool calls — execute them
             conversationManager.addAssistantMessage(responseText, responseToolCalls)
             if (responseText.isNotBlank()) {
                 emit(AgentEvent.AssistantMessage(responseText))
@@ -147,8 +183,6 @@ class AgentRuntime(
                 conversationManager.addToolResult(toolCall.id, toolCall.name, result.output)
                 emit(AgentEvent.ToolCallResult(toolCall.name, result.output, result.isError))
             }
-
-            // Continue loop — send tool results back to LLM
         }
 
         if (iterations >= MAX_TOOL_ITERATIONS) {
@@ -191,19 +225,23 @@ You have access to a sandboxed workspace folder where you can create, read, edit
 Users can share media (images, audio, video, documents) with you from other apps.
 
 ## Your capabilities:
-- Read and write files in workspace/
+- Read and write files in workspace/ (supports .txt, .md, .html, .json, .csv and more)
 - Read shared media from shared/ (shared by the user from other apps)
 - Copy files from shared/ to workspace/ for organizing
 - Search files by name or content
-- Fetch web URLs
-- Create directories and organize content
+- Search the web for current information
+- Share files from workspace with other apps
+- Export conversations as documents
+- Fetch web URLs and extract content
 
 ## Rules:
 - You can ONLY operate within workspace/ (write) and shared/ (read)
-- You cannot execute code, install software, or access the internet beyond fetch_url
+- You cannot execute code, install software, or access the internet beyond web_search and fetch_url
 - Be concise and helpful
 - When the user shares an image, describe what you see and ask how you can help
+- When the user shares a URL or link, use the web_search tool to fetch and analyze its content
 - When working with files, always confirm actions before deleting
+- Create files in formats the user requests (.md, .html, .txt, etc.)
 
 ## File paths:
 - workspace/ — your working directory (full read/write)

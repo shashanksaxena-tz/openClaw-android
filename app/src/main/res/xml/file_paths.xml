@@ -2,5 +2,6 @@
 <paths>
     <external-files-path name="openclaw_workspace" path="workspace/" />
     <external-files-path name="openclaw_shared" path="shared/" />
+    <external-files-path name="openclaw_spaces" path="spaces/" />
     <cache-path name="openclaw_cache" path="cache/" />
 </paths>

@@ -10,10 +10,14 @@ import com.openclaw.android.ui.screens.ChatScreen
 import com.openclaw.android.ui.theme.OpenClawTheme
 
 /**
- * Receives shared content from other apps (Telegram, camera, gallery, etc.)
+ * Receives shared content from other apps (Telegram, Instagram, Threads, etc.)
  * via Android's share sheet.
  *
- * Extracts the shared media/text and opens the chat with it pre-loaded.
+ * Handles:
+ * - Media files (images, videos, audio)
+ * - Text content
+ * - URLs (from social media shares like reels, threads posts)
+ * - Multiple items at once
  */
 class ShareReceiverActivity : ComponentActivity() {
 
@@ -22,20 +26,21 @@ class ShareReceiverActivity : ComponentActivity() {
 
         val (sharedText, sharedMedia) = extractSharedContent(intent)
 
-        // Save shared media files to the shared/ directory
         val app = application as OpenClawApp
         val savedMedia = sharedMedia.map { (mimeType, uri) ->
             val savedUri = saveToSharedFolder(app.sandboxedFileSystem, mimeType, uri)
             mimeType to (savedUri ?: uri)
         }
 
+        val messageText = buildShareMessage(sharedText, sharedMedia.isEmpty())
+
         setContent {
             OpenClawTheme {
                 ChatScreen(
                     runtime = app.agentRuntime,
-                    onNavigateToSettings = { /* not available from share */ },
-                    initialMessage = sharedText,
-                    initialMedia = savedMedia,
+                    onNavigateToSettings = { },
+                    initialMessage = messageText,
+                    initialMedia = savedMedia.ifEmpty { null },
                 )
             }
         }
@@ -51,7 +56,6 @@ class ShareReceiverActivity : ComponentActivity() {
 
         when (intent.action) {
             Intent.ACTION_SEND -> {
-                // Single item
                 val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
                 if (uri != null) {
                     val mimeType = intent.type ?: contentResolver.getType(uri) ?: "application/octet-stream"
@@ -59,7 +63,6 @@ class ShareReceiverActivity : ComponentActivity() {
                 }
             }
             Intent.ACTION_SEND_MULTIPLE -> {
-                // Multiple items
                 val uris = intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
                 uris?.forEach { uri ->
                     val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
@@ -69,6 +72,35 @@ class ShareReceiverActivity : ComponentActivity() {
         }
 
         return combinedText to media
+    }
+
+    private fun buildShareMessage(text: String?, hasNoMedia: Boolean): String? {
+        if (text == null) return null
+
+        val urlPattern = Regex("""https?://[^\s<>"{}|\\^`\[\]]+""")
+        val urls = urlPattern.findAll(text).map { it.value }.toList()
+
+        if (urls.isEmpty()) return text
+
+        val nonUrlText = urlPattern.replace(text, "").trim()
+        val isSocialMediaShare = urls.any { url ->
+            SOCIAL_MEDIA_DOMAINS.any { domain -> url.contains(domain) }
+        }
+
+        return if (isSocialMediaShare && (nonUrlText.isBlank() || nonUrlText.length < 50)) {
+            buildString {
+                if (nonUrlText.isNotBlank()) {
+                    appendLine(nonUrlText)
+                    appendLine()
+                }
+                appendLine("I shared this link with you. Please use the web_search tool to fetch the content from the URL and tell me about it:")
+                for (url in urls) {
+                    appendLine(url)
+                }
+            }.trim()
+        } else {
+            text
+        }
     }
 
     private fun saveToSharedFolder(
@@ -88,7 +120,7 @@ class ShareReceiverActivity : ComponentActivity() {
             inputStream.close()
 
             Uri.fromFile(destFile)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
@@ -109,5 +141,13 @@ class ShareReceiverActivity : ComponentActivity() {
         mimeType.contains("text") -> ".txt"
         mimeType.contains("json") -> ".json"
         else -> ".bin"
+    }
+
+    companion object {
+        private val SOCIAL_MEDIA_DOMAINS = listOf(
+            "instagram.com", "threads.net", "twitter.com", "x.com",
+            "tiktok.com", "youtube.com", "youtu.be", "reddit.com",
+            "facebook.com", "fb.watch", "t.me", "telegram.me",
+        )
     }
 }
