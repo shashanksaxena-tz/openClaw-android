@@ -101,8 +101,8 @@ fun ConversationHistoryPanel(
             Text(
                 text = "Conversations",
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
             FilledTonalButton(
@@ -134,9 +134,11 @@ fun ConversationHistoryPanel(
             placeholder = { Text("Search conversations...") },
             leadingIcon = { Icon(Icons.Default.Search, null, Modifier.size(20.dp)) },
             singleLine = true,
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
             ),
             trailingIcon = {
                 if (searchQuery.isNotBlank()) {
@@ -236,8 +238,9 @@ private fun ConversationItem(
                 onLongClick = onRename,
             ),
         shape = RoundedCornerShape(12.dp),
-        color = if (isActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+        color = if (isActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
             else MaterialTheme.colorScheme.surface,
+        tonalElevation = if (isActive) 1.dp else 0.dp,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),

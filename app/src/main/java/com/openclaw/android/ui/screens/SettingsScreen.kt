@@ -54,13 +54,13 @@ fun SettingsScreen(
             .padding(16.dp),
     ) {
         Text("Settings", style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary)
+            color = MaterialTheme.colorScheme.onSurface)
 
         Spacer(Modifier.height(24.dp))
 
         // === API Keys Section ===
         Text("API Keys", style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary)
+            color = MaterialTheme.colorScheme.onSurface)
         Spacer(Modifier.height(4.dp))
         Text("Keys are encrypted on device. Never sent anywhere except to the API provider.",
             style = MaterialTheme.typography.bodySmall,
@@ -103,7 +103,7 @@ fun SettingsScreen(
 
         // === Model Selection ===
         Text("Default Model", style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary)
+            color = MaterialTheme.colorScheme.onSurface)
         Spacer(Modifier.height(8.dp))
 
         val availableModels = modelRouter.getAvailableModels()
@@ -168,7 +168,7 @@ fun SettingsScreen(
             Spacer(Modifier.height(24.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Spaces", style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                    color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                 TextButton(onClick = { showCreateSpace = true }) {
                     Icon(Icons.Default.Add, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(4.dp))
@@ -241,7 +241,7 @@ fun SettingsScreen(
         // === System Prompt ===
         Spacer(Modifier.height(24.dp))
         Text("System Prompt", style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary)
+            color = MaterialTheme.colorScheme.onSurface)
         Spacer(Modifier.height(8.dp))
 
         OutlinedTextField(
@@ -253,7 +253,7 @@ fun SettingsScreen(
         )
 
         Spacer(Modifier.height(32.dp))
-        Text("OpenClaw Android v0.3.1",
+        Text("OpenClaw Android v0.4.0",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
     }

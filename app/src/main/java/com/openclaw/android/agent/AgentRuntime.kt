@@ -21,6 +21,11 @@ class AgentRuntime(
     companion object {
         const val MAX_TOOL_ITERATIONS = 10
         const val TOOL_TIMEOUT_MS = 30_000L
+        private val BLOCKED_TOOLS = setOf(
+            "run_code", "execute_code", "execute", "run_command", "shell",
+            "bash", "python", "execute_python", "run_script", "terminal",
+            "code_execution", "run_program",
+        )
     }
 
     private val _state = MutableStateFlow<AgentState>(AgentState.Idle)
@@ -214,17 +219,22 @@ class AgentRuntime(
                         emit(AgentEvent.ToolCallStart(toolCall.name, toolCall.arguments.toString()))
                         _state.value = AgentState.ExecutingTool(toolCall.name)
 
-                        val tool = toolRegistry.get(toolCall.name)
-                        val result = if (tool != null) {
-                            try {
-                                withTimeoutOrNull(TOOL_TIMEOUT_MS) {
-                                    tool.execute(toolCall.arguments)
-                                } ?: ToolResult.error("Tool '${toolCall.name}' timed out after ${TOOL_TIMEOUT_MS / 1000}s")
-                            } catch (e: Exception) {
-                                ToolResult.error("Tool execution failed: ${e.message}")
-                            }
+                        // Block code execution tool calls
+                        val result = if (toolCall.name.lowercase() in BLOCKED_TOOLS) {
+                            ToolResult.error("Code execution is not available. I can only work with files, web search, and other safe tools.")
                         } else {
-                            ToolResult.error("Unknown tool: ${toolCall.name}")
+                            val tool = toolRegistry.get(toolCall.name)
+                            if (tool != null) {
+                                try {
+                                    withTimeoutOrNull(TOOL_TIMEOUT_MS) {
+                                        tool.execute(toolCall.arguments)
+                                    } ?: ToolResult.error("Tool '${toolCall.name}' timed out after ${TOOL_TIMEOUT_MS / 1000}s")
+                                } catch (e: Exception) {
+                                    ToolResult.error("Tool execution failed: ${e.message}")
+                                }
+                            } else {
+                                ToolResult.error("Unknown tool: ${toolCall.name}")
+                            }
                         }
 
                         conversationManager.addToolResult(toolCall.id, toolCall.name, result.output)
@@ -326,7 +336,8 @@ Users can share media (images, audio, video, documents) with you from other apps
 
 ## Rules:
 - You can ONLY operate within workspace/ (write) and shared/ (read)
-- You cannot execute code, install software, or access the internet beyond web_search and fetch_url
+- You CANNOT and MUST NOT execute code, run scripts, or call any code execution tool. You are a file management and conversation assistant only.
+- You cannot install software or access the internet beyond web_search and fetch_url
 - Be concise and helpful
 - When the user shares an image, describe what you see and ask how you can help
 - When the user shares a URL or link, use the web_search tool to fetch and analyze its content

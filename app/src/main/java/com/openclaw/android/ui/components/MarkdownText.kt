@@ -1,5 +1,7 @@
 package com.openclaw.android.ui.components
 
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,16 +11,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 
 /**
- * Simple markdown renderer for chat messages.
- * Supports: **bold**, *italic*, `code`, ```code blocks```, # headers, - lists, [links](url)
+ * Markdown renderer for chat messages.
+ * Supports: **bold**, *italic*, `code`, ```code blocks```, # headers, - lists,
+ * and ```mermaid diagrams via WebView.
  */
 @Composable
 fun MarkdownText(
@@ -27,10 +32,20 @@ fun MarkdownText(
     color: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface,
 ) {
     val blocks = remember(markdown) { parseMarkdownBlocks(markdown) }
+    val bgColor = MaterialTheme.colorScheme.surface
+    val textColor = MaterialTheme.colorScheme.onSurface
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         for (block in blocks) {
             when (block) {
+                is MdBlock.MermaidBlock -> {
+                    MermaidDiagram(
+                        code = block.code,
+                        bgColor = bgColor,
+                        textColor = textColor,
+                    )
+                }
+
                 is MdBlock.CodeBlock -> {
                     Text(
                         text = block.code,
@@ -42,9 +57,9 @@ fun MarkdownText(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            .padding(8.dp),
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                            .padding(10.dp),
                     )
                 }
 
@@ -84,9 +99,71 @@ fun MarkdownText(
     }
 }
 
+@Composable
+private fun MermaidDiagram(
+    code: String,
+    bgColor: androidx.compose.ui.graphics.Color,
+    textColor: androidx.compose.ui.graphics.Color,
+) {
+    val bgHex = String.format("#%06X", 0xFFFFFF and bgColor.toArgb())
+    val textHex = String.format("#%06X", 0xFFFFFF and textColor.toArgb())
+
+    val html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+            <style>
+                body { margin: 0; padding: 8px; background: $bgHex; overflow: hidden; }
+                .mermaid { color: $textHex; }
+                .mermaid svg { max-width: 100%; height: auto; }
+            </style>
+        </head>
+        <body>
+            <pre class="mermaid">
+            $code
+            </pre>
+            <script>
+                mermaid.initialize({
+                    startOnLoad: true,
+                    theme: '${if (bgHex.startsWith("#0") || bgHex.startsWith("#1") || bgHex.startsWith("#2")) "dark" else "default"}',
+                    themeVariables: {
+                        primaryColor: '#6366F1',
+                        primaryTextColor: '$textHex',
+                        primaryBorderColor: '#818CF8',
+                        lineColor: '#94A3B8',
+                        secondaryColor: '#E0E7FF',
+                        tertiaryColor: '#F1F5F9',
+                    }
+                });
+            </script>
+        </body>
+        </html>
+    """.trimIndent()
+
+    AndroidView(
+        factory = { ctx ->
+            WebView(ctx).apply {
+                settings.javaScriptEnabled = true
+                settings.loadWithOverviewMode = true
+                settings.useWideViewPort = true
+                setBackgroundColor(bgColor.toArgb())
+                webViewClient = WebViewClient()
+                loadDataWithBaseURL("https://cdn.jsdelivr.net", html, "text/html", "UTF-8", null)
+            }
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 100.dp, max = 400.dp)
+            .clip(RoundedCornerShape(8.dp)),
+    )
+}
+
 private sealed class MdBlock {
     data class Paragraph(val text: String) : MdBlock()
     data class CodeBlock(val code: String, val language: String = "") : MdBlock()
+    data class MermaidBlock(val code: String) : MdBlock()
     data class Heading(val text: String, val level: Int) : MdBlock()
     data class ListItem(val text: String) : MdBlock()
 }
@@ -108,7 +185,12 @@ private fun parseMarkdownBlocks(text: String): List<MdBlock> {
                 codeLines.add(lines[i])
                 i++
             }
-            blocks.add(MdBlock.CodeBlock(codeLines.joinToString("\n"), lang))
+            val code = codeLines.joinToString("\n")
+            if (lang.equals("mermaid", ignoreCase = true)) {
+                blocks.add(MdBlock.MermaidBlock(code))
+            } else {
+                blocks.add(MdBlock.CodeBlock(code, lang))
+            }
             i++ // skip closing ```
             continue
         }
@@ -138,7 +220,7 @@ private fun parseMarkdownBlocks(text: String): List<MdBlock> {
             continue
         }
 
-        // Paragraph — collect consecutive non-blank, non-special lines
+        // Paragraph
         val paraLines = mutableListOf(line)
         i++
         while (i < lines.size &&

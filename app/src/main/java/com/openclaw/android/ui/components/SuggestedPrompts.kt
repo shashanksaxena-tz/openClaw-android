@@ -67,7 +67,7 @@ fun SuggestedPrompts(
             text = "Try asking...",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
         )
         Row(
             modifier = Modifier
@@ -79,23 +79,23 @@ fun SuggestedPrompts(
             for (suggestion in suggestions) {
                 SuggestionChip(
                     onClick = { onSuggestionClick(suggestion.prompt) },
-                    label = { Text(suggestion.text) },
+                    label = { Text(suggestion.text, style = MaterialTheme.typography.labelMedium) },
                     icon = {
                         Icon(
                             suggestion.icon,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(16.dp),
                         )
                     },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = SuggestionChipDefaults.suggestionChipColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                         labelColor = MaterialTheme.colorScheme.onSurface,
                         iconContentColor = MaterialTheme.colorScheme.primary,
                     ),
                     border = SuggestionChipDefaults.suggestionChipBorder(
                         enabled = true,
-                        borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                        borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
                     ),
                 )
             }

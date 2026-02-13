@@ -1,7 +1,12 @@
 package com.openclaw.android.ui.screens
 
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.widget.Toast
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -192,6 +197,19 @@ fun FileBrowserScreen(
                                     if (resolved != null && resolved.exists()) fileToView = resolved
                                 }
                             },
+                            onSaveToDownloads = {
+                                val resolved = if (isShowingShared) fs.resolveShared(file.path).getOrNull()
+                                else fs.resolve(file.path).getOrNull()
+                                if (resolved != null && resolved.exists() && !resolved.isDirectory) {
+                                    val success = saveToDownloads(context, resolved)
+                                    Toast.makeText(
+                                        context,
+                                        if (success) "Saved to Downloads/OpenClaw/${file.name}"
+                                        else "Failed to save",
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                            },
                             onDelete = { fileToDelete = file },
                             onShare = {
                                 val resolved = if (isShowingShared) fs.resolveShared(file.path).getOrNull()
@@ -211,6 +229,7 @@ fun FileBrowserScreen(
 private fun FileRow(
     file: SandboxedFileSystem.FileInfo,
     onClick: () -> Unit,
+    onSaveToDownloads: () -> Unit,
     onDelete: () -> Unit,
     onShare: () -> Unit,
 ) {
@@ -243,6 +262,10 @@ private fun FileRow(
         }
 
         if (!file.isDirectory) {
+            IconButton(onClick = onSaveToDownloads, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.Download, "Save to Downloads", Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary)
+            }
             IconButton(onClick = onShare, modifier = Modifier.size(32.dp)) {
                 Icon(Icons.Default.Share, "Share", Modifier.size(18.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -292,4 +315,31 @@ private fun formatSize(bytes: Long): String = when {
     bytes < 1024 -> "$bytes B"
     bytes < 1024 * 1024 -> "${bytes / 1024} KB"
     else -> "${"%.1f".format(bytes.toDouble() / (1024 * 1024))} MB"
+}
+
+private fun saveToDownloads(context: Context, file: File): Boolean {
+    return try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, file.name)
+                put(MediaStore.Downloads.MIME_TYPE, getMimeTypeForFile(file.extension))
+                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/OpenClaw")
+            }
+            val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            uri?.let {
+                context.contentResolver.openOutputStream(it)?.use { os ->
+                    file.inputStream().use { input -> input.copyTo(os) }
+                }
+                true
+            } ?: false
+        } else {
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val openClawDir = File(downloadsDir, "OpenClaw").apply { mkdirs() }
+            val dest = File(openClawDir, file.name)
+            file.copyTo(dest, overwrite = true)
+            true
+        }
+    } catch (_: Exception) {
+        false
+    }
 }

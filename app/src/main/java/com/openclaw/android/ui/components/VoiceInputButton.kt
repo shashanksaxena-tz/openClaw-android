@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
 import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -25,12 +26,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import java.util.Locale
 
 /**
  * Animated voice input button. Hold to record, release to send.
- * Uses Android's SpeechRecognizer for on-device speech-to-text.
+ * Requests RECORD_AUDIO permission before starting recognition.
  */
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun VoiceInputButton(
     onResult: (String) -> Unit,
@@ -39,9 +44,9 @@ fun VoiceInputButton(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val micPermission = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
     var isListening by remember { mutableStateOf(false) }
     var partialResult by remember { mutableStateOf("") }
-    var hasPermission by remember { mutableStateOf(true) } // Assume true, check at runtime
 
     val speechRecognizer = remember {
         if (SpeechRecognizer.isRecognitionAvailable(context)) {
@@ -68,13 +73,11 @@ fun VoiceInputButton(
                 isListening = false
                 onListeningChanged(false)
             }
-
             override fun onError(error: Int) {
                 isListening = false
                 onListeningChanged(false)
                 partialResult = ""
             }
-
             override fun onResults(results: Bundle?) {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val text = matches?.firstOrNull() ?: ""
@@ -85,15 +88,12 @@ fun VoiceInputButton(
                 isListening = false
                 onListeningChanged(false)
             }
-
             override fun onPartialResults(partialResults: Bundle?) {
                 val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 partialResult = matches?.firstOrNull() ?: ""
             }
-
             override fun onEvent(eventType: Int, params: Bundle?) {}
         })
-
         onDispose {
             speechRecognizer?.destroy()
         }
@@ -103,9 +103,9 @@ fun VoiceInputButton(
     val infiniteTransition = rememberInfiniteTransition(label = "mic")
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = 1.3f,
+        targetValue = 1.25f,
         animationSpec = infiniteRepeatable(
-            animation = tween(600, easing = EaseInOutSine),
+            animation = tween(500, easing = EaseInOutSine),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "pulse",
@@ -115,11 +115,13 @@ fun VoiceInputButton(
         initialValue = MaterialTheme.colorScheme.primary,
         targetValue = MaterialTheme.colorScheme.error,
         animationSpec = infiniteRepeatable(
-            animation = tween(600, easing = EaseInOutSine),
+            animation = tween(500, easing = EaseInOutSine),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "color",
     )
+
+    val canRecord = micPermission.status.isGranted && speechRecognizer != null
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -139,14 +141,25 @@ fun VoiceInputButton(
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(48.dp)
+                .size(44.dp)
                 .scale(if (isListening) pulseScale else 1f)
                 .clip(CircleShape)
-                .background(if (isListening) pulseColor else MaterialTheme.colorScheme.primary)
-                .pointerInput(Unit) {
+                .background(
+                    when {
+                        isListening -> pulseColor
+                        !canRecord -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                        else -> MaterialTheme.colorScheme.primary
+                    }
+                )
+                .pointerInput(canRecord) {
                     detectTapGestures(
                         onPress = {
-                            if (enabled && speechRecognizer != null) {
+                            if (!enabled) return@detectTapGestures
+                            if (!micPermission.status.isGranted) {
+                                micPermission.launchPermissionRequest()
+                                return@detectTapGestures
+                            }
+                            if (speechRecognizer != null) {
                                 isListening = true
                                 onListeningChanged(true)
                                 partialResult = ""
@@ -161,11 +174,57 @@ fun VoiceInputButton(
                 },
         ) {
             Icon(
-                imageVector = if (isListening) Icons.Default.Mic else Icons.Default.Mic,
-                contentDescription = "Voice input",
+                imageVector = if (canRecord) Icons.Default.Mic else Icons.Default.MicOff,
+                contentDescription = if (canRecord) "Voice input" else "Microphone permission required",
                 tint = Color.White,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(22.dp),
             )
         }
+    }
+}
+
+/**
+ * Text-to-Speech helper for voice conversation mode.
+ */
+class TtsHelper(context: android.content.Context) {
+    private var tts: TextToSpeech? = null
+    private var isReady = false
+    var isSpeaking: Boolean = false
+        private set
+
+    init {
+        tts = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts?.language = Locale.getDefault()
+                isReady = true
+            }
+        }
+    }
+
+    fun speak(text: String, onDone: (() -> Unit)? = null) {
+        if (isReady) {
+            isSpeaking = true
+            tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {}
+                override fun onDone(utteranceId: String?) {
+                    isSpeaking = false
+                    onDone?.invoke()
+                }
+                override fun onError(utteranceId: String?) {
+                    isSpeaking = false
+                    onDone?.invoke()
+                }
+            })
+            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "openclaw-tts")
+        }
+    }
+
+    fun stop() {
+        tts?.stop()
+        isSpeaking = false
+    }
+
+    fun shutdown() {
+        tts?.shutdown()
     }
 }

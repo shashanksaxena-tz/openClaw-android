@@ -135,7 +135,8 @@ fun MediaThumbnail(
                 onClick = onRemove,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .size(20.dp)
+                    .offset(x = 4.dp, y = (-4).dp)
+                    .size(22.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.error),
             ) {

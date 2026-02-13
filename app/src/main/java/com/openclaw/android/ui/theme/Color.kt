@@ -2,36 +2,47 @@ package com.openclaw.android.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Claymorphism palette — soft, warm, tactile
-val ClayPeach = Color(0xFFFF8A65)       // Primary warm
-val ClayPeachDark = Color(0xFFE57350)
-val ClayPeachLight = Color(0xFFFFE8DF)
-val ClayCream = Color(0xFFFFF5EE)       // Background warmth
-val ClayLavender = Color(0xFFB39DDB)    // Accent purple
-val ClayMint = Color(0xFF80CBC4)        // Accent teal
-val ClaySand = Color(0xFFF5E6D3)       // Card surfaces
+// Modern AI palette — clean, professional, dark-mode-first
 
-// Light theme — claymorphism
-val LightPrimary = ClayPeach
+// Primary: Indigo/Violet gradient
+val ModernPrimary = Color(0xFF6366F1)        // Indigo-500
+val ModernPrimaryDark = Color(0xFF818CF8)    // Indigo-400 (lighter for dark theme)
+val ModernPrimaryLight = Color(0xFFEEF2FF)   // Indigo-50
+
+// Accent: Cyan/Teal for highlights
+val AccentCyan = Color(0xFF06B6D4)           // Cyan-500
+val AccentEmerald = Color(0xFF10B981)        // Emerald-500
+
+// Light theme
+val LightPrimary = ModernPrimary
 val LightOnPrimary = Color.White
-val LightPrimaryContainer = ClayPeachLight
-val LightSecondary = ClayLavender
-val LightBackground = ClayCream
-val LightSurface = Color(0xFFFFFBF8)
-val LightSurfaceVariant = ClaySand
-val LightOnSurface = Color(0xFF2D2420)
-val LightOnSurfaceVariant = Color(0xFF7A6B5D)
-val LightOutline = Color(0xFFE8D8C8)
+val LightPrimaryContainer = Color(0xFFE0E7FF)  // Indigo-100
+val LightSecondary = AccentCyan
+val LightBackground = Color(0xFFFAFAFC)
+val LightSurface = Color.White
+val LightSurfaceVariant = Color(0xFFF1F5F9)    // Slate-100
+val LightOnSurface = Color(0xFF0F172A)         // Slate-900
+val LightOnSurfaceVariant = Color(0xFF64748B)  // Slate-500
+val LightOutline = Color(0xFFE2E8F0)           // Slate-200
+val LightError = Color(0xFFEF4444)             // Red-500
 
-// Dark theme — clay dark
-val DarkPrimary = Color(0xFFFFAB91)
-val DarkOnPrimary = Color(0xFF2D1600)
-val DarkPrimaryContainer = Color(0xFF4E2600)
-val DarkSecondary = Color(0xFFCE93D8)
-val DarkBackground = Color(0xFF1A1512)
-val DarkSurface = Color(0xFF261F1A)
-val DarkSurfaceVariant = Color(0xFF352C24)
-val DarkOnSurface = Color(0xFFF5E6D8)
-val DarkOnSurfaceVariant = Color(0xFFB5A393)
-val DarkOutline = Color(0xFF4A3D32)
+// Dark theme
+val DarkPrimary = ModernPrimaryDark
+val DarkOnPrimary = Color(0xFF1E1B4B)          // Indigo-950
+val DarkPrimaryContainer = Color(0xFF312E81)   // Indigo-800
+val DarkSecondary = Color(0xFF22D3EE)          // Cyan-400
+val DarkBackground = Color(0xFF0F0F14)         // Near black
+val DarkSurface = Color(0xFF1A1A24)            // Dark surface
+val DarkSurfaceVariant = Color(0xFF252530)     // Slightly lighter
+val DarkOnSurface = Color(0xFFF1F5F9)          // Slate-100
+val DarkOnSurfaceVariant = Color(0xFF94A3B8)   // Slate-400
+val DarkOutline = Color(0xFF334155)            // Slate-700
+val DarkError = Color(0xFFF87171)              // Red-400
 
+// Chat-specific
+val UserBubbleLight = ModernPrimary
+val UserBubbleDark = ModernPrimaryDark
+val AssistantBubbleLight = Color(0xFFF1F5F9)   // Slate-100
+val AssistantBubbleDark = Color(0xFF1E1E2E)    // Dark bubble
+val ToolBadgeColor = Color(0xFF8B5CF6)         // Violet-500
+val SuccessColor = AccentEmerald

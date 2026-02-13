@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -55,6 +56,7 @@ fun ChatScreen(
     val events by runtime.events.collectAsState()
 
     var inputText by remember { mutableStateOf("") }
+    var showVoiceMode by remember { mutableStateOf(false) }
     var pendingMedia by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
     val listState = rememberLazyListState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -203,7 +205,7 @@ fun ChatScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        modifier = modifier,
+        modifier = modifier.imePadding(),
     ) { scaffoldPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(scaffoldPadding)) {
             // Top bar
@@ -367,6 +369,15 @@ fun ChatScreen(
                         }
                     } else {
                         // Voice input - includes pending media
+                        // Voice conversation mode button
+                        IconButton(
+                            onClick = { showVoiceMode = true },
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Icon(Icons.Default.PhoneInTalk, "Voice mode",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp))
+                        }
                         VoiceInputButton(
                             onResult = { spokenText ->
                                 if (spokenText.isNotBlank()) {
@@ -410,6 +421,15 @@ fun ChatScreen(
                 }
             }
         }
+    }
+
+    // Voice conversation mode
+    if (showVoiceMode) {
+        VoiceConversationScreen(
+            runtime = runtime,
+            onDismiss = { showVoiceMode = false },
+        )
+        return
     }
 
     // Model picker bottom sheet

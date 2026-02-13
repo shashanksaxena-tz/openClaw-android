@@ -3,6 +3,8 @@ package com.openclaw.android.ui.screens
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -87,8 +89,8 @@ fun OnboardingScreen(
                 repeat(3) { index ->
                     Box(
                         modifier = Modifier
-                            .size(if (index == pagerState.currentPage) 10.dp else 8.dp)
-                            .clip(CircleShape)
+                            .size(if (index == pagerState.currentPage) 24.dp else 8.dp, 8.dp)
+                            .clip(RoundedCornerShape(4.dp))
                             .background(
                                 if (index == pagerState.currentPage) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
@@ -133,10 +135,17 @@ private fun WelcomePage() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
+        val infiniteTransition = rememberInfiniteTransition(label = "welcome")
+        val iconScale by infiniteTransition.animateFloat(
+            initialValue = 0.95f, targetValue = 1.05f,
+            animationSpec = infiniteRepeatable(tween(2000, easing = EaseInOutCubic), RepeatMode.Reverse),
+            label = "icon",
+        )
+
         Icon(
             Icons.Default.AutoAwesome,
             contentDescription = null,
-            modifier = Modifier.size(80.dp),
+            modifier = Modifier.size(72.dp).scale(iconScale),
             tint = MaterialTheme.colorScheme.primary,
         )
         Spacer(Modifier.height(24.dp))
@@ -146,37 +155,43 @@ private fun WelcomePage() {
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground,
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(8.dp))
         Text(
-            text = "Your personal AI assistant that lives on your phone.\nManage files, organize projects, and get things done.",
-            style = MaterialTheme.typography.bodyLarge,
+            text = "Your personal AI assistant",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = "Manage files, organize projects, browse the web,\nand have voice conversations.",
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 24.dp),
         )
         Spacer(Modifier.height(32.dp))
 
-        // Feature pills
         val features = listOf(
             "Create & manage files" to Icons.Default.Folder,
-            "Organize into projects" to Icons.Default.Workspaces,
+            "Organize into spaces" to Icons.Default.Workspaces,
             "Share from any app" to Icons.Default.Share,
             "Voice conversations" to Icons.Default.Mic,
             "Web search built-in" to Icons.Default.Search,
+            "Multiple AI providers" to Icons.Default.Memory,
         )
         for ((text, icon) in features) {
             Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 3.dp, horizontal = 24.dp),
+                    .padding(vertical = 2.dp, horizontal = 24.dp),
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(icon, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                    Icon(icon, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(12.dp))
                     Text(text, style = MaterialTheme.typography.bodyMedium)
                 }

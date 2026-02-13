@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
@@ -22,9 +23,12 @@ private val LightColorScheme = lightColorScheme(
     onSurface = LightOnSurface,
     onSurfaceVariant = LightOnSurfaceVariant,
     outline = LightOutline,
-    surfaceContainerLow = ClaySand.copy(alpha = 0.5f),
-    surfaceContainer = ClaySand,
-    surfaceContainerHigh = ClaySand.copy(alpha = 0.8f),
+    error = LightError,
+    surfaceContainerLow = Color(0xFFF8FAFC),
+    surfaceContainer = Color(0xFFF1F5F9),
+    surfaceContainerHigh = Color(0xFFE2E8F0),
+    errorContainer = Color(0xFFFEE2E2),
+    onErrorContainer = Color(0xFF991B1B),
 )
 
 private val DarkColorScheme = darkColorScheme(
@@ -38,15 +42,17 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = DarkOnSurface,
     onSurfaceVariant = DarkOnSurfaceVariant,
     outline = DarkOutline,
+    error = DarkError,
+    errorContainer = Color(0xFF450A0A),
+    onErrorContainer = Color(0xFFFCA5A5),
 )
 
-/** Claymorphism-inspired shapes: big rounded corners for that soft, tactile feel. */
-val ClayShapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(18.dp),
-    large = RoundedCornerShape(24.dp),
-    extraLarge = RoundedCornerShape(32.dp),
+val AppShapes = Shapes(
+    extraSmall = RoundedCornerShape(6.dp),
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(14.dp),
+    large = RoundedCornerShape(20.dp),
+    extraLarge = RoundedCornerShape(28.dp),
 )
 
 @Composable
@@ -61,14 +67,16 @@ fun OpenClawTheme(
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = colorScheme.background.toArgb()
+            window.navigationBarColor = colorScheme.surface.toArgb()
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !darkTheme
         }
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
-        shapes = ClayShapes,
+        typography = AppTypography,
+        shapes = AppShapes,
         content = content,
     )
 }

@@ -24,7 +24,10 @@ fun MessageBubble(
 ) {
     AnimatedVisibility(
         visible = true,
-        enter = slideInVertically(initialOffsetY = { it / 3 }) + fadeIn(tween(250)),
+        enter = slideInVertically(
+            initialOffsetY = { it / 4 },
+            animationSpec = spring(dampingRatio = 0.8f, stiffness = 300f),
+        ) + fadeIn(tween(200)),
     ) {
         when (event) {
             is AgentEvent.UserMessage -> UserBubble(event, modifier)
@@ -44,16 +47,15 @@ private fun UserBubble(event: AgentEvent.UserMessage, modifier: Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 3.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.End,
     ) {
         Column(
             modifier = Modifier
                 .widthIn(max = 300.dp)
-                .clayBubbleUser(cornerRadius = 20.dp)
-                .clip(RoundedCornerShape(20.dp, 6.dp, 20.dp, 20.dp))
+                .clip(RoundedCornerShape(20.dp, 20.dp, 4.dp, 20.dp))
                 .background(MaterialTheme.colorScheme.primary)
-                .padding(12.dp, 10.dp),
+                .padding(14.dp, 10.dp),
         ) {
             if (event.media.isNotEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -79,17 +81,16 @@ private fun AssistantBubble(text: String, modifier: Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 3.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.Start,
     ) {
         Column(
             modifier = Modifier
                 .widthIn(max = 340.dp)
-                .clayBubbleAssistant(cornerRadius = 20.dp)
-                .clip(RoundedCornerShape(6.dp, 20.dp, 20.dp, 20.dp))
+                .clip(RoundedCornerShape(20.dp, 20.dp, 20.dp, 4.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                .padding(12.dp, 10.dp)
-                .animateContentSize(),
+                .padding(14.dp, 10.dp)
+                .animateContentSize(spring(dampingRatio = 0.9f)),
         ) {
             MarkdownText(
                 markdown = text,
@@ -104,18 +105,18 @@ private fun ToolCallBubble(event: AgentEvent.ToolCallStart, modifier: Modifier) 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 2.dp),
+            .padding(horizontal = 20.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.Start,
     ) {
         Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+            shape = RoundedCornerShape(10.dp),
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Default.Build, null, Modifier.size(14.dp),
+                Icon(Icons.Default.Terminal, null, Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(6.dp))
                 Text(event.toolName, style = MaterialTheme.typography.labelMedium,
@@ -134,15 +135,15 @@ private fun ToolResultBubble(event: AgentEvent.ToolCallResult, modifier: Modifie
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 2.dp),
+            .padding(horizontal = 20.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.Start,
     ) {
         Column(
             modifier = Modifier
                 .widthIn(max = 320.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(
-                    if (event.isError) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
+                    if (event.isError) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
                     else MaterialTheme.colorScheme.surfaceContainerLow
                 )
                 .padding(10.dp)
@@ -181,11 +182,11 @@ private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modif
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.Center,
     ) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(14.dp),
             color = MaterialTheme.colorScheme.errorContainer,
         ) {
             Column(
@@ -204,7 +205,7 @@ private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modif
                     FilledTonalButton(
                         onClick = onRetry,
                         colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
+                            containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
                             contentColor = MaterialTheme.colorScheme.error,
                         ),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
@@ -226,12 +227,12 @@ private fun ModelBadge(modelName: String, modifier: Modifier) {
         horizontalArrangement = Arrangement.Center,
     ) {
         Surface(
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(8.dp),
             color = MaterialTheme.colorScheme.surfaceContainerLow,
         ) {
             Text(modelName, style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp))
         }
     }
 }
