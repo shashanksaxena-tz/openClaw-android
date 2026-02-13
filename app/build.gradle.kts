@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -13,8 +14,8 @@ android {
         applicationId = "com.openclaw.android"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -85,6 +86,13 @@ dependencies {
     // Room for conversation history
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
+    ksp("androidx.room:room-compiler:2.6.1")
+
+    // Swipe gestures
+    implementation("me.saket.swipe:swipe:1.3.0")
+
+    // Runtime permissions
+    implementation("com.google.accompanist:accompanist-permissions:0.36.0")
 
     // Encrypted storage for API keys
     implementation("androidx.security:security-crypto:1.1.0-alpha06")

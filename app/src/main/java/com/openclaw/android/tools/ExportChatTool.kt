@@ -9,7 +9,7 @@ import kotlinx.serialization.json.*
  */
 class ExportChatTool(
     private val fs: SandboxedFileSystem,
-    private val getConversationText: () -> String,
+    private val getConversationText: suspend () -> String,
 ) : Tool {
 
     override val name = "export_chat"

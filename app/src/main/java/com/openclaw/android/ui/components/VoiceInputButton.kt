@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.speech.tts.TextToSpeech
 import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -168,36 +167,5 @@ fun VoiceInputButton(
                 modifier = Modifier.size(24.dp),
             )
         }
-    }
-}
-
-/**
- * Text-to-Speech helper. Call speak() to read text aloud.
- */
-class TtsHelper(context: android.content.Context) {
-    private var tts: TextToSpeech? = null
-    private var isReady = false
-
-    init {
-        tts = TextToSpeech(context) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.getDefault()
-                isReady = true
-            }
-        }
-    }
-
-    fun speak(text: String) {
-        if (isReady) {
-            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "openclaw-tts")
-        }
-    }
-
-    fun stop() {
-        tts?.stop()
-    }
-
-    fun shutdown() {
-        tts?.shutdown()
     }
 }

@@ -41,6 +41,14 @@ class FetchUrlTool : Tool {
         val maxLength = args["max_length"]?.jsonPrimitive?.intOrNull ?: 10_000
 
         try {
+            // Block requests to private/internal IPs
+            val parsedUrl = java.net.URL(url)
+            val host = parsedUrl.host?.lowercase() ?: ""
+            if (host == "localhost" || host == "127.0.0.1" || host.startsWith("192.168.") ||
+                host.startsWith("10.") || host.startsWith("172.16.") || host.endsWith(".local")) {
+                return@withContext ToolResult.error("Cannot fetch internal/private network addresses")
+            }
+
             val request = Request.Builder()
                 .url(url)
                 .header("User-Agent", "OpenClaw-Android/0.1")

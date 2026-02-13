@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,6 +37,7 @@ fun FileViewerScreen(
     file: File,
     onBack: () -> Unit,
     onShare: () -> Unit,
+    onAskAi: (() -> Unit)? = null,
 ) {
     val extension = file.extension.lowercase()
     val content = remember(file) {
@@ -67,6 +69,11 @@ fun FileViewerScreen(
                 }
             },
             actions = {
+                if (onAskAi != null) {
+                    IconButton(onClick = onAskAi) {
+                        Icon(Icons.Default.AutoAwesome, "Ask AI")
+                    }
+                }
                 IconButton(onClick = onShare) {
                     Icon(Icons.Default.Share, "Share")
                 }

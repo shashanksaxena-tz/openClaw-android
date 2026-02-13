@@ -36,7 +36,8 @@ class ReadFileTool(
             onSuccess = { f ->
                 if (!f.exists()) return ToolResult.error("File not found: $path")
                 if (f.isDirectory) return ToolResult.error("Path is a directory, not a file: $path")
-                if (f.length() > 1_000_000) return ToolResult.error("File too large (>${f.length()} bytes). Max 1MB for text read.")
+                val cleanPath = path.removePrefix("workspace/").removePrefix("shared/")
+                if (f.length() > MAX_SIZE) return ToolResult.error("File '${cleanPath}' is too large (${f.length() / 1024}KB). Maximum readable size is ${MAX_SIZE / 1024}KB. Consider searching within the file instead using search_files.")
 
                 // Check if it's a binary file
                 val extension = f.extension.lowercase()
@@ -55,6 +56,7 @@ class ReadFileTool(
     }
 
     companion object {
+        const val MAX_SIZE = 1_000_000L
         val BINARY_EXTENSIONS = setOf(
             "jpg", "jpeg", "png", "gif", "bmp", "webp", "heic", "heif",
             "mp4", "mkv", "avi", "mov", "webm",
