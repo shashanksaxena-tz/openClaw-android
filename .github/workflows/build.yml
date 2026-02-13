@@ -1,8 +1,10 @@
-name: Build APK
+name: Build & Release APK
 
 on:
   push:
-    branches: ['*']
+    branches:
+      - 'claude/android-folder-access-LVLwv'
+      - 'main'
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -10,6 +12,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
@@ -47,7 +51,7 @@ jobs:
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug
 
-      - name: Upload debug APK
+      - name: Upload debug APK as artifact
         uses: actions/upload-artifact@v4
         with:
           name: openclaw-debug-apk
@@ -65,3 +69,46 @@ jobs:
           name: test-results
           path: app/build/reports/tests/
           retention-days: 7
+
+      - name: Get version and commit info
+        id: info
+        run: |
+          VERSION=$(grep 'versionName' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Rename APK with version
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk \
+             app/build/outputs/apk/debug/OpenClaw-v${{ steps.info.outputs.version }}-debug.apk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.info.outputs.tag }}
+          name: "OpenClaw v${{ steps.info.outputs.version }} (${{ steps.info.outputs.short_sha }})"
+          body: |
+            ## OpenClaw Android v${{ steps.info.outputs.version }}
+
+            **Download the APK below and install it on your Android device.**
+
+            ### How to install
+            1. Download `OpenClaw-v${{ steps.info.outputs.version }}-debug.apk` from the assets below
+            2. Transfer to your Android phone (or download directly on phone)
+            3. Open the APK file and allow installation from unknown sources
+            4. Launch OpenClaw and add your API keys in Settings
+
+            ### What's in this build
+            - Commit: ${{ github.sha }}
+            - Branch: ${{ github.ref_name }}
+            - Built: ${{ github.event.head_commit.timestamp }}
+
+            ---
+            _Auto-generated release from CI build_
+          files: |
+            app/build/outputs/apk/debug/OpenClaw-v${{ steps.info.outputs.version }}-debug.apk
+          draft: false
+          prerelease: true
+          generate_release_notes: true
