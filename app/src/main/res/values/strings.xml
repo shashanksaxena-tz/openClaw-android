@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OpenClaw</string>
+    <string name="tab_chat">Chat</string>
+    <string name="tab_files">Files</string>
+    <string name="tab_settings">Settings</string>
+    <string name="hint_message">Message OpenClaw…</string>
+    <string name="btn_send">Send</string>
+    <string name="btn_attach">Attach</string>
+    <string name="settings_api_keys">API Keys</string>
+    <string name="settings_gemini_key">Gemini API Key</string>
+    <string name="settings_groq_key">Groq API Key</string>
+    <string name="settings_cerebras_key">Cerebras API Key</string>
+    <string name="settings_default_model">Default Model</string>
+    <string name="settings_system_prompt">System Prompt</string>
+    <string name="workspace_folder">Workspace</string>
+    <string name="shared_media">Shared Media</string>
+</resources>

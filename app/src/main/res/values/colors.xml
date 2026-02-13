@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="claw_primary">#FF6B35</color>
+    <color name="claw_on_primary">#FFFFFF</color>
+    <color name="claw_primary_container">#FFE0CC</color>
+    <color name="claw_secondary">#1E1E2E</color>
+    <color name="claw_surface">#FAFAFA</color>
+    <color name="claw_surface_dark">#121218</color>
+    <color name="claw_background">#FFFFFF</color>
+    <color name="claw_background_dark">#0D0D12</color>
+</resources>

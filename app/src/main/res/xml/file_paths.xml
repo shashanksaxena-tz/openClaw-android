@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <external-files-path name="openclaw_workspace" path="workspace/" />
+    <external-files-path name="openclaw_shared" path="shared/" />
+    <cache-path name="openclaw_cache" path="cache/" />
+</paths>
