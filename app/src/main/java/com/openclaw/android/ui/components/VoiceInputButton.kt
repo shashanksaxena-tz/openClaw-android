@@ -39,10 +39,7 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import java.util.Locale
 
-// ── Design-system palette ──────────────────────────────────────────────────────
-private val ElectricViolet = Color(0xFFA855F7)
-private val NeonCyan = Color(0xFF22D3EE)
-private val HotPink = Color(0xFFEC4899)
+// ── Design-system palette (ElectricViolet, NeonCyan, HotPink from ClayCard.kt) ──
 private val GlassBg = Color.White.copy(alpha = 0.08f)
 private val GlassBorder = Color.White.copy(alpha = 0.15f)
 private val MutedGlass = Color.White.copy(alpha = 0.04f)

@@ -69,8 +69,8 @@ private val GlassWhite = Color(0x1AFFFFFF)
 private val GlassBorder = Color(0x33FFFFFF)
 private val MutedRed = Color(0xFFEF4444)
 
-// --- Particle data ---
-private data class Particle(
+// --- VoiceParticle data ---
+private data class VoiceParticle(
     val x: Float,
     val speed: Float,
     val size: Float,
@@ -250,10 +250,10 @@ fun VoiceConversationScreen(
     val bgColor2 = lerpThreeColors(DeepCyan, DeepPink, DeepViolet, bgPhase)
     val bgColor3 = lerpThreeColors(DeepPink, DeepViolet, DeepCyan, bgPhase)
 
-    // --- Particles ---
+    // --- VoiceParticles ---
     val particles = remember {
         List(30) {
-            Particle(
+            VoiceParticle(
                 x = Random.nextFloat(),
                 speed = 0.3f + Random.nextFloat() * 0.7f,
                 size = 1.5f + Random.nextFloat() * 3f,
@@ -409,9 +409,9 @@ fun VoiceConversationScreen(
             )
         }
 
-        // --- Particle layer ---
+        // --- VoiceParticle layer ---
         Canvas(modifier = Modifier.fillMaxSize()) {
-            drawParticles(particles, particleTime, stateColor)
+            drawVoiceParticles(particles, particleTime, stateColor)
         }
 
         // --- Content ---
@@ -936,8 +936,8 @@ private fun lerp(a: Color, b: Color, t: Float): Color {
 /**
  * Draw small glowing dots that float upward in the background.
  */
-private fun DrawScope.drawParticles(
-    particles: List<Particle>,
+private fun DrawScope.drawVoiceParticles(
+    particles: List<VoiceParticle>,
     time: Float,
     accentColor: Color,
 ) {
