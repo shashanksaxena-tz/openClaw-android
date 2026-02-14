@@ -53,8 +53,8 @@ private val HotPink = Color(0xFFEC4899)
 private val VioletGlow = Color(0x40A855F7)
 private val CyanGlow = Color(0x3022D3EE)
 
-// ── Particle data ─────────────────────────────────────────────────────
-private data class Particle(
+// ── SplashParticle data ─────────────────────────────────────────────────────
+private data class SplashParticle(
     val x: Float,          // normalised 0..1
     val startY: Float,     // normalised 0..1 (bottom-biased)
     val radius: Float,     // dp-ish size
@@ -64,13 +64,13 @@ private data class Particle(
     val phase: Float,      // random phase for shimmer
 )
 
-private fun generateParticles(count: Int): List<Particle> {
+private fun generateSplashParticles(count: Int): List<SplashParticle> {
     val colors = listOf(
         ElectricViolet, NeonCyan, HotPink,
         Color.White, ElectricViolet.copy(alpha = 0.7f),
     )
     return List(count) {
-        Particle(
+        SplashParticle(
             x = Random.nextFloat(),
             startY = 0.6f + Random.nextFloat() * 0.5f, // start in lower half
             radius = 1f + Random.nextFloat() * 2.5f,
@@ -102,7 +102,7 @@ fun SplashScreen(onFinished: () -> Unit) {
         // 1. Background fade (0 → 300 ms)
         launch { bgAlpha.animateTo(1f, tween(400, easing = EaseInOut)) }
 
-        // Particles start moving immediately and run for the whole duration
+        // SplashParticles start moving immediately and run for the whole duration
         launch { particleTime.animateTo(2.5f, tween(2500, easing = LinearEasing)) }
 
         // Central orb pulse runs continuously
@@ -134,7 +134,7 @@ fun SplashScreen(onFinished: () -> Unit) {
         onFinished()
     }
 
-    val particles = remember { generateParticles(40) }
+    val particles = remember { generateSplashParticles(40) }
     val density = LocalDensity.current
 
     // ── Render ────────────────────────────────────────────────────────
@@ -179,7 +179,7 @@ fun SplashScreen(onFinished: () -> Unit) {
             )
         }
 
-        // ── Particle / sparkle layer ──────────────────────────────────
+        // ── SplashParticle / sparkle layer ──────────────────────────────────
         Canvas(
             modifier = Modifier.fillMaxSize(),
         ) {

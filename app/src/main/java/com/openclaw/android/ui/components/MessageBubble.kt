@@ -26,9 +26,8 @@ import com.openclaw.android.agent.AgentEvent
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 
+// HotPink, NeonCyan from ClayCard.kt
 private val Violet = Color(0xFFA855F7)
-private val HotPink = Color(0xFFEC4899)
-private val NeonCyan = Color(0xFF22D3EE)
 private val Emerald = Color(0xFF34D399)
 private val ErrorRed = Color(0xFFEF4444)
 private val DarkSurface = Color(0xFF161622)

@@ -28,9 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Design system colors
-private val ElectricViolet = Color(0xFFA855F7)
-private val NeonCyan = Color(0xFF22D3EE)
+// Design system colors (ElectricViolet, NeonCyan from ClayCard.kt)
 private val MutedViolet = Color(0xFF9B8AB8)
 
 data class PromptSuggestion(

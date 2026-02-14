@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'claude/android-folder-access-LVLwv'
+      - 'claude/fix-android-build-QBIl8'
       - 'main'
   pull_request:
     branches: [main]

@@ -734,7 +734,7 @@ private fun OfflineBanner() {
 private fun EmptyState(onSuggestionClick: (String) -> Unit) {
     Box(modifier = Modifier.fillMaxWidth()) {
         // Background floating particles
-        FloatingParticles(
+        FloatingDots(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(420.dp),
@@ -889,10 +889,10 @@ private fun AnimatedClawIcon(modifier: Modifier = Modifier) {
 
 
 // ════════════════════════════════════════════════════════════════════════════════
-// ── Floating Particles ─────────────────────────────────────────────────────────
+// ── Floating Dots ────────────────────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════════
 
-private data class Particle(
+private data class FloatingDot(
     val xFraction: Float,
     val yFraction: Float,
     val radius: Float,
@@ -901,10 +901,10 @@ private data class Particle(
 )
 
 @Composable
-private fun FloatingParticles(modifier: Modifier = Modifier) {
+private fun FloatingDots(modifier: Modifier = Modifier) {
     val particles = remember {
         List(18) {
-            Particle(
+            FloatingDot(
                 xFraction = Random.nextFloat(),
                 yFraction = Random.nextFloat(),
                 radius = Random.nextFloat() * 2f + 0.5f,
