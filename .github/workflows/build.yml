@@ -5,6 +5,7 @@ on:
     branches:
       - 'claude/android-folder-access-LVLwv'
       - 'claude/fix-android-build-QBIl8'
+      - 'claude/phase-2-features-QBIl8'
       - 'main'
   pull_request:
     branches: [main]
