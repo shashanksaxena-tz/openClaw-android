@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,10 +18,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -50,6 +53,7 @@ fun MarkdownText(
     val blocks = remember(markdown) { parseMarkdownBlocks(markdown) }
     val bgColor = MaterialTheme.colorScheme.surface
     val textColor = MaterialTheme.colorScheme.onSurface
+    val uriHandler = LocalUriHandler.current
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         for (block in blocks) {
@@ -139,12 +143,17 @@ fun MarkdownText(
                 }
 
                 is MdBlock.Paragraph -> {
-                    Text(
-                        text = parseInlineMarkdown(block.text, color),
+                    val annotated = parseInlineMarkdown(block.text, color)
+                    ClickableText(
+                        text = annotated,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             lineHeight = 22.sp,
+                            color = color,
                         ),
-                        color = color,
+                        onClick = { offset ->
+                            annotated.getStringAnnotations("URL", offset, offset)
+                                .firstOrNull()?.let { runCatching { uriHandler.openUri(it.item) } }
+                        },
                     )
                 }
 
@@ -160,12 +169,17 @@ fun MarkdownText(
                                 .clip(CircleShape)
                                 .background(Violet),
                         )
-                        Text(
-                            text = parseInlineMarkdown(block.text, color),
+                        val annotated = parseInlineMarkdown(block.text, color)
+                        ClickableText(
+                            text = annotated,
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 lineHeight = 22.sp,
+                                color = color,
                             ),
-                            color = color,
+                            onClick = { offset ->
+                                annotated.getStringAnnotations("URL", offset, offset)
+                                    .firstOrNull()?.let { runCatching { uriHandler.openUri(it.item) } }
+                            },
                         )
                     }
                 }
@@ -333,6 +347,33 @@ private fun parseInlineMarkdown(
     return buildAnnotatedString {
         var remaining = text
         while (remaining.isNotEmpty()) {
+            // Link: [text](url)
+            val linkMatch = Regex("^\\[([^\\]]+)]\\(([^)]+)\\)").find(remaining)
+            if (linkMatch != null) {
+                val linkText = linkMatch.groupValues[1]
+                val url = linkMatch.groupValues[2]
+                pushStringAnnotation(tag = "URL", annotation = url)
+                withStyle(SpanStyle(color = Cyan, textDecoration = TextDecoration.Underline)) {
+                    append(linkText)
+                }
+                pop()
+                remaining = remaining.substring(linkMatch.range.last + 1)
+                continue
+            }
+
+            // Bare URL: https://... or http://...
+            val bareUrlMatch = Regex("^(https?://[^\\s)]+)").find(remaining)
+            if (bareUrlMatch != null) {
+                val url = bareUrlMatch.groupValues[1]
+                pushStringAnnotation(tag = "URL", annotation = url)
+                withStyle(SpanStyle(color = Cyan, textDecoration = TextDecoration.Underline)) {
+                    append(url)
+                }
+                pop()
+                remaining = remaining.substring(bareUrlMatch.range.last + 1)
+                continue
+            }
+
             // Bold
             val boldMatch = Regex("^\\*\\*(.+?)\\*\\*").find(remaining)
             if (boldMatch != null) {

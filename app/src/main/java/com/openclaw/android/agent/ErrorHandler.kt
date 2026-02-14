@@ -101,13 +101,26 @@ object ErrorHandler {
                     action = null,
                 )
 
-            // Generic fallback
+            // Generic fallback — sanitize to avoid leaking API keys or paths
             else -> UserError(
                 title = "Something went wrong",
-                message = msg.take(200),
+                message = sanitizeErrorMessage(msg),
                 action = ErrorAction.Retry,
             )
         }
+    }
+
+    /** Strip API keys, file paths, and connection strings from raw error text. */
+    private fun sanitizeErrorMessage(raw: String): String {
+        var msg = raw.take(200)
+        // Mask anything that looks like an API key (long alphanumeric tokens)
+        msg = msg.replace(Regex("[A-Za-z0-9_-]{30,}"), "***")
+        // Mask absolute file paths
+        msg = msg.replace(Regex("/data/[^\\s]+"), "***")
+        msg = msg.replace(Regex("/storage/[^\\s]+"), "***")
+        // Mask URLs with credentials
+        msg = msg.replace(Regex("key=[^&\\s]+"), "key=***")
+        return msg.ifBlank { "An unexpected error occurred. Please try again." }
     }
 
     fun formatForChat(error: UserError): String {

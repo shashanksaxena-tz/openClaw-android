@@ -48,7 +48,7 @@ class SpaceManager(private val context: Context) {
 
     fun createSpace(name: String, emoji: String = "📁", description: String = "", systemPrompt: String? = null): Space {
         val id = name.lowercase().replace(Regex("[^a-z0-9]"), "-").take(30) +
-                "-${System.currentTimeMillis() % 10000}"
+                "-${java.util.UUID.randomUUID().toString().take(8)}"
         val space = Space(id = id, name = name, emoji = emoji, description = description, systemPrompt = systemPrompt)
         val spaces = getSpaces() + space
         _cachedSpaces = spaces

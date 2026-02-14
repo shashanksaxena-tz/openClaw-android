@@ -92,11 +92,12 @@ class GeminiProvider(
             }
 
             val model = request.model
-            val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:streamGenerateContent?alt=sse&key=$apiKey"
+            val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:streamGenerateContent?alt=sse"
 
             val body = buildGeminiRequestBody(request)
             val httpRequest = Request.Builder()
                 .url(url)
+                .addHeader("x-goog-api-key", apiKey)
                 .post(body.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 

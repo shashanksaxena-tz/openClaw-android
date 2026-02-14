@@ -9,6 +9,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 class AgentRuntime(
     private val modelRouter: ModelRouter,
@@ -56,9 +57,8 @@ class AgentRuntime(
     fun setActiveSpace(spaceId: String?) {
         _activeSpaceId = spaceId
         sandboxedFileSystem?.setActiveSpace(spaceId)
-        // Notify conversation manager about the space change
-        // Using runBlocking is safe here since setActiveSpace just sets a field
-        kotlinx.coroutines.runBlocking { conversationManager.setActiveSpace(spaceId) }
+        // Launch in the agent's own scope to avoid runBlocking deadlocks
+        scope.launch { conversationManager.setActiveSpace(spaceId) }
     }
 
     fun cancel() {
@@ -72,7 +72,7 @@ class AgentRuntime(
     }
 
     private fun emit(event: AgentEvent) {
-        _events.value = _events.value + event
+        _events.update { it + event }
     }
 
     private fun buildSystemPrompt(): String {
