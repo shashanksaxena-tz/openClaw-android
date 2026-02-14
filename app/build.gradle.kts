@@ -14,8 +14,8 @@ android {
         applicationId = "com.openclaw.android"
         minSdk = 29
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -96,6 +96,9 @@ dependencies {
 
     // Encrypted storage for API keys
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // Splash screen
+    implementation("androidx.core:core-splashscreen:1.0.1")
 
     // Core
     implementation("androidx.core:core-ktx:1.15.0")

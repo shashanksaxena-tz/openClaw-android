@@ -3,14 +3,19 @@ package com.openclaw.android.ui.components
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontFamily
@@ -20,16 +25,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 
+// ── Design tokens ────────────────────────────────────────────────────────────
+private val Violet = Color(0xFFA855F7)
+private val Cyan = Color(0xFF22D3EE)
+private val CodeBlockBg = Color(0xFF0A0A12)
+private val InlineCodeBg = Color(0xFF1A1A28)
+private val InlineCodeBorder = Color(0xFF2A2A3C)
+
 /**
  * Markdown renderer for chat messages.
  * Supports: **bold**, *italic*, `code`, ```code blocks```, # headers, - lists,
  * and ```mermaid diagrams via WebView.
+ *
+ * Styled with a dark-first, glass-morphism aesthetic:
+ *   primary  = electric violet (#A855F7)
+ *   secondary = neon cyan (#22D3EE)
  */
 @Composable
 fun MarkdownText(
     markdown: String,
     modifier: Modifier = Modifier,
-    color: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface,
+    color: Color = MaterialTheme.colorScheme.onSurface,
 ) {
     val blocks = remember(markdown) { parseMarkdownBlocks(markdown) }
     val bgColor = MaterialTheme.colorScheme.surface
@@ -47,49 +63,108 @@ fun MarkdownText(
                 }
 
                 is MdBlock.CodeBlock -> {
-                    Text(
-                        text = block.code,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp,
-                            lineHeight = 16.sp,
-                        ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                            .padding(10.dp),
-                    )
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(
+                                width = 0.5.dp,
+                                color = Violet.copy(alpha = 0.20f),
+                                shape = RoundedCornerShape(12.dp),
+                            )
+                            .background(CodeBlockBg)
+                            .padding(12.dp),
+                    ) {
+                        // Language label (top-end corner)
+                        if (block.language.isNotBlank()) {
+                            Text(
+                                text = block.language,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    letterSpacing = 0.5.sp,
+                                ),
+                                color = Violet.copy(alpha = 0.55f),
+                                modifier = Modifier.align(Alignment.TopEnd),
+                            )
+                        }
+
+                        Text(
+                            text = block.code,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp,
+                            ),
+                            color = Cyan.copy(alpha = 0.85f),
+                            modifier = if (block.language.isNotBlank()) {
+                                Modifier.padding(top = 14.dp)
+                            } else {
+                                Modifier
+                            },
+                        )
+                    }
                 }
 
                 is MdBlock.Heading -> {
-                    Text(
-                        text = block.text,
-                        style = when (block.level) {
-                            1 -> MaterialTheme.typography.titleLarge
-                            2 -> MaterialTheme.typography.titleMedium
-                            else -> MaterialTheme.typography.labelLarge
-                        },
-                        color = color,
-                        fontWeight = FontWeight.Bold,
-                    )
+                    when (block.level) {
+                        1 -> {
+                            Text(
+                                text = block.text,
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    brush = Brush.linearGradient(
+                                        colors = listOf(Violet, Cyan),
+                                    ),
+                                ),
+                            )
+                        }
+                        2 -> {
+                            Text(
+                                text = block.text,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Violet,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                        else -> {
+                            Text(
+                                text = block.text,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = Violet.copy(alpha = 0.80f),
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                    }
                 }
 
                 is MdBlock.Paragraph -> {
                     Text(
-                        text = parseInlineMarkdown(block.text),
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = parseInlineMarkdown(block.text, color),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            lineHeight = 22.sp,
+                        ),
                         color = color,
                     )
                 }
 
                 is MdBlock.ListItem -> {
-                    Row {
-                        Text("  \u2022 ", color = color, style = MaterialTheme.typography.bodyMedium)
+                    Row(
+                        modifier = Modifier.padding(start = 8.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .padding(top = 8.dp, end = 8.dp)
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(Violet),
+                        )
                         Text(
-                            text = parseInlineMarkdown(block.text),
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = parseInlineMarkdown(block.text, color),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                lineHeight = 22.sp,
+                            ),
                             color = color,
                         )
                     }
@@ -102,8 +177,8 @@ fun MarkdownText(
 @Composable
 private fun MermaidDiagram(
     code: String,
-    bgColor: androidx.compose.ui.graphics.Color,
-    textColor: androidx.compose.ui.graphics.Color,
+    bgColor: Color,
+    textColor: Color,
 ) {
     val bgHex = String.format("#%06X", 0xFFFFFF and bgColor.toArgb())
     val textHex = String.format("#%06X", 0xFFFFFF and textColor.toArgb())
@@ -115,7 +190,7 @@ private fun MermaidDiagram(
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
             <style>
-                body { margin: 0; padding: 8px; background: $bgHex; overflow: hidden; }
+                body { margin: 0; padding: 8px; background: #000000; overflow: hidden; }
                 .mermaid { color: $textHex; }
                 .mermaid svg { max-width: 100%; height: auto; }
             </style>
@@ -127,14 +202,21 @@ private fun MermaidDiagram(
             <script>
                 mermaid.initialize({
                     startOnLoad: true,
-                    theme: '${if (bgHex.startsWith("#0") || bgHex.startsWith("#1") || bgHex.startsWith("#2")) "dark" else "default"}',
+                    theme: 'dark',
                     themeVariables: {
-                        primaryColor: '#6366F1',
+                        primaryColor: '#A855F7',
                         primaryTextColor: '$textHex',
-                        primaryBorderColor: '#818CF8',
-                        lineColor: '#94A3B8',
-                        secondaryColor: '#E0E7FF',
-                        tertiaryColor: '#F1F5F9',
+                        primaryBorderColor: '#A855F7',
+                        lineColor: '#22D3EE',
+                        secondaryColor: '#1A1A28',
+                        tertiaryColor: '#0A0A12',
+                        background: '#000000',
+                        mainBkg: '#0A0A12',
+                        nodeBorder: '#A855F7',
+                        clusterBkg: '#0A0A12',
+                        clusterBorder: '#A855F7',
+                        titleColor: '#22D3EE',
+                        edgeLabelBackground: '#0A0A12',
                     }
                 });
             </script>
@@ -148,7 +230,7 @@ private fun MermaidDiagram(
                 settings.javaScriptEnabled = true
                 settings.loadWithOverviewMode = true
                 settings.useWideViewPort = true
-                setBackgroundColor(bgColor.toArgb())
+                setBackgroundColor(android.graphics.Color.BLACK)
                 webViewClient = WebViewClient()
                 loadDataWithBaseURL("https://cdn.jsdelivr.net", html, "text/html", "UTF-8", null)
             }
@@ -156,7 +238,12 @@ private fun MermaidDiagram(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 100.dp, max = 400.dp)
-            .clip(RoundedCornerShape(8.dp)),
+            .clip(RoundedCornerShape(12.dp))
+            .border(
+                width = 0.5.dp,
+                color = Violet.copy(alpha = 0.20f),
+                shape = RoundedCornerShape(12.dp),
+            ),
     )
 }
 
@@ -239,7 +326,10 @@ private fun parseMarkdownBlocks(text: String): List<MdBlock> {
     return blocks
 }
 
-private fun parseInlineMarkdown(text: String): AnnotatedString {
+private fun parseInlineMarkdown(
+    text: String,
+    baseColor: Color = Color.Unspecified,
+): AnnotatedString {
     return buildAnnotatedString {
         var remaining = text
         while (remaining.isNotEmpty()) {
@@ -266,8 +356,15 @@ private fun parseInlineMarkdown(text: String): AnnotatedString {
             // Inline code
             val codeMatch = Regex("^`([^`]+)`").find(remaining)
             if (codeMatch != null) {
-                withStyle(SpanStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp)) {
-                    append(codeMatch.groupValues[1])
+                withStyle(
+                    SpanStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 13.sp,
+                        color = Cyan.copy(alpha = 0.85f),
+                        background = InlineCodeBg,
+                    ),
+                ) {
+                    append("\u2009${codeMatch.groupValues[1]}\u2009")
                 }
                 remaining = remaining.substring(codeMatch.range.last + 1)
                 continue

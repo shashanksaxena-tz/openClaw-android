@@ -7,12 +7,18 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
@@ -22,14 +28,42 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.openclaw.android.sandbox.SandboxedFileSystem
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+
+// ── Design tokens ────────────────────────────────────────────────────────────
+private val TrueBlack = Color(0xFF050508)
+private val Charcoal = Color(0xFF0D0D12)
+private val ElectricViolet = Color(0xFFA855F7)
+private val NeonCyan = Color(0xFF22D3EE)
+private val SoftPink = Color(0xFFF472B6)
+private val DangerRed = Color(0xFFEF4444)
+private val GlassBorder = Color.White.copy(alpha = 0.05f)
+private val GlassBorderLight = Color.White.copy(alpha = 0.08f)
+private val GlassSurface = Charcoal.copy(alpha = 0.65f)
+private val GlassSurfaceElevated = Charcoal.copy(alpha = 0.80f)
+private val MutedText = Color.White.copy(alpha = 0.45f)
+private val SubtleText = Color.White.copy(alpha = 0.60f)
+private val PrimaryGradient = Brush.horizontalGradient(listOf(ElectricViolet, NeonCyan))
+private val GlassShape = RoundedCornerShape(16.dp)
+private val ChipShape = RoundedCornerShape(12.dp)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -77,15 +111,55 @@ fun FileBrowserScreen(
         return
     }
 
-    // Delete confirmation
+    // ── Delete confirmation dialog ───────────────────────────────────────────
     fileToDelete?.let { file ->
         AlertDialog(
             onDismissRequest = { fileToDelete = null },
-            icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("Delete ${file.name}?") },
+            shape = GlassShape,
+            containerColor = Charcoal,
+            tonalElevation = 0.dp,
+            modifier = Modifier
+                .border(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
+                        listOf(DangerRed.copy(alpha = 0.40f), DangerRed.copy(alpha = 0.10f))
+                    ),
+                    shape = GlassShape,
+                )
+                .shadow(
+                    elevation = 24.dp,
+                    shape = GlassShape,
+                    ambientColor = DangerRed.copy(alpha = 0.25f),
+                    spotColor = DangerRed.copy(alpha = 0.25f),
+                ),
+            icon = {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(DangerRed.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Default.Delete, null,
+                        tint = DangerRed,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            },
+            title = {
+                Text(
+                    "Delete ${file.name}?",
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            },
             text = {
-                Text(if (file.isDirectory) "This will delete the folder and all its contents."
-                else "This file will be permanently deleted.")
+                Text(
+                    if (file.isDirectory) "This will delete the folder and all its contents."
+                    else "This file will be permanently deleted.",
+                    color = SubtleText,
+                )
             },
             confirmButton = {
                 TextButton(
@@ -96,86 +170,263 @@ fun FileBrowserScreen(
                         fileToDelete = null
                         refreshTrigger++
                     },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) { Text("Delete") }
+                    colors = ButtonDefaults.textButtonColors(contentColor = DangerRed),
+                ) { Text("Delete", fontWeight = FontWeight.SemiBold) }
             },
-            dismissButton = { TextButton(onClick = { fileToDelete = null }) { Text("Cancel") } },
+            dismissButton = {
+                TextButton(onClick = { fileToDelete = null }) {
+                    Text("Cancel", color = SubtleText)
+                }
+            },
         )
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        // Header with space awareness
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (currentPath.isNotEmpty()) {
-                IconButton(onClick = { currentPath = currentPath.substringBeforeLast("/", "") }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+    // ── Main layout ──────────────────────────────────────────────────────────
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(TrueBlack),
+    ) {
+        // ── Header ───────────────────────────────────────────────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(GlassSurfaceElevated)
+                .drawBehind {
+                    // Subtle gradient line at bottom
+                    drawLine(
+                        brush = Brush.horizontalGradient(
+                            listOf(
+                                ElectricViolet.copy(alpha = 0.5f),
+                                NeonCyan.copy(alpha = 0.3f),
+                                Color.Transparent,
+                            )
+                        ),
+                        start = Offset(0f, size.height),
+                        end = Offset(size.width, size.height),
+                        strokeWidth = 1f,
+                    )
                 }
-            }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                // Back button
+                AnimatedVisibility(
+                    visible = currentPath.isNotEmpty(),
+                    enter = fadeIn(tween(200)) + scaleIn(tween(200)),
+                    exit = fadeOut(tween(200)) + scaleOut(tween(200)),
+                ) {
+                    GlassCircleButton(
+                        onClick = { currentPath = currentPath.substringBeforeLast("/", "") },
+                        modifier = Modifier.padding(end = 12.dp),
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack, "Back",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = when {
+                // Title section
+                Column(modifier = Modifier.weight(1f)) {
+                    val titleText = when {
                         isShowingShared -> "Shared Media"
                         activeSpaceName != null -> "$activeSpaceName Files"
                         else -> "Workspace"
-                    },
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                if (currentPath.isNotEmpty()) {
-                    Text(currentPath, style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
-                } else if (activeSpaceName != null && !isShowingShared) {
-                    Text("Files in active space", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(
+                        text = titleText,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        style = LocalTextStyle.current.copy(
+                            brush = PrimaryGradient,
+                        ),
+                    )
+
+                    // Breadcrumb path or space subtitle
+                    AnimatedContent(
+                        targetState = currentPath,
+                        transitionSpec = {
+                            (fadeIn(tween(250)) + slideInHorizontally(tween(250)) { it / 3 })
+                                .togetherWith(fadeOut(tween(150)) + slideOutHorizontally(tween(150)) { -it / 3 })
+                        },
+                        label = "breadcrumb",
+                    ) { path ->
+                        if (path.isNotEmpty()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Folder, null,
+                                    tint = ElectricViolet.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(12.dp),
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = path.replace("/", " / "),
+                                    fontSize = 12.sp,
+                                    color = MutedText,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        } else if (activeSpaceName != null && !isShowingShared) {
+                            Text(
+                                "Files in active space",
+                                fontSize = 12.sp,
+                                color = MutedText,
+                            )
+                        } else {
+                            Spacer(Modifier.height(0.dp))
+                        }
+                    }
+                }
+
+                // Space chip
+                if (activeSpaceName != null && !isShowingShared) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(ElectricViolet.copy(alpha = 0.10f))
+                            .border(0.5.dp, ElectricViolet.copy(alpha = 0.20f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    ) {
+                        Text(
+                            activeSpaceName,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = ElectricViolet.copy(alpha = 0.8f),
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                }
+
+                // Refresh button
+                GlassCircleButton(onClick = { refreshTrigger++ }) {
+                    Icon(
+                        Icons.Default.Refresh, "Refresh",
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
             }
-
-            IconButton(onClick = { refreshTrigger++ }) {
-                Icon(Icons.Default.Refresh, "Refresh")
-            }
         }
 
-        // Filter chips
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-            FilterChip(
-                selected = !isShowingShared,
+        // ── Filter chips row ─────────────────────────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            GlassFilterChip(
+                label = "Workspace",
+                icon = Icons.Default.Folder,
+                isSelected = !isShowingShared,
                 onClick = { isShowingShared = false; currentPath = "" },
-                label = { Text("Workspace") },
-                leadingIcon = { Icon(Icons.Default.Folder, null, Modifier.size(18.dp)) },
             )
-            Spacer(Modifier.width(8.dp))
-            FilterChip(
-                selected = isShowingShared,
+            Spacer(Modifier.width(10.dp))
+            GlassFilterChip(
+                label = "Shared",
+                icon = Icons.Default.Share,
+                isSelected = isShowingShared,
                 onClick = { isShowingShared = true; currentPath = "" },
-                label = { Text("Shared") },
-                leadingIcon = { Icon(Icons.Default.Share, null, Modifier.size(18.dp)) },
             )
             Spacer(Modifier.weight(1f))
-            Text("${usage.fileCount} files, ${usage.displaySize}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.CenterVertically))
+            Text(
+                "${usage.fileCount} files, ${usage.displaySize}",
+                fontSize = 11.sp,
+                color = MutedText,
+            )
         }
 
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        // ── Gradient divider ─────────────────────────────────────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .height(0.5.dp)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            ElectricViolet.copy(alpha = 0.4f),
+                            NeonCyan.copy(alpha = 0.15f),
+                            Color.Transparent,
+                        )
+                    )
+                ),
+        )
 
+        // ── Content area ─────────────────────────────────────────────────────
         if (files.isEmpty() && !isRefreshing) {
-            Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        if (isShowingShared) Icons.Default.Share else Icons.Default.CreateNewFolder,
-                        null, Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                    Spacer(Modifier.height(16.dp))
-                    Text(
-                        text = if (isShowingShared) "No shared media yet.\nShare images, audio, or files from other apps."
-                        else "Workspace is empty.\nThe AI assistant will create files here.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // ── Empty state ──────────────────────────────────────────────────
+            Box(
+                modifier = Modifier.fillMaxSize().padding(32.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+                val pulseAlpha by infiniteTransition.animateFloat(
+                    initialValue = 0.3f,
+                    targetValue = 0.7f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1500, easing = EaseInOutCubic),
+                        repeatMode = RepeatMode.Reverse,
+                    ),
+                    label = "pulseAlpha",
+                )
+                val pulseScale by infiniteTransition.animateFloat(
+                    initialValue = 0.95f,
+                    targetValue = 1.05f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1500, easing = EaseInOutCubic),
+                        repeatMode = RepeatMode.Reverse,
+                    ),
+                    label = "pulseScale",
+                )
+
+                Box(
+                    modifier = Modifier
+                        .widthIn(max = 300.dp)
+                        .clip(GlassShape)
+                        .background(GlassSurface)
+                        .border(0.5.dp, GlassBorderLight, GlassShape)
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = if (isShowingShared) Icons.Default.Share else Icons.Default.CreateNewFolder,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(56.dp)
+                                .graphicsLayer {
+                                    alpha = pulseAlpha
+                                    scaleX = pulseScale
+                                    scaleY = pulseScale
+                                },
+                            tint = if (isShowingShared) NeonCyan.copy(alpha = 0.6f) else ElectricViolet.copy(alpha = 0.6f),
+                        )
+                        Spacer(Modifier.height(20.dp))
+                        Text(
+                            text = if (isShowingShared) "No shared media yet"
+                            else "Workspace is empty",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White.copy(alpha = 0.8f),
+                            textAlign = TextAlign.Center,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = if (isShowingShared) "Share images, audio, or files\nfrom other apps."
+                            else "The AI assistant will\ncreate files here.",
+                            fontSize = 13.sp,
+                            color = MutedText,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 18.sp,
+                        )
+                    }
                 }
             }
         } else {
@@ -184,10 +435,15 @@ fun FileBrowserScreen(
                 onRefresh = { refreshTrigger++ },
                 modifier = Modifier.fillMaxSize(),
             ) {
-                LazyColumn(modifier = Modifier.animateContentSize()) {
-                    items(files, key = { it.name }) { file ->
-                        FileRow(
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    itemsIndexed(files, key = { _, f -> f.name }) { index, file ->
+                        GlassFileRow(
                             file = file,
+                            animationDelay = index * 30,
                             onClick = {
                                 if (file.isDirectory && !isShowingShared) {
                                     currentPath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
@@ -218,65 +474,224 @@ fun FileBrowserScreen(
                             },
                         )
                     }
+                    // Bottom padding to avoid content being cut off
+                    item { Spacer(Modifier.height(8.dp)) }
                 }
             }
         }
     }
 }
 
+// ── Glass circle button ──────────────────────────────────────────────────────
+@Composable
+private fun GlassCircleButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(0.5.dp, GlassBorder, CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        content()
+    }
+}
+
+// ── Glass filter chip ────────────────────────────────────────────────────────
+@Composable
+private fun GlassFilterChip(
+    label: String,
+    icon: ImageVector,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    val selectedAlpha by animateFloatAsState(
+        targetValue = if (isSelected) 1f else 0f,
+        animationSpec = tween(250),
+        label = "chipSelect",
+    )
+
+    Box(
+        modifier = Modifier
+            .clip(ChipShape)
+            .then(
+                if (isSelected) {
+                    Modifier
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(
+                                    ElectricViolet.copy(alpha = 0.25f),
+                                    NeonCyan.copy(alpha = 0.15f),
+                                )
+                            )
+                        )
+                        .border(
+                            0.5.dp,
+                            Brush.horizontalGradient(
+                                listOf(
+                                    ElectricViolet.copy(alpha = 0.5f),
+                                    NeonCyan.copy(alpha = 0.3f),
+                                )
+                            ),
+                            ChipShape,
+                        )
+                        .shadow(
+                            elevation = 8.dp,
+                            shape = ChipShape,
+                            ambientColor = ElectricViolet.copy(alpha = 0.3f),
+                            spotColor = ElectricViolet.copy(alpha = 0.3f),
+                        )
+                } else {
+                    Modifier
+                        .background(Color.White.copy(alpha = 0.04f))
+                        .border(0.5.dp, GlassBorder, ChipShape)
+                }
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                icon, null,
+                modifier = Modifier.size(16.dp),
+                tint = if (isSelected) ElectricViolet else MutedText,
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                label,
+                fontSize = 13.sp,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (isSelected) Color.White else SubtleText,
+            )
+        }
+    }
+}
+
+// ── Glass file row ───────────────────────────────────────────────────────────
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FileRow(
+private fun GlassFileRow(
     file: SandboxedFileSystem.FileInfo,
+    animationDelay: Int,
     onClick: () -> Unit,
     onSaveToDownloads: () -> Unit,
     onDelete: () -> Unit,
     onShare: () -> Unit,
 ) {
     val dateFormat = remember { SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()) }
+    var isVisible by remember { mutableStateOf(false) }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onDelete)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(animationDelay.toLong())
+        isVisible = true
+    }
+
+    AnimatedVisibility(
+        visible = isVisible,
+        enter = fadeIn(tween(300)) + slideInHorizontally(tween(300)) { it / 4 },
     ) {
-        Icon(
-            imageVector = if (file.isDirectory) Icons.Default.Folder else fileIcon(file.name),
-            contentDescription = null,
-            tint = if (file.isDirectory) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(24.dp))
-        Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(file.name, style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                text = buildString {
-                    if (!file.isDirectory) { append(formatSize(file.size)); append(" · ") }
-                    append(dateFormat.format(Date(file.lastModified)))
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(GlassShape)
+                .background(GlassSurface)
+                .border(0.5.dp, GlassBorder, GlassShape)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onDelete,
+                )
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // File icon with color coding
+                val iconColor = fileIconColor(file)
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(iconColor.copy(alpha = 0.10f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = if (file.isDirectory) Icons.Default.Folder else fileIcon(file.name),
+                        contentDescription = null,
+                        tint = iconColor,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
 
-        if (!file.isDirectory) {
-            IconButton(onClick = onSaveToDownloads, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Download, "Save to Downloads", Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(12.dp))
+
+                // File info
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        file.name,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White.copy(alpha = 0.9f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = buildString {
+                            if (!file.isDirectory) { append(formatSize(file.size)); append(" \u00B7 ") }
+                            append(dateFormat.format(Date(file.lastModified)))
+                        },
+                        fontSize = 11.sp,
+                        color = MutedText,
+                    )
+                }
+
+                // Action buttons
+                if (!file.isDirectory) {
+                    GlassCircleButton(onClick = onSaveToDownloads) {
+                        Icon(
+                            Icons.Default.Download, "Save to Downloads",
+                            modifier = Modifier.size(15.dp),
+                            tint = NeonCyan.copy(alpha = 0.8f),
+                        )
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    GlassCircleButton(onClick = onShare) {
+                        Icon(
+                            Icons.Default.Share, "Share",
+                            modifier = Modifier.size(15.dp),
+                            tint = SubtleText,
+                        )
+                    }
+                    Spacer(Modifier.width(6.dp))
+                }
+                GlassCircleButton(onClick = onDelete) {
+                    Icon(
+                        Icons.Default.Delete, "Delete",
+                        modifier = Modifier.size(15.dp),
+                        tint = DangerRed.copy(alpha = 0.7f),
+                    )
+                }
             }
-            IconButton(onClick = onShare, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Share, "Share", Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Default.Delete, "Delete", Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
         }
     }
 }
+
+// ── Icon color coding ────────────────────────────────────────────────────────
+private fun fileIconColor(file: SandboxedFileSystem.FileInfo): Color {
+    if (file.isDirectory) return ElectricViolet
+    return when (file.name.substringAfterLast('.').lowercase()) {
+        "jpg", "jpeg", "png", "gif", "webp", "heic" -> NeonCyan
+        "mp4", "mkv", "avi", "mov" -> SoftPink
+        "mp3", "wav", "ogg", "m4a" -> SoftPink
+        "pdf", "txt", "md", "json", "csv", "html", "htm" -> Color.White.copy(alpha = 0.75f)
+        else -> Color.White.copy(alpha = 0.55f)
+    }
+}
+
+// ── Helper functions (preserved exactly) ─────────────────────────────────────
 
 private fun shareResolvedFile(context: Context, file: File) {
     if (!file.exists() || file.isDirectory) return

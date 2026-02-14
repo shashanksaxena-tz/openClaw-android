@@ -1,6 +1,14 @@
 package com.openclaw.android.ui.components
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -8,10 +16,22 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+// Design system colors
+private val ElectricViolet = Color(0xFFA855F7)
+private val NeonCyan = Color(0xFF22D3EE)
+private val MutedViolet = Color(0xFF9B8AB8)
 
 data class PromptSuggestion(
     val text: String,
@@ -53,8 +73,9 @@ val defaultSuggestions = listOf(
 )
 
 /**
- * Horizontally scrollable row of suggested prompt chips.
+ * Horizontally scrollable row of glass-styled suggested prompt chips.
  * Shown on empty chat state to help new users get started.
+ * Premium dark-first design with glass morphism aesthetic.
  */
 @Composable
 fun SuggestedPrompts(
@@ -65,40 +86,83 @@ fun SuggestedPrompts(
     Column(modifier = modifier) {
         Text(
             text = "Try asking...",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.5.sp,
+            ),
+            color = MutedViolet,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            for (suggestion in suggestions) {
-                SuggestionChip(
+            suggestions.forEachIndexed { index, suggestion ->
+                GlassSuggestionChip(
+                    suggestion = suggestion,
                     onClick = { onSuggestionClick(suggestion.prompt) },
-                    label = { Text(suggestion.text, style = MaterialTheme.typography.labelMedium) },
-                    icon = {
-                        Icon(
-                            suggestion.icon,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = SuggestionChipDefaults.suggestionChipColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        labelColor = MaterialTheme.colorScheme.onSurface,
-                        iconContentColor = MaterialTheme.colorScheme.primary,
-                    ),
-                    border = SuggestionChipDefaults.suggestionChipBorder(
-                        enabled = true,
-                        borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
-                    ),
+                    // Alternate icon tint between cyan and violet
+                    iconTint = if (index % 2 == 0) NeonCyan else ElectricViolet,
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun GlassSuggestionChip(
+    suggestion: PromptSuggestion,
+    onClick: () -> Unit,
+    iconTint: Color,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "chipScale",
+    )
+
+    val chipShape = RoundedCornerShape(16.dp)
+
+    Row(
+        modifier = Modifier
+            .scale(scale)
+            .clip(chipShape)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.60f))
+            .border(
+                width = 0.5.dp,
+                color = Color.White.copy(alpha = 0.08f),
+                shape = chipShape,
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = suggestion.icon,
+            contentDescription = null,
+            tint = iconTint,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            text = suggestion.text,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = FontWeight.Normal,
+            ),
+            color = Color.White,
+        )
     }
 }
