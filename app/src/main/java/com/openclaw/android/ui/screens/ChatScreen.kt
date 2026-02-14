@@ -1106,21 +1106,20 @@ private fun FloatingInputBar(
 
             Spacer(Modifier.width(4.dp))
 
+            // ── Action buttons (consistent 36-40 dp, evenly spaced) ──
             if (isRunning) {
-                // Stop button with pulse animation
                 StopButton(onClick = onStop)
+                Spacer(Modifier.width(4.dp))
             } else {
-                // Voice mode button with pulse
                 VoiceModeButton(onClick = onVoiceMode)
-
-                // Voice input button
+                Spacer(Modifier.width(4.dp))
                 VoiceInputButton(
                     onResult = onVoiceResult,
                     enabled = !isRunning,
                 )
+                Spacer(Modifier.width(4.dp))
             }
 
-            // Send button
             SendButton(
                 canSend = canSend,
                 onClick = onSend,
@@ -1229,7 +1228,7 @@ private fun VoiceModeButton(onClick: () -> Unit) {
 
     Box(
         modifier = Modifier
-            .size(34.dp)
+            .size(36.dp)
             .scale(pressScale)
             .clip(CircleShape)
             .drawBehind {
