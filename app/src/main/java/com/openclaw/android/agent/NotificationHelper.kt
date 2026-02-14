@@ -14,18 +14,30 @@ object NotificationHelper {
 
     private const val CHANNEL_ID = "openclaw_responses"
     private const val CHANNEL_NAME = "AI Responses"
+    private const val SMART_CHANNEL_ID = "openclaw_smart"
+    private const val SMART_CHANNEL_NAME = "Smart Notifications"
     private const val NOTIFICATION_ID_RESPONSE = 1001
 
     fun createChannel(context: Context) {
-        val channel = NotificationChannel(
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        val responseChannel = NotificationChannel(
             CHANNEL_ID,
             CHANNEL_NAME,
             NotificationManager.IMPORTANCE_DEFAULT,
         ).apply {
             description = "Notifications when AI finishes responding"
         }
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.createNotificationChannel(channel)
+        manager.createNotificationChannel(responseChannel)
+
+        val smartChannel = NotificationChannel(
+            SMART_CHANNEL_ID,
+            SMART_CHANNEL_NAME,
+            NotificationManager.IMPORTANCE_HIGH,
+        ).apply {
+            description = "Scheduled reminders and smart notifications"
+        }
+        manager.createNotificationChannel(smartChannel)
     }
 
     fun showResponseReady(context: Context, preview: String) {
@@ -49,6 +61,29 @@ object NotificationHelper {
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID_RESPONSE, notification)
+    }
+
+    fun showSmartNotification(context: Context, title: String, message: String) {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val notification = NotificationCompat.Builder(context, SMART_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(title)
+            .setContentText(message.take(100))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message.take(500)))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(System.currentTimeMillis().toInt(), notification)
     }
 
     fun cancel(context: Context) {

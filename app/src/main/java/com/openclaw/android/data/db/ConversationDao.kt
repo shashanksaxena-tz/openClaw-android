@@ -67,6 +67,10 @@ interface ConversationDao {
     @Query("SELECT COUNT(*) FROM messages WHERE conversationId = :conversationId")
     suspend fun getMessageCount(conversationId: String): Int
 
+    // Expiry
+    @Query("SELECT * FROM conversations WHERE updatedAt < :cutoff")
+    suspend fun getExpiredConversations(cutoff: Long): List<ConversationEntity>
+
     // Search
     @Query("SELECT DISTINCT c.* FROM conversations c INNER JOIN messages m ON c.id = m.conversationId WHERE m.contentJson LIKE '%' || :query || '%' ORDER BY c.updatedAt DESC LIMIT 20")
     suspend fun searchConversations(query: String): List<ConversationEntity>
