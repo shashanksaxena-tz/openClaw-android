@@ -4,12 +4,19 @@ import android.app.Application
 import com.openclaw.android.agent.AgentRuntime
 import com.openclaw.android.agent.ConversationManager
 import com.openclaw.android.agent.NotificationHelper
+import com.openclaw.android.agent.SmartNotificationManager
+import com.openclaw.android.data.ConversationExpiry
+import com.openclaw.android.data.MemorySystem
+import com.openclaw.android.data.PrivacyAudit
 import com.openclaw.android.data.SettingsRepository
 import com.openclaw.android.data.SpaceManager
 import com.openclaw.android.data.db.AppDatabase
 import com.openclaw.android.llm.*
 import com.openclaw.android.sandbox.SandboxedFileSystem
 import com.openclaw.android.tools.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class OpenClawApp : Application() {
 
@@ -34,10 +41,22 @@ class OpenClawApp : Application() {
     lateinit var conversationManager: ConversationManager
         private set
 
+    lateinit var memorySystem: MemorySystem
+        private set
+
+    lateinit var privacyAudit: PrivacyAudit
+        private set
+
+    lateinit var conversationExpiry: ConversationExpiry
+        private set
+
+    lateinit var smartNotificationManager: SmartNotificationManager
+        private set
+
     override fun onCreate() {
         super.onCreate()
 
-        // Notification channel
+        // Notification channels
         NotificationHelper.createChannel(this)
 
         // Settings
@@ -52,19 +71,34 @@ class OpenClawApp : Application() {
         // Database
         val database = AppDatabase.getInstance(this)
         val dao = database.conversationDao()
+        val memoryDao = database.memoryDao()
 
         // Conversation manager (Room-backed)
         conversationManager = ConversationManager(dao)
 
-        // LLM providers
+        // Phase 2: Memory system
+        memorySystem = MemorySystem(memoryDao)
+
+        // Phase 2: Privacy audit
+        privacyAudit = PrivacyAudit(this)
+
+        // Phase 2: Conversation expiry
+        conversationExpiry = ConversationExpiry(this, database)
+
+        // Phase 2: Smart notifications
+        smartNotificationManager = SmartNotificationManager(this)
+
+        // LLM providers (including local model)
+        val localProvider = LocalModelProvider(this)
         val providers = mapOf(
             "gemini" to GeminiProvider(apiKeyProvider = { settings.getGeminiKey() }),
             "groq" to GroqProvider(apiKeyProvider = { settings.getGroqKey() }),
             "cerebras" to CerebrasProvider(apiKeyProvider = { settings.getCerebrasKey() }),
+            "local" to localProvider,
         )
         modelRouter = ModelRouter(providers)
 
-        // Tools
+        // Tools — original
         toolRegistry = ToolRegistry().apply {
             register(ReadFileTool(sandboxedFileSystem))
             register(WriteFileTool(sandboxedFileSystem))
@@ -79,6 +113,22 @@ class OpenClawApp : Application() {
             register(ExportChatTool(sandboxedFileSystem) {
                 conversationManager.getConversationAsText()
             })
+
+            // Phase 2: System integration tools
+            register(CalendarTool(this@OpenClawApp))
+            register(ContactsTool(this@OpenClawApp))
+            register(SmsTool(this@OpenClawApp))
+            register(CallLogTool(this@OpenClawApp))
+            register(SettingsControlTool(this@OpenClawApp))
+            register(AppLauncherTool(this@OpenClawApp))
+            register(ClipboardTool(this@OpenClawApp))
+            register(EmailTool(this@OpenClawApp))
+
+            // Phase 2: AI features
+            register(MemoryTool(memorySystem))
+            register(NotificationTool(smartNotificationManager))
+            register(HabitTrackerTool(this@OpenClawApp))
+            register(PrivacyAuditTool(privacyAudit))
         }
 
         // Agent runtime
@@ -94,6 +144,13 @@ class OpenClawApp : Application() {
         ).apply {
             systemPrompt = settings.getSystemPrompt()
             preferredModelId = settings.getDefaultModel().ifBlank { null }
+        }
+
+        // Run conversation expiry on startup
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                conversationExpiry.purgeExpired()
+            } catch (_: Exception) { }
         }
     }
 
