@@ -260,10 +260,10 @@ private fun WelcomePage() {
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "Your AI, Your Device",
+            text = "Your AI assistant for everything on your phone",
             style = MaterialTheme.typography.titleMedium,
             color = SubtleText,
-            letterSpacing = 1.5.sp,
+            letterSpacing = 0.5.sp,
         )
 
         Spacer(Modifier.height(32.dp))
@@ -272,12 +272,14 @@ private fun WelcomePage() {
         data class Feature(val icon: ImageVector, val label: String)
 
         val features = listOf(
+            Feature(Icons.Default.CalendarMonth, "Calendar"),
+            Feature(Icons.Default.Contacts, "Contacts"),
+            Feature(Icons.Default.Sms, "Messages"),
+            Feature(Icons.Default.Psychology, "Memory"),
+            Feature(Icons.Default.Notifications, "Reminders"),
+            Feature(Icons.Default.FitnessCenter, "Habits"),
             Feature(Icons.Default.Folder, "Files"),
-            Feature(Icons.Default.Workspaces, "Spaces"),
-            Feature(Icons.Default.Mic, "Voice"),
-            Feature(Icons.Default.Search, "Search"),
-            Feature(Icons.Default.Share, "Share"),
-            Feature(Icons.Default.Memory, "Multi-AI"),
+            Feature(Icons.Default.Search, "Web Search"),
         )
         val rows = features.chunked(2)
 
@@ -757,10 +759,12 @@ private fun ReadyPage() {
 
         // ── Tips in glass cards with staggered entrance ──────────────
         val tips = listOf(
-            "\"Help me write a grocery list\"",
-            "\"Create a project plan in markdown\"",
-            "Share a photo and ask \"What's in this image?\"",
-            "Create a Space to organize a project",
+            "\"What's on my calendar this week?\"",
+            "\"Text Mom that I'll be late\"",
+            "\"Remind me to call the dentist tomorrow at 9am\"",
+            "\"Remember that my wifi password is sunshine42\"",
+            "\"Who called me today?\"",
+            "\"Set brightness to 50% and turn on Do Not Disturb\"",
         )
 
         tips.forEachIndexed { index, tip ->

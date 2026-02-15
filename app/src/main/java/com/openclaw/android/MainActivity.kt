@@ -401,6 +401,8 @@ private fun MainContent(app: OpenClawApp) {
                         modelRouter = app.modelRouter,
                         spaceManager = app.spaceManager,
                         agentRuntime = app.agentRuntime,
+                        conversationExpiry = app.conversationExpiry,
+                        privacyAudit = app.privacyAudit,
                         onBack = { currentTab = 0 },
                         modifier = Modifier.padding(padding),
                     )

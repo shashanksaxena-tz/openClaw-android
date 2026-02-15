@@ -767,7 +767,7 @@ private fun EmptyState(onSuggestionClick: (String) -> Unit) {
             Spacer(Modifier.height(10.dp))
 
             Text(
-                "Type a message, use voice, or share media.\nPowered by multiple AI models.",
+                "I can manage your calendar, contacts, messages,\nreminders, habits, files, and more.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MutedGray,
                 textAlign = TextAlign.Center,

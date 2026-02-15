@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.openclaw.android.agent.AgentRuntime
+import com.openclaw.android.data.ConversationExpiry
+import com.openclaw.android.data.PrivacyAudit
 import com.openclaw.android.data.SettingsRepository
 import com.openclaw.android.data.Space
 import com.openclaw.android.data.SpaceManager
@@ -82,6 +84,8 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     spaceManager: SpaceManager? = null,
     agentRuntime: AgentRuntime? = null,
+    conversationExpiry: ConversationExpiry? = null,
+    privacyAudit: PrivacyAudit? = null,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -370,6 +374,141 @@ fun SettingsScreen(
                             spaces = spaceManager.getSpaces()
                             showCreateSpace = false
                         },
+                    )
+                }
+            }
+
+            // ── Conversation Expiry Section ────────────────────────────────────
+            if (conversationExpiry != null) {
+                Spacer(Modifier.height(18.dp))
+
+                var selectedExpiry by remember { mutableIntStateOf(conversationExpiry.expiryDays) }
+                val expiryOptions = conversationExpiry.getOptions()
+
+                GlassSection(
+                    icon = Icons.Outlined.AutoDelete,
+                    title = "Conversation Expiry",
+                    description = "Auto-delete old conversations to save space and protect privacy.",
+                ) {
+                    // Split into two rows to avoid overflow
+                    for (rowOptions in expiryOptions.chunked(4)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            for ((days, label) in rowOptions) {
+                                val isSelected = selectedExpiry == days
+                                Box(
+                                    modifier = Modifier
+                                        .clip(PillShape)
+                                        .background(
+                                            if (isSelected) PrimaryViolet.copy(alpha = 0.15f)
+                                            else InputBg,
+                                        )
+                                        .border(
+                                            width = if (isSelected) 1.dp else 0.5.dp,
+                                            color = if (isSelected) PrimaryViolet.copy(alpha = 0.5f) else GlassBorder,
+                                            shape = PillShape,
+                                        )
+                                        .clickable {
+                                            selectedExpiry = days
+                                            conversationExpiry.expiryDays = days
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                ) {
+                                    Text(
+                                        label,
+                                        style = TextStyle(
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                            color = if (isSelected) PrimaryViolet else TextSecondary,
+                                        ),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Privacy Audit Section ─────────────────────────────────────────
+            if (privacyAudit != null) {
+                Spacer(Modifier.height(18.dp))
+
+                val summary = remember { privacyAudit.getSummary() }
+                val dateFormat = remember { java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault()) }
+
+                GlassSection(
+                    icon = Icons.Outlined.Shield,
+                    title = "Privacy Audit",
+                    description = "See what data has been sent and where.",
+                ) {
+                    // Stats row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        // Total calls
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(InnerShape)
+                                .background(InputBg)
+                                .border(0.5.dp, GlassBorder, InnerShape)
+                                .padding(12.dp),
+                        ) {
+                            Column {
+                                Text(
+                                    "${summary.totalCalls}",
+                                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold, color = SecondaryCyan),
+                                )
+                                Text("API calls", style = TextStyle(fontSize = 11.sp, color = TextMuted))
+                            }
+                        }
+                        // Providers
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(InnerShape)
+                                .background(InputBg)
+                                .border(0.5.dp, GlassBorder, InnerShape)
+                                .padding(12.dp),
+                        ) {
+                            Column {
+                                Text(
+                                    "${summary.byProvider.size}",
+                                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold, color = PrimaryViolet),
+                                )
+                                Text("Providers used", style = TextStyle(fontSize = 11.sp, color = TextMuted))
+                            }
+                        }
+                    }
+
+                    if (summary.byProvider.isNotEmpty()) {
+                        Spacer(Modifier.height(10.dp))
+                        for ((provider, count) in summary.byProvider) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Text(provider.replaceFirstChar { it.uppercase() }, style = TextStyle(fontSize = 13.sp, color = TextPrimary))
+                                Text("$count calls", style = TextStyle(fontSize = 13.sp, color = TextMuted))
+                            }
+                        }
+                    }
+
+                    if (summary.lastCall > 0) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Last activity: ${dateFormat.format(java.util.Date(summary.lastCall))}",
+                            style = TextStyle(fontSize = 11.sp, color = TextMuted),
+                        )
+                    }
+
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "All data encrypted on-device. No telemetry collected.",
+                        style = TextStyle(fontSize = 11.sp, color = SuccessGreen.copy(alpha = 0.7f)),
                     )
                 }
             }
