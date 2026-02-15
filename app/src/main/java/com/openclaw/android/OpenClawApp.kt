@@ -20,6 +20,9 @@ import kotlinx.coroutines.launch
 
 class OpenClawApp : Application() {
 
+    /** Set by MainActivity so ScreenCaptureTool can access the current window. */
+    var currentWindow: android.view.Window? = null
+
     lateinit var settings: SettingsRepository
         private set
 
@@ -124,6 +127,9 @@ class OpenClawApp : Application() {
             register(ClipboardTool(this@OpenClawApp))
             register(EmailTool(this@OpenClawApp))
 
+            // Screen capture (uses window reference set by MainActivity)
+            register(ScreenCaptureTool(this@OpenClawApp, sandboxedFileSystem) { currentWindow })
+
             // Phase 2: AI features
             register(MemoryTool(memorySystem))
             register(NotificationTool(smartNotificationManager))
@@ -150,7 +156,9 @@ class OpenClawApp : Application() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 conversationExpiry.purgeExpired()
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                android.util.Log.e("OpenClawApp", "Conversation expiry failed", e)
+            }
         }
     }
 

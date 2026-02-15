@@ -83,7 +83,8 @@ object NotificationHelper {
             .build()
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(System.currentTimeMillis().toInt(), notification)
+        val notifId = (title.hashCode() xor message.hashCode()) and 0x7FFFFFFF
+        manager.notify(notifId, notification)
     }
 
     fun cancel(context: Context) {

@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val app = application as OpenClawApp
+        app.currentWindow = window
 
         setContent {
             OpenClawTheme {

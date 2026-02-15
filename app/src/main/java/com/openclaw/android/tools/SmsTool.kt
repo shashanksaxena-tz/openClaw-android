@@ -97,7 +97,7 @@ class SmsTool(private val context: Context) : Tool {
                 val direction = if (type == Telephony.Sms.MESSAGE_TYPE_SENT) "Sent" else "Received"
 
                 sb.append("**$address** ($direction, ${dateFormat.format(date)}):\n")
-                sb.append("  ${body.take(200)}\n\n")
+                sb.append("  ${body.take(200)}${if (body.length > 200) "..." else ""}\n\n")
             }
         }
 

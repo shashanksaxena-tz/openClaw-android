@@ -108,7 +108,30 @@ class ContactsTool(private val context: Context) : Tool {
             }
         }
 
-        if (count == 0) sb.append("No contacts found.")
+        // Also fetch email addresses for matched contacts
+        val emailCursor = resolver.query(
+            ContactsContract.CommonDataKinds.Email.CONTENT_URI,
+            arrayOf(
+                ContactsContract.CommonDataKinds.Email.DISPLAY_NAME,
+                ContactsContract.CommonDataKinds.Email.ADDRESS,
+            ),
+            "${ContactsContract.CommonDataKinds.Email.DISPLAY_NAME} LIKE ?",
+            arrayOf("%$query%"),
+            null
+        )
+        emailCursor?.use {
+            while (it.moveToNext()) {
+                val name = it.getString(0) ?: "Unknown"
+                val email = it.getString(1) ?: continue
+                val emailKey = "$name|$email"
+                if (emailKey !in seen) {
+                    seen.add(emailKey)
+                    sb.append("- **$name**: $email (Email)\n")
+                }
+            }
+        }
+
+        if (count == 0 && seen.isEmpty()) sb.append("No contacts found.")
         return ToolResult.success(sb.toString())
     }
 
