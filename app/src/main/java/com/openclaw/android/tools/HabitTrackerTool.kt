@@ -161,7 +161,7 @@ class HabitTrackerTool(context: Context) : Tool {
 
         sb.append("---\n")
         sb.append("Today: $totalCompleted done, $totalPending pending\n")
-        sb.append("Overall completion rate: ${if (habits.isNotEmpty()) "${totalCompleted * 100 / habits.size}%" else "N/A"}")
+        sb.append("Overall completion rate: ${if (habits.isNotEmpty()) "${"%.0f".format(totalCompleted * 100.0 / habits.size)}%" else "N/A"}")
 
         return ToolResult.success(sb.toString())
     }

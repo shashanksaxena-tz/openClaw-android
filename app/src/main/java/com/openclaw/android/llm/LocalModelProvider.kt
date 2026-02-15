@@ -101,23 +101,18 @@ class LocalModelProvider(private val context: Context) : LlmProvider {
             append("Assistant: ")
         }
 
-        // Try to use ML Kit Generative AI via reflection to avoid compile-time dependency
-        try {
-            val generatorClass = Class.forName("com.google.ai.edge.aicore.GenerativeModel")
-            val builderClass = Class.forName("com.google.ai.edge.aicore.GenerativeModel\$Builder")
-            val builder = builderClass.getConstructor(Context::class.java).newInstance(context)
-            val buildMethod = builderClass.getMethod("build")
-            val model = buildMethod.invoke(builder)
-            val generateMethod = generatorClass.getMethod("generateContent", String::class.java)
-            val response = generateMethod.invoke(model, prompt)
-            val getTextMethod = response!!.javaClass.getMethod("getText")
-            return getTextMethod.invoke(response) as? String ?: "No response generated"
-        } catch (e: ClassNotFoundException) {
-            return "On-device model libraries not found. Please ensure Google AI Core is " +
-                    "installed and your device supports Gemini Nano (Pixel 8+ required)."
-        } catch (e: Exception) {
-            return "On-device inference error: ${e.message}"
-        }
+        // Google AI Core SDK is required as a Gradle dependency for on-device inference.
+        // Without the compile-time dependency, we cannot invoke the model.
+        // The availability check above confirms the AI Core app is installed,
+        // but the SDK integration requires adding the aicore dependency to build.gradle:
+        //   implementation("com.google.ai.edge.aicore:aicore:0.0.4-alpha01")
+        //
+        // For now, return a helpful message. When the SDK is added, replace this
+        // with proper GenerativeModel initialization and generateContent() calls.
+        return "On-device inference is available on this device (Google AI Core detected), " +
+                "but the Gemini Nano SDK integration is not yet enabled in this build. " +
+                "Please use a cloud model (Gemini, Groq, or Cerebras) for now. " +
+                "On-device support is coming in a future update."
     }
 
     fun getStatus(): String = buildString {

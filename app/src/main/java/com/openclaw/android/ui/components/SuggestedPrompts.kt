@@ -39,19 +39,24 @@ data class PromptSuggestion(
 
 val defaultSuggestions = listOf(
     PromptSuggestion(
-        text = "Write something",
-        icon = Icons.Default.Edit,
-        prompt = "Help me write ",
+        text = "What's on my calendar?",
+        icon = Icons.Default.CalendarMonth,
+        prompt = "What's on my calendar this week?",
     ),
     PromptSuggestion(
-        text = "Summarize",
-        icon = Icons.Default.Summarize,
-        prompt = "Summarize this: ",
+        text = "Text someone",
+        icon = Icons.Default.Sms,
+        prompt = "Text ",
     ),
     PromptSuggestion(
-        text = "Create a file",
-        icon = Icons.Default.NoteAdd,
-        prompt = "Create a file called ",
+        text = "Set a reminder",
+        icon = Icons.Default.NotificationAdd,
+        prompt = "Remind me to ",
+    ),
+    PromptSuggestion(
+        text = "Call a contact",
+        icon = Icons.Default.Call,
+        prompt = "Call ",
     ),
     PromptSuggestion(
         text = "Search the web",
@@ -59,14 +64,19 @@ val defaultSuggestions = listOf(
         prompt = "Search the web for ",
     ),
     PromptSuggestion(
-        text = "Brainstorm ideas",
-        icon = Icons.Default.Lightbulb,
-        prompt = "Help me brainstorm ideas for ",
+        text = "Remember this",
+        icon = Icons.Default.Psychology,
+        prompt = "Remember that I ",
     ),
     PromptSuggestion(
-        text = "Make a list",
-        icon = Icons.Default.FormatListBulleted,
-        prompt = "Create a list of ",
+        text = "Track a habit",
+        icon = Icons.Default.FitnessCenter,
+        prompt = "Create a daily habit for ",
+    ),
+    PromptSuggestion(
+        text = "Who called me?",
+        icon = Icons.Default.PhoneCallback,
+        prompt = "Show me my recent calls",
     ),
 )
 

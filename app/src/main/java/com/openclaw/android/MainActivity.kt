@@ -2,8 +2,10 @@ package com.openclaw.android
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -65,6 +67,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val app = application as OpenClawApp
+        app.currentWindow = window
 
         setContent {
             OpenClawTheme {
@@ -82,6 +85,28 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun MainApp(app: OpenClawApp) {
     var currentScreen by remember { mutableStateOf(AppScreen.SPLASH) }
+
+    // ── Runtime permission bridge ────────────────────────────────────────────
+    // Observes permission requests from tools (via PermissionManager) and shows
+    // the system permission dialog. The result is sent back so the suspended
+    // tool coroutine can continue.
+    var pendingRequest by remember { mutableStateOf<PermissionManager.PermissionRequest?>(null) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+    ) { grants ->
+        val req = pendingRequest ?: return@rememberLauncherForActivityResult
+        val allGranted = grants.values.all { it }
+        app.permissionManager.onPermissionResult(req, allGranted)
+        pendingRequest = null
+    }
+
+    LaunchedEffect(Unit) {
+        app.permissionManager.requests.collect { request ->
+            pendingRequest = request
+            permissionLauncher.launch(request.permissions.toTypedArray())
+        }
+    }
 
     AnimatedContent(
         targetState = currentScreen,
@@ -376,6 +401,8 @@ private fun MainContent(app: OpenClawApp) {
                         modelRouter = app.modelRouter,
                         spaceManager = app.spaceManager,
                         agentRuntime = app.agentRuntime,
+                        conversationExpiry = app.conversationExpiry,
+                        privacyAudit = app.privacyAudit,
                         onBack = { currentTab = 0 },
                         modifier = Modifier.padding(padding),
                     )

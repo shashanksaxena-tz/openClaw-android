@@ -1,5 +1,6 @@
 package com.openclaw.android.agent
 
+import com.openclaw.android.PermissionManager
 import com.openclaw.android.data.SpaceManager
 import com.openclaw.android.llm.*
 import com.openclaw.android.sandbox.SandboxedFileSystem
@@ -9,6 +10,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 class AgentRuntime(
     private val modelRouter: ModelRouter,
@@ -17,6 +19,7 @@ class AgentRuntime(
     private val spaceManager: SpaceManager? = null,
     private val sandboxedFileSystem: SandboxedFileSystem? = null,
     private val onBackgroundResponse: ((String) -> Unit)? = null,
+    val permissionManager: PermissionManager? = null,
 ) {
     companion object {
         const val MAX_TOOL_ITERATIONS = 10
@@ -56,9 +59,8 @@ class AgentRuntime(
     fun setActiveSpace(spaceId: String?) {
         _activeSpaceId = spaceId
         sandboxedFileSystem?.setActiveSpace(spaceId)
-        // Notify conversation manager about the space change
-        // Using runBlocking is safe here since setActiveSpace just sets a field
-        kotlinx.coroutines.runBlocking { conversationManager.setActiveSpace(spaceId) }
+        // Launch in the agent's own scope to avoid runBlocking deadlocks
+        scope.launch { conversationManager.setActiveSpace(spaceId) }
     }
 
     fun cancel() {
@@ -72,7 +74,7 @@ class AgentRuntime(
     }
 
     private fun emit(event: AgentEvent) {
-        _events.value = _events.value + event
+        _events.update { it + event }
     }
 
     private fun buildSystemPrompt(): String {
@@ -225,12 +227,22 @@ class AgentRuntime(
                         } else {
                             val tool = toolRegistry.get(toolCall.name)
                             if (tool != null) {
-                                try {
-                                    withTimeoutOrNull(TOOL_TIMEOUT_MS) {
-                                        tool.execute(toolCall.arguments)
-                                    } ?: ToolResult.error("Tool '${toolCall.name}' timed out after ${TOOL_TIMEOUT_MS / 1000}s")
-                                } catch (e: Exception) {
-                                    ToolResult.error("Tool execution failed: ${e.message}")
+                                // Check runtime permissions before executing
+                                val perms = tool.requiredPermissions
+                                val permGranted = if (perms.isNotEmpty() && permissionManager != null) {
+                                    permissionManager.ensurePermissions(perms, tool.name)
+                                } else true
+
+                                if (!permGranted) {
+                                    ToolResult.error("Permission denied. The ${tool.name} tool needs access that was not granted. Please allow the requested permissions and try again.")
+                                } else {
+                                    try {
+                                        withTimeoutOrNull(TOOL_TIMEOUT_MS) {
+                                            tool.execute(toolCall.arguments)
+                                        } ?: ToolResult.error("Tool '${toolCall.name}' timed out after ${TOOL_TIMEOUT_MS / 1000}s")
+                                    } catch (e: Exception) {
+                                        ToolResult.error("Tool execution failed: ${e.message}")
+                                    }
                                 }
                             } else {
                                 ToolResult.error("Unknown tool: ${toolCall.name}")
@@ -319,30 +331,48 @@ sealed class AgentEvent {
     data class Error(val message: String) : AgentEvent()
 }
 
-const val DEFAULT_SYSTEM_PROMPT = """You are OpenClaw, a personal AI assistant running on Android.
-
-You have access to a sandboxed workspace folder where you can create, read, edit, and organize files.
-Users can share media (images, audio, video, documents) with you from other apps.
+const val DEFAULT_SYSTEM_PROMPT = """You are OpenClaw, a powerful personal AI assistant running natively on Android. You have deep access to the device and can help with everything from daily tasks to file management, scheduling, and staying organized.
 
 ## Your capabilities:
+
+### Device Integration
+- **Calendar**: Read upcoming events, search by title, create new events with date/time/location
+- **Contacts**: Search contacts by name, initiate calls, send texts
+- **SMS**: Read inbox messages, search conversations, compose new messages
+- **Call Log**: View recent calls, search call history, analyze call patterns and stats
+- **Email**: Compose and send emails with subject, body, CC, BCC
+- **Settings**: Get/set volume, brightness, Do Not Disturb mode, check WiFi status
+- **App Launcher**: Launch any app by name, search installed apps, open URLs
+- **Clipboard**: Read/write clipboard content, view clipboard history
+- **Screen Capture**: Take screenshots and save them to workspace
+
+### Personal Intelligence
+- **Memory**: Remember facts, preferences, and context the user tells you. Recall them later. You are the user's "second brain" — proactively use memory to personalize responses.
+- **Habit Tracker**: Create habits, log completions, track streaks and statistics
+- **Smart Notifications**: Schedule reminders and recurring notifications for the user
+
+### File Management
 - Read and write files in workspace/ (supports .txt, .md, .html, .json, .csv and more)
 - Read shared media from shared/ (shared by the user from other apps)
 - Copy files from shared/ to workspace/ for organizing
 - Search files by name or content
-- Search the web for current information
 - Share files from workspace with other apps
 - Export conversations as documents
+
+### Web & Research
+- Search the web for current information
 - Fetch web URLs and extract content
 
 ## Rules:
-- You can ONLY operate within workspace/ (write) and shared/ (read)
-- You CANNOT and MUST NOT execute code, run scripts, or call any code execution tool. You are a file management and conversation assistant only.
-- You cannot install software or access the internet beyond web_search and fetch_url
+- Be proactive: if the user mentions a person, check your memory and contacts. If they mention a date, check the calendar.
+- Use your memory system: when the user tells you something personal (name, preference, habit), remember it automatically.
+- File operations: you can ONLY operate within workspace/ (write) and shared/ (read)
+- You CANNOT execute code, run scripts, or call any code execution tool
 - Be concise and helpful
 - When the user shares an image, describe what you see and ask how you can help
-- When the user shares a URL or link, use the web_search tool to fetch and analyze its content
 - When working with files, always confirm actions before deleting
-- Create files in formats the user requests (.md, .html, .txt, etc.)
+- For SMS and calls, you open the composer/dialer — the user confirms the action
+- When the user says "call X" or "text X", use contacts to find the person and initiate
 
 ## File paths:
 - workspace/ — your working directory (full read/write)

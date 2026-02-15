@@ -35,9 +35,11 @@ class ClipboardTool(private val context: Context) : Tool {
         putJsonArray("required") { add("action") }
     }
 
-    // Simple in-memory clipboard history (persists during app session)
+    // Thread-safe in-memory clipboard history (persists during app session)
     companion object {
-        private val clipHistory = mutableListOf<Pair<String, Long>>() // text, timestamp
+        private val clipHistory = java.util.Collections.synchronizedList(
+            mutableListOf<Pair<String, Long>>() // text, timestamp
+        )
         private const val MAX_HISTORY = 20
     }
 

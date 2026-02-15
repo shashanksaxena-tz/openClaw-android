@@ -1,5 +1,6 @@
 package com.openclaw.android.tools
 
+import android.Manifest
 import android.content.ContentResolver
 import android.content.ContentValues
 import android.content.Context
@@ -13,17 +14,26 @@ import java.util.TimeZone
 class CalendarTool(private val context: Context) : Tool {
 
     override val name = "calendar"
-    override val description = "Read upcoming calendar events, search events, or create new events. " +
+
+    override val requiredPermissions = listOf(
+        Manifest.permission.READ_CALENDAR,
+        Manifest.permission.WRITE_CALENDAR,
+    )
+    override val description = "Read upcoming calendar events, search events, create or delete events. " +
             "Actions: 'list' (list upcoming events), 'search' (search events by query), " +
-            "'create' (create a new event)."
+            "'create' (create a new event), 'delete' (delete an event by ID)."
 
     override val parameterSchema = buildJsonObject {
         put("type", "object")
         putJsonObject("properties") {
             putJsonObject("action") {
                 put("type", "string")
-                put("enum", buildJsonArray { add("list"); add("search"); add("create") })
+                put("enum", buildJsonArray { add("list"); add("search"); add("create"); add("delete") })
                 put("description", "Action to perform")
+            }
+            putJsonObject("event_id") {
+                put("type", "string")
+                put("description", "Event ID (for delete action — get IDs from list/search results)")
             }
             putJsonObject("days") {
                 put("type", "integer")
@@ -71,6 +81,11 @@ class CalendarTool(private val context: Context) : Tool {
                     searchEvents(query)
                 }
                 "create" -> createEvent(args)
+                "delete" -> {
+                    val eventId = args["event_id"]?.jsonPrimitive?.contentOrNull
+                        ?: return ToolResult.error("Missing 'event_id' for delete. Use list/search to find event IDs.")
+                    deleteEvent(eventId)
+                }
                 else -> ToolResult.error("Unknown action: $action")
             }
         } catch (e: SecurityException) {
@@ -110,6 +125,7 @@ class CalendarTool(private val context: Context) : Tool {
 
         cursor.use {
             while (it.moveToNext() && count < 50) {
+                val eventId = it.getLong(0)
                 val title = it.getString(1) ?: "Untitled"
                 val start = it.getLong(2)
                 val endTime = it.getLong(3)
@@ -117,7 +133,7 @@ class CalendarTool(private val context: Context) : Tool {
                 val desc = it.getString(5) ?: ""
                 val allDay = it.getInt(6) == 1
 
-                sb.append("- **$title**\n")
+                sb.append("- **$title** (ID: $eventId)\n")
                 if (allDay) {
                     sb.append("  All day\n")
                 } else {
@@ -163,9 +179,10 @@ class CalendarTool(private val context: Context) : Tool {
 
         cursor.use {
             while (it.moveToNext() && count < 20) {
+                val eventId = it.getLong(0)
                 val title = it.getString(1) ?: "Untitled"
                 val start = it.getLong(2)
-                sb.append("- **$title** — ${dateFormat.format(start)}\n")
+                sb.append("- **$title** (ID: $eventId) — ${dateFormat.format(start)}\n")
                 count++
             }
         }
@@ -214,6 +231,20 @@ class CalendarTool(private val context: Context) : Tool {
 
         val dateFormat = SimpleDateFormat("EEE, MMM d 'at' h:mm a", Locale.getDefault())
         return ToolResult.success("Created event: '$title' on ${dateFormat.format(startMillis)}")
+    }
+
+    private fun deleteEvent(eventIdStr: String): ToolResult {
+        val eventId = eventIdStr.toLongOrNull()
+            ?: return ToolResult.error("Invalid event ID: '$eventIdStr'. Must be a number.")
+
+        val uri = android.content.ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
+        val rowsDeleted = context.contentResolver.delete(uri, null, null)
+
+        return if (rowsDeleted > 0) {
+            ToolResult.success("Deleted event (ID: $eventId).")
+        } else {
+            ToolResult.error("No event found with ID $eventId, or it could not be deleted.")
+        }
     }
 
     private fun getDefaultCalendarId(): Long {
