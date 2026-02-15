@@ -1,5 +1,6 @@
 package com.openclaw.android.agent
 
+import com.openclaw.android.PermissionManager
 import com.openclaw.android.data.SpaceManager
 import com.openclaw.android.llm.*
 import com.openclaw.android.sandbox.SandboxedFileSystem
@@ -18,6 +19,7 @@ class AgentRuntime(
     private val spaceManager: SpaceManager? = null,
     private val sandboxedFileSystem: SandboxedFileSystem? = null,
     private val onBackgroundResponse: ((String) -> Unit)? = null,
+    val permissionManager: PermissionManager? = null,
 ) {
     companion object {
         const val MAX_TOOL_ITERATIONS = 10
@@ -225,12 +227,22 @@ class AgentRuntime(
                         } else {
                             val tool = toolRegistry.get(toolCall.name)
                             if (tool != null) {
-                                try {
-                                    withTimeoutOrNull(TOOL_TIMEOUT_MS) {
-                                        tool.execute(toolCall.arguments)
-                                    } ?: ToolResult.error("Tool '${toolCall.name}' timed out after ${TOOL_TIMEOUT_MS / 1000}s")
-                                } catch (e: Exception) {
-                                    ToolResult.error("Tool execution failed: ${e.message}")
+                                // Check runtime permissions before executing
+                                val perms = tool.requiredPermissions
+                                val permGranted = if (perms.isNotEmpty() && permissionManager != null) {
+                                    permissionManager.ensurePermissions(perms, tool.name)
+                                } else true
+
+                                if (!permGranted) {
+                                    ToolResult.error("Permission denied. The ${tool.name} tool needs access that was not granted. Please allow the requested permissions and try again.")
+                                } else {
+                                    try {
+                                        withTimeoutOrNull(TOOL_TIMEOUT_MS) {
+                                            tool.execute(toolCall.arguments)
+                                        } ?: ToolResult.error("Tool '${toolCall.name}' timed out after ${TOOL_TIMEOUT_MS / 1000}s")
+                                    } catch (e: Exception) {
+                                        ToolResult.error("Tool execution failed: ${e.message}")
+                                    }
                                 }
                             } else {
                                 ToolResult.error("Unknown tool: ${toolCall.name}")

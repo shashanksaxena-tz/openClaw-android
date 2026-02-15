@@ -1,5 +1,6 @@
 package com.openclaw.android.tools
 
+import android.Manifest
 import android.content.Context
 import android.provider.CallLog
 import kotlinx.serialization.json.*
@@ -9,6 +10,8 @@ import java.util.Locale
 class CallLogTool(private val context: Context) : Tool {
 
     override val name = "call_log"
+
+    override val requiredPermissions = listOf(Manifest.permission.READ_CALL_LOG)
     override val description = "Read call history, analyze call patterns, and search call records. " +
             "Actions: 'recent' (list recent calls), 'search' (search by number/contact), " +
             "'stats' (call frequency analysis — who did I talk to most)."

@@ -1,5 +1,6 @@
 package com.openclaw.android.tools
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -9,6 +10,8 @@ import kotlinx.serialization.json.*
 class ContactsTool(private val context: Context) : Tool {
 
     override val name = "contacts"
+
+    override val requiredPermissions = listOf(Manifest.permission.READ_CONTACTS)
     override val description = "Search contacts, get contact details, or initiate a call/text. " +
             "Actions: 'search' (find contacts by name), 'call' (start a phone call), 'text' (open SMS)."
 

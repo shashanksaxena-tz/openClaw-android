@@ -1,5 +1,6 @@
 package com.openclaw.android.tools
 
+import android.Manifest
 import android.content.ContentResolver
 import android.content.ContentValues
 import android.content.Context
@@ -13,6 +14,11 @@ import java.util.TimeZone
 class CalendarTool(private val context: Context) : Tool {
 
     override val name = "calendar"
+
+    override val requiredPermissions = listOf(
+        Manifest.permission.READ_CALENDAR,
+        Manifest.permission.WRITE_CALENDAR,
+    )
     override val description = "Read upcoming calendar events, search events, create or delete events. " +
             "Actions: 'list' (list upcoming events), 'search' (search events by query), " +
             "'create' (create a new event), 'delete' (delete an event by ID)."

@@ -13,6 +13,9 @@ interface Tool {
     val description: String
     val parameterSchema: JsonObject
 
+    /** Android permissions this tool needs at runtime (e.g. Manifest.permission.READ_CALENDAR). */
+    val requiredPermissions: List<String> get() = emptyList()
+
     /** Execute the tool with the given arguments. Returns the result as a string. */
     suspend fun execute(arguments: JsonElement): ToolResult
 

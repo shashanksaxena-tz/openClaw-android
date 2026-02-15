@@ -56,6 +56,9 @@ class OpenClawApp : Application() {
     lateinit var smartNotificationManager: SmartNotificationManager
         private set
 
+    lateinit var permissionManager: PermissionManager
+        private set
+
     override fun onCreate() {
         super.onCreate()
 
@@ -90,6 +93,9 @@ class OpenClawApp : Application() {
 
         // Phase 2: Smart notifications
         smartNotificationManager = SmartNotificationManager(this)
+
+        // Permission manager (bridges tool execution ↔ UI permission dialogs)
+        permissionManager = PermissionManager(this)
 
         // LLM providers (including local model)
         val localProvider = LocalModelProvider(this)
@@ -147,6 +153,7 @@ class OpenClawApp : Application() {
             onBackgroundResponse = { preview ->
                 NotificationHelper.showResponseReady(this@OpenClawApp, preview)
             },
+            permissionManager = permissionManager,
         ).apply {
             systemPrompt = settings.getSystemPrompt()
             preferredModelId = settings.getDefaultModel().ifBlank { null }

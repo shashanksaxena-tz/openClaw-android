@@ -1,5 +1,6 @@
 package com.openclaw.android.tools
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -11,6 +12,8 @@ import java.util.Locale
 class SmsTool(private val context: Context) : Tool {
 
     override val name = "sms"
+
+    override val requiredPermissions = listOf(Manifest.permission.READ_SMS)
     override val description = "Read recent SMS messages, search messages, or send a new text message. " +
             "Actions: 'inbox' (read recent messages), 'search' (search messages), 'send' (compose a message)."
 
