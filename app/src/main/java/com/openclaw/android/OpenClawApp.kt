@@ -141,6 +141,15 @@ class OpenClawApp : Application() {
             register(NotificationTool(smartNotificationManager))
             register(HabitTrackerTool(this@OpenClawApp))
             register(PrivacyAuditTool(privacyAudit))
+
+            // Phase 3: Executive Assistant tools
+            register(SmartNoteTool(this@OpenClawApp))
+            register(TaskManagerTool(this@OpenClawApp))
+            register(TravelManagerTool(this@OpenClawApp))
+            register(TeamManagerTool(this@OpenClawApp))
+            register(ProductivityInsightsTool(this@OpenClawApp))
+            register(DailyBriefingTool(this@OpenClawApp))
+            register(DecisionLogTool(this@OpenClawApp))
         }
 
         // Agent runtime

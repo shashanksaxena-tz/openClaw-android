@@ -767,7 +767,7 @@ private fun EmptyState(onSuggestionClick: (String) -> Unit) {
             Spacer(Modifier.height(10.dp))
 
             Text(
-                "I can manage your calendar, contacts, messages,\nreminders, habits, files, and more.",
+                "Your executive assistant for tasks, travel, team,\ncalendar, notes, decisions, and productivity.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MutedGray,
                 textAlign = TextAlign.Center,

@@ -260,7 +260,7 @@ private fun WelcomePage() {
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "Your AI assistant for everything on your phone",
+            text = "Your Personal Executive Assistant",
             style = MaterialTheme.typography.titleMedium,
             color = SubtleText,
             letterSpacing = 0.5.sp,
@@ -272,14 +272,14 @@ private fun WelcomePage() {
         data class Feature(val icon: ImageVector, val label: String)
 
         val features = listOf(
+            Feature(Icons.Default.WbSunny, "Briefings"),
+            Feature(Icons.Default.CheckCircle, "Tasks"),
+            Feature(Icons.Default.FlightTakeoff, "Travel"),
+            Feature(Icons.Default.Groups, "Team"),
+            Feature(Icons.Default.EditNote, "Notes"),
+            Feature(Icons.Default.TrendingUp, "Insights"),
             Feature(Icons.Default.CalendarMonth, "Calendar"),
-            Feature(Icons.Default.Contacts, "Contacts"),
-            Feature(Icons.Default.Sms, "Messages"),
-            Feature(Icons.Default.Psychology, "Memory"),
-            Feature(Icons.Default.Notifications, "Reminders"),
-            Feature(Icons.Default.FitnessCenter, "Habits"),
-            Feature(Icons.Default.Folder, "Files"),
-            Feature(Icons.Default.Search, "Web Search"),
+            Feature(Icons.Default.Gavel, "Decisions"),
         )
         val rows = features.chunked(2)
 
@@ -759,12 +759,12 @@ private fun ReadyPage() {
 
         // ── Tips in glass cards with staggered entrance ──────────────
         val tips = listOf(
-            "\"What's on my calendar this week?\"",
-            "\"Text Mom that I'll be late\"",
-            "\"Remind me to call the dentist tomorrow at 9am\"",
-            "\"Remember that my wifi password is sunshine42\"",
-            "\"Who called me today?\"",
-            "\"Set brightness to 50% and turn on Do Not Disturb\"",
+            "\"Give me my daily briefing\"",
+            "\"Create a high-priority task to review Q3 budget\"",
+            "\"Plan a trip to Tokyo next month\"",
+            "\"Delegate API review to Rahul, due Friday\"",
+            "\"I decided to go with vendor B — log this decision\"",
+            "\"Show my weekly productivity report\"",
         )
 
         tips.forEachIndexed { index, tip ->

@@ -39,14 +39,44 @@ data class PromptSuggestion(
 
 val defaultSuggestions = listOf(
     PromptSuggestion(
-        text = "What's on my calendar?",
-        icon = Icons.Default.CalendarMonth,
-        prompt = "What's on my calendar this week?",
+        text = "Daily briefing",
+        icon = Icons.Default.WbSunny,
+        prompt = "Give me my daily briefing",
     ),
     PromptSuggestion(
-        text = "Text someone",
-        icon = Icons.Default.Sms,
-        prompt = "Text ",
+        text = "Add a task",
+        icon = Icons.Default.CheckCircle,
+        prompt = "Create a high priority task to ",
+    ),
+    PromptSuggestion(
+        text = "Plan a trip",
+        icon = Icons.Default.FlightTakeoff,
+        prompt = "Help me plan a trip to ",
+    ),
+    PromptSuggestion(
+        text = "Team dashboard",
+        icon = Icons.Default.Groups,
+        prompt = "Show me my team dashboard",
+    ),
+    PromptSuggestion(
+        text = "Capture a note",
+        icon = Icons.Default.EditNote,
+        prompt = "Note: ",
+    ),
+    PromptSuggestion(
+        text = "My priorities",
+        icon = Icons.Default.PriorityHigh,
+        prompt = "What are my top priorities today?",
+    ),
+    PromptSuggestion(
+        text = "Log a decision",
+        icon = Icons.Default.Gavel,
+        prompt = "I decided to ",
+    ),
+    PromptSuggestion(
+        text = "Productivity tips",
+        icon = Icons.Default.TrendingUp,
+        prompt = "Give me productivity suggestions based on my patterns",
     ),
     PromptSuggestion(
         text = "Set a reminder",
@@ -54,29 +84,9 @@ val defaultSuggestions = listOf(
         prompt = "Remind me to ",
     ),
     PromptSuggestion(
-        text = "Call a contact",
-        icon = Icons.Default.Call,
-        prompt = "Call ",
-    ),
-    PromptSuggestion(
-        text = "Search the web",
-        icon = Icons.Default.Search,
-        prompt = "Search the web for ",
-    ),
-    PromptSuggestion(
-        text = "Remember this",
-        icon = Icons.Default.Psychology,
-        prompt = "Remember that I ",
-    ),
-    PromptSuggestion(
-        text = "Track a habit",
-        icon = Icons.Default.FitnessCenter,
-        prompt = "Create a daily habit for ",
-    ),
-    PromptSuggestion(
-        text = "Who called me?",
-        icon = Icons.Default.PhoneCallback,
-        prompt = "Show me my recent calls",
+        text = "Weekly report",
+        icon = Icons.Default.Assessment,
+        prompt = "Show me my weekly productivity report",
     ),
 )
 
