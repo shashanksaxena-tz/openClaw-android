@@ -69,6 +69,10 @@ fun DashboardScreen(
     onNavigateToNotes: () -> Unit = {},
     onNavigateToTeam: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
+    onNavigateToCalendar: () -> Unit = {},
+    onNavigateToTravel: () -> Unit = {},
+    onNavigateToInsights: () -> Unit = {},
+    onNavigateToBriefing: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -100,6 +104,13 @@ fun DashboardScreen(
         tasks.count { it.optString("status") == "done" && (it.optLong("completedAt") ?: 0) > todayStart }
     }
     val activeDelegations = delegations.count { it.optString("status") == "assigned" }
+
+    // Travel data
+    val travelPrefs = remember { context.getSharedPreferences("travel_manager", Context.MODE_PRIVATE) }
+    val trips = remember { parseJsonList(travelPrefs.getString("trips_data", "[]") ?: "[]", json) }
+    val upcomingTrip = trips
+        .filter { (it.optLong("startDate") ?: 0) > System.currentTimeMillis() }
+        .minByOrNull { it.optLong("startDate") ?: Long.MAX_VALUE }
 
     // Calendar events
     val todayEvents = remember { getTodayEvents(context) }
@@ -167,7 +178,42 @@ fun DashboardScreen(
             }
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(16.dp))
+
+        // ── Daily Briefing Banner ─────────────────────────────────────
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(tween(500, 50)) + slideInVertically(tween(400, 50)) { it / 3 },
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(SmallCardShape)
+                    .background(Brush.linearGradient(listOf(Amber.copy(alpha = 0.12f), Pink.copy(alpha = 0.08f))))
+                    .border(0.5.dp, Amber.copy(alpha = 0.20f), SmallCardShape)
+                    .clickable(onClick = onNavigateToBriefing)
+                    .padding(14.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(Amber.copy(alpha = 0.15f), CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Outlined.Summarize, contentDescription = null, tint = Amber, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Daily Briefing", style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary))
+                        Text("Your priorities, schedule & action plan", style = TextStyle(fontSize = 12.sp, color = TextMuted))
+                    }
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Amber.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
 
         // ── Quick Stats Row ──────────────────────────────────────────────
         AnimatedVisibility(
@@ -192,6 +238,7 @@ fun DashboardScreen(
                     icon = Icons.Outlined.CalendarMonth,
                     color = Cyan,
                     modifier = Modifier.weight(1f),
+                    onClick = onNavigateToCalendar,
                 )
                 StatCard(
                     value = "${members.size}",
@@ -240,7 +287,7 @@ fun DashboardScreen(
             visible = visible,
             enter = fadeIn(tween(600, 300)) + slideInVertically(tween(500, 300)) { it / 3 },
         ) {
-            GlassSection(title = "Today's Schedule", icon = Icons.Outlined.CalendarMonth) {
+            GlassSection(title = "Today's Schedule", icon = Icons.Outlined.CalendarMonth, actionLabel = "Full calendar", onAction = onNavigateToCalendar) {
                 if (todayEvents.isEmpty()) {
                     EmptyCard("No events today — great for focus work!")
                 } else {
@@ -319,6 +366,10 @@ fun DashboardScreen(
                                     "New Note" -> onNavigateToNotes()
                                     "Ask AI" -> onNavigateToChat()
                                     "Team" -> onNavigateToTeam()
+                                    "Briefing" -> onNavigateToBriefing()
+                                    "Calendar" -> onNavigateToCalendar()
+                                    "Travel" -> onNavigateToTravel()
+                                    "Insights" -> onNavigateToInsights()
                                     else -> onNavigateToChat()
                                 }
                             },
@@ -386,12 +437,64 @@ fun DashboardScreen(
             }
         }
 
+        // ── Upcoming Travel ─────────────────────────────────────────────
+        if (upcomingTrip != null) {
+            AnimatedVisibility(
+                visible = visible,
+                enter = fadeIn(tween(600, 750)) + slideInVertically(tween(500, 750)) { it / 3 },
+            ) {
+                val tripName = upcomingTrip.optString("name") ?: "Trip"
+                val dest = upcomingTrip.optString("destination") ?: ""
+                val startDate = upcomingTrip.optLong("startDate") ?: 0
+                val daysUntil = ((startDate - System.currentTimeMillis()) / 86400000).toInt().coerceAtLeast(0)
+                val df = java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault())
+
+                GlassSection(
+                    title = "Upcoming Travel",
+                    icon = Icons.Outlined.FlightTakeoff,
+                    actionLabel = "All trips",
+                    onAction = onNavigateToTravel,
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(SmallCardShape)
+                            .background(Amber.copy(alpha = 0.06f))
+                            .border(0.5.dp, Amber.copy(alpha = 0.12f), SmallCardShape)
+                            .clickable(onClick = onNavigateToTravel)
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(Amber.copy(alpha = 0.12f), CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Outlined.FlightTakeoff, contentDescription = null, tint = Amber, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(tripName, style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary))
+                            if (dest.isNotBlank()) Text(dest, style = TextStyle(fontSize = 12.sp, color = TextSecondary))
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("$daysUntil", style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Amber))
+                            Text("days", style = TextStyle(fontSize = 10.sp, color = TextMuted))
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+        }
+
         // ── Productivity Summary ─────────────────────────────────────────
         AnimatedVisibility(
             visible = visible,
             enter = fadeIn(tween(600, 800)) + slideInVertically(tween(500, 800)) { it / 3 },
         ) {
-            GlassSection(title = "Today's Progress", icon = Icons.Outlined.TrendingUp) {
+            GlassSection(title = "Today's Progress", icon = Icons.Outlined.TrendingUp, actionLabel = "Insights", onAction = onNavigateToInsights) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -701,10 +804,14 @@ private fun EmptyCard(message: String) {
 private data class QuickAction(val label: String, val icon: ImageVector, val color: Color)
 
 private val quickActions = listOf(
+    QuickAction("Briefing", Icons.Outlined.Summarize, Amber),
+    QuickAction("Calendar", Icons.Outlined.CalendarMonth, Cyan),
     QuickAction("New Task", Icons.Outlined.AddTask, Violet),
-    QuickAction("New Note", Icons.Outlined.EditNote, Cyan),
+    QuickAction("New Note", Icons.Outlined.EditNote, Green),
+    QuickAction("Travel", Icons.Outlined.FlightTakeoff, Pink),
+    QuickAction("Insights", Icons.Outlined.TrendingUp, Green),
     QuickAction("Ask AI", Icons.Outlined.SmartToy, Pink),
-    QuickAction("Team", Icons.Outlined.Groups, Green),
+    QuickAction("Team", Icons.Outlined.Groups, Violet),
 )
 
 // ─── Data Helpers ────────────────────────────────────────────────────────────

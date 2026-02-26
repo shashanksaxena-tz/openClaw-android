@@ -353,6 +353,10 @@ private fun MainContent(app: OpenClawApp) {
                         onNavigateToNotes = { currentTab = 2 },
                         onNavigateToTeam = { currentTab = 3 },
                         onNavigateToSettings = { currentTab = 5 },
+                        onNavigateToCalendar = { currentTab = 6 },
+                        onNavigateToTravel = { currentTab = 7 },
+                        onNavigateToInsights = { currentTab = 8 },
+                        onNavigateToBriefing = { currentTab = 9 },
                     )
 
                     1 -> TasksScreen(
@@ -408,6 +412,29 @@ private fun MainContent(app: OpenClawApp) {
                         privacyAudit = app.privacyAudit,
                         onBack = { currentTab = 0 },
                         modifier = Modifier.padding(padding),
+                    )
+
+                    6 -> CalendarScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 4 },
+                    )
+
+                    7 -> TravelScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 4 },
+                    )
+
+                    8 -> InsightsScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 4 },
+                    )
+
+                    9 -> BriefingScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 4 },
+                        onNavigateToTasks = { currentTab = 1 },
+                        onNavigateToCalendar = { currentTab = 6 },
+                        onBack = { currentTab = 0 },
                     )
                 }
             }
