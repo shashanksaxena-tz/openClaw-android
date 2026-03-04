@@ -16,8 +16,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.Chat
-import androidx.compose.material.icons.rounded.Folder
-import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.EditNote
+import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -53,9 +55,11 @@ private enum class AppScreen { SPLASH, ONBOARDING, MAIN }
 private data class TabItem(val label: String, val icon: ImageVector)
 
 private val tabs = listOf(
+    TabItem("Home", Icons.Rounded.Home),
+    TabItem("Tasks", Icons.Rounded.CheckCircle),
+    TabItem("Notes", Icons.Rounded.EditNote),
+    TabItem("Team", Icons.Rounded.Groups),
     TabItem("Chat", Icons.Rounded.Chat),
-    TabItem("Files", Icons.Rounded.Folder),
-    TabItem("Settings", Icons.Rounded.Tune),
 )
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -261,7 +265,7 @@ private fun SplashScreen(onFinished: () -> Unit) {
 private fun MainContent(app: OpenClawApp) {
     val scope = rememberCoroutineScope()
 
-    var currentTab by remember { mutableIntStateOf(if (app.settings.hasAnyApiKey()) 0 else 2) }
+    var currentTab by remember { mutableIntStateOf(0) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val conversations by app.conversationManager.allConversations.collectAsState(initial = emptyList())
 
@@ -294,14 +298,14 @@ private fun MainContent(app: OpenClawApp) {
                         scope.launch {
                             app.agentRuntime.startNewConversation()
                             drawerState.close()
-                            currentTab = 0
+                            currentTab = 4
                         }
                     },
                     onSelectConversation = { id ->
                         scope.launch {
                             app.agentRuntime.loadConversation(id)
                             drawerState.close()
-                            currentTab = 0
+                            currentTab = 4
                         }
                     },
                     onDeleteConversation = { id ->
@@ -342,9 +346,37 @@ private fun MainContent(app: OpenClawApp) {
                 },
             ) { tab ->
                 when (tab) {
-                    0 -> ChatScreen(
+                    0 -> DashboardScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 4 },
+                        onNavigateToTasks = { currentTab = 1 },
+                        onNavigateToNotes = { currentTab = 2 },
+                        onNavigateToTeam = { currentTab = 3 },
+                        onNavigateToSettings = { currentTab = 5 },
+                        onNavigateToCalendar = { currentTab = 6 },
+                        onNavigateToTravel = { currentTab = 7 },
+                        onNavigateToInsights = { currentTab = 8 },
+                        onNavigateToBriefing = { currentTab = 9 },
+                    )
+
+                    1 -> TasksScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 4 },
+                    )
+
+                    2 -> NotesScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 4 },
+                    )
+
+                    3 -> TeamScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 4 },
+                    )
+
+                    4 -> ChatScreen(
                         runtime = app.agentRuntime,
-                        onNavigateToSettings = { currentTab = 2 },
+                        onNavigateToSettings = { currentTab = 5 },
                         modifier = Modifier.padding(padding),
                         onOpenDrawer = { scope.launch { drawerState.open() } },
                         modelRouter = app.modelRouter,
@@ -371,32 +403,7 @@ private fun MainContent(app: OpenClawApp) {
                         },
                     )
 
-                    1 -> FileBrowserScreen(
-                        fs = app.sandboxedFileSystem,
-                        activeSpaceName = app.agentRuntime.activeSpaceName,
-                        onAskAi = { file ->
-                            scope.launch {
-                                val content = try {
-                                    if (file.length() < 100_000 && file.isFile) {
-                                        file.readText()
-                                    } else if (file.isFile) {
-                                        file.readText().take(5000) + "\n... (truncated, file is ${file.length() / 1024}KB)"
-                                    } else null
-                                } catch (_: Exception) { null }
-
-                                val text = if (content != null) {
-                                    "Here's the file **${file.name}**:\n\n```\n$content\n```\n\nWhat can you tell me about this file?"
-                                } else {
-                                    "I have a file called ${file.name} (${file.length() / 1024}KB). What would you like to know about it?"
-                                }
-                                app.agentRuntime.sendMessage(text)
-                                currentTab = 0
-                            }
-                        },
-                        modifier = Modifier.padding(padding),
-                    )
-
-                    2 -> SettingsScreen(
+                    5 -> SettingsScreen(
                         settings = app.settings,
                         modelRouter = app.modelRouter,
                         spaceManager = app.spaceManager,
@@ -405,6 +412,29 @@ private fun MainContent(app: OpenClawApp) {
                         privacyAudit = app.privacyAudit,
                         onBack = { currentTab = 0 },
                         modifier = Modifier.padding(padding),
+                    )
+
+                    6 -> CalendarScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 4 },
+                    )
+
+                    7 -> TravelScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 4 },
+                    )
+
+                    8 -> InsightsScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 4 },
+                    )
+
+                    9 -> BriefingScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 4 },
+                        onNavigateToTasks = { currentTab = 1 },
+                        onNavigateToCalendar = { currentTab = 6 },
+                        onBack = { currentTab = 0 },
                     )
                 }
             }
