@@ -63,6 +63,7 @@ private data class Habit(
 fun HabitsScreen(
     modifier: Modifier = Modifier,
     onNavigateToChat: () -> Unit = {},
+    onBack: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("habit_tracker", Context.MODE_PRIVATE) }
@@ -121,14 +122,26 @@ fun HabitsScreen(
                 enter = fadeIn(tween(400)) + slideInVertically(tween(400)) { -it / 2 },
             ) {
                 Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
-                    Text(
-                        "Habits",
-                        style = TextStyle(
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Bold,
-                            brush = Brush.linearGradient(listOf(Green, Cyan)),
-                        ),
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = TextSecondary,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .clickable(onClick = onBack),
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            "Habits",
+                            style = TextStyle(
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.Bold,
+                                brush = Brush.linearGradient(listOf(Green, Cyan)),
+                            ),
+                        )
+                    }
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         StatPill("$completedToday/$totalHabits done today", Green)

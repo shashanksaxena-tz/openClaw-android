@@ -60,6 +60,7 @@ private data class ScheduledNotification(
 fun RemindersScreen(
     modifier: Modifier = Modifier,
     onNavigateToChat: () -> Unit = {},
+    onBack: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("smart_notifications", Context.MODE_PRIVATE) }
@@ -92,14 +93,26 @@ fun RemindersScreen(
                 enter = fadeIn(tween(400)) + slideInVertically(tween(400)) { -it / 2 },
             ) {
                 Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
-                    Text(
-                        "Reminders",
-                        style = TextStyle(
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Bold,
-                            brush = Brush.linearGradient(listOf(Amber, Cyan)),
-                        ),
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = TextSecondary,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .clickable(onClick = onBack),
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            "Reminders",
+                            style = TextStyle(
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.Bold,
+                                brush = Brush.linearGradient(listOf(Amber, Cyan)),
+                            ),
+                        )
+                    }
                     Spacer(Modifier.height(4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         CountPill("${upcoming.size} upcoming", Amber)

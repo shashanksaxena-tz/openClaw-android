@@ -372,6 +372,33 @@ fun NotesScreen(
     }
 }
 
+private fun suggestCategory(text: String): String? {
+    val lower = text.lowercase()
+    return when {
+        lower.containsAny("flight", "hotel", "trip", "travel", "vacation", "airport", "booking", "itinerary") -> "travel"
+        lower.containsAny("meeting", "agenda", "standup", "sync", "call with", "discussion") -> "meeting"
+        lower.containsAny("todo", "task", "finish", "complete", "deadline", "due", "deliver") -> "task"
+        lower.containsAny("idea", "startup", "business", "revenue", "product", "market", "launch") -> "business_idea"
+        lower.containsAny("email", "reply", "respond", "draft", "send to", "cc", "subject") -> "email_reply"
+        lower.containsAny("remind", "remember to", "don't forget", "alert", "notify") -> "reminder"
+        lower.containsAny("decide", "decision", "choose", "option", "pros and cons", "tradeoff") -> "decision"
+        lower.containsAny("team", "delegate", "assign", "sprint", "project") -> "team_note"
+        else -> null
+    }
+}
+
+private fun String.containsAny(vararg keywords: String): Boolean = keywords.any { this.contains(it) }
+
+private fun suggestTags(text: String): List<String> {
+    val lower = text.lowercase()
+    val tags = mutableListOf<String>()
+    if (lower.containsAny("urgent", "asap", "important", "critical")) tags.add("urgent")
+    if (lower.containsAny("follow up", "followup", "follow-up")) tags.add("follow-up")
+    if (lower.containsAny("money", "cost", "price", "budget", "payment", "$")) tags.add("finance")
+    if (lower.containsAny("tomorrow", "today", "tonight", "this week")) tags.add("time-sensitive")
+    return tags.take(3)
+}
+
 @Composable
 private fun CreateNoteDialog(
     onDismiss: () -> Unit,
@@ -381,6 +408,7 @@ private fun CreateNoteDialog(
     var selectedCategory by remember { mutableStateOf("personal") }
     var priority by remember { mutableStateOf("normal") }
     var tags by remember { mutableStateOf("") }
+    var hasAutoSuggested by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -403,7 +431,22 @@ private fun CreateNoteDialog(
             ) {
                 OutlinedTextField(
                     value = content,
-                    onValueChange = { content = it },
+                    onValueChange = { newContent ->
+                        content = newContent
+                        // Auto-suggest category and tags when user types enough
+                        if (newContent.length > 15 && !hasAutoSuggested) {
+                            suggestCategory(newContent)?.let { selectedCategory = it }
+                            val suggested = suggestTags(newContent)
+                            if (suggested.isNotEmpty() && tags.isBlank()) {
+                                tags = suggested.joinToString(", ")
+                            }
+                            if (newContent.lowercase().let { it.contains("urgent") || it.contains("asap") || it.contains("critical") }) {
+                                priority = "high"
+                            }
+                            hasAutoSuggested = true
+                        }
+                        if (newContent.length <= 15) hasAutoSuggested = false
+                    },
                     label = { Text("Content", color = TextMuted) },
                     minLines = 4,
                     maxLines = 8,
@@ -418,6 +461,18 @@ private fun CreateNoteDialog(
                     ),
                     shape = RoundedCornerShape(12.dp),
                 )
+
+                // Auto-categorize hint
+                if (hasAutoSuggested && suggestCategory(content) != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = Cyan, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Auto-categorized as ${selectedCategory.replace("_", " ")}",
+                            style = TextStyle(fontSize = 11.sp, color = Cyan),
+                        )
+                    }
+                }
 
                 // Category selector
                 Text("Category", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextSecondary))

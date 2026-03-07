@@ -477,12 +477,14 @@ private fun MainContent(app: OpenClawApp) {
                     13 -> HabitsScreen(
                         modifier = Modifier.padding(padding),
                         onNavigateToChat = { currentTab = 3 },
+                        onBack = { currentTab = 0 },
                     )
 
-                    14 -> {
-                        // Decisions → still via chat for now
-                        currentTab = 3
-                    }
+                    14 -> DecisionScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 3 },
+                        onBack = { currentTab = 0 },
+                    )
 
                     15 -> MemoryScreen(
                         memorySystem = app.memorySystem,
@@ -493,6 +495,7 @@ private fun MainContent(app: OpenClawApp) {
                     16 -> RemindersScreen(
                         modifier = Modifier.padding(padding),
                         onNavigateToChat = { currentTab = 3 },
+                        onBack = { currentTab = 0 },
                     )
                 }
             }
