@@ -3,6 +3,9 @@ package com.openclaw.android.ui.screens
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkRequest
 import android.provider.CalendarContract
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -81,6 +84,24 @@ fun DashboardScreen(
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
+    // ── Offline detection ────────────────────────────────────────────────
+    var isOnline by remember { mutableStateOf(true) }
+    DisposableEffect(Unit) {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) { isOnline = true }
+            override fun onLost(network: Network) { isOnline = false }
+        }
+        val request = NetworkRequest.Builder().build()
+        cm?.registerNetworkCallback(request, callback)
+        // Check initial state
+        isOnline = cm?.activeNetwork != null
+        onDispose { cm?.unregisterNetworkCallback(callback) }
+    }
+
+    // ── Refresh key for pull-to-refresh ──────────────────────────────────
+    var refreshKey by remember { mutableIntStateOf(0) }
+
     // Load data from SharedPreferences
     val taskPrefs = remember { context.getSharedPreferences("task_manager", Context.MODE_PRIVATE) }
     val notePrefs = remember { context.getSharedPreferences("smart_notes", Context.MODE_PRIVATE) }
@@ -89,11 +110,23 @@ fun DashboardScreen(
     val decisionPrefs = remember { context.getSharedPreferences("decision_log", Context.MODE_PRIVATE) }
     val json = remember { Json { ignoreUnknownKeys = true } }
 
-    // Parse data
-    val tasks = remember { parseJsonList(taskPrefs.getString("tasks_data", "[]") ?: "[]", json) }
-    val notes = remember { parseJsonList(notePrefs.getString("notes_data", "[]") ?: "[]", json) }
-    val members = remember { parseJsonList(teamPrefs.getString("members_data", "[]") ?: "[]", json) }
-    val delegations = remember { parseJsonList(teamPrefs.getString("delegations_data", "[]") ?: "[]", json) }
+    // Parse data with error tracking
+    val tasksResult = remember(refreshKey) { parseJsonListSafe(taskPrefs.getString("tasks_data", "[]") ?: "[]", json) }
+    val notesResult = remember(refreshKey) { parseJsonListSafe(notePrefs.getString("notes_data", "[]") ?: "[]", json) }
+    val membersResult = remember(refreshKey) { parseJsonListSafe(teamPrefs.getString("members_data", "[]") ?: "[]", json) }
+    val delegationsResult = remember(refreshKey) { parseJsonListSafe(teamPrefs.getString("delegations_data", "[]") ?: "[]", json) }
+    val tasks = tasksResult.data
+    val notes = notesResult.data
+    val members = membersResult.data
+    val delegations = delegationsResult.data
+
+    // Collect any data errors
+    val dataErrors = listOfNotNull(
+        tasksResult.errorMessage,
+        notesResult.errorMessage,
+        membersResult.errorMessage,
+        delegationsResult.errorMessage,
+    )
 
     val pendingTasks = tasks.count { it.optString("status") != "done" }
     val highPriorityTasks = tasks.count { it.optString("status") != "done" && it.optString("priority") == "high" }
@@ -111,7 +144,8 @@ fun DashboardScreen(
 
     // Travel data
     val travelPrefs = remember { context.getSharedPreferences("travel_manager", Context.MODE_PRIVATE) }
-    val trips = remember { parseJsonList(travelPrefs.getString("trips_data", "[]") ?: "[]", json) }
+    val tripsResult = remember(refreshKey) { parseJsonListSafe(travelPrefs.getString("trips_data", "[]") ?: "[]", json) }
+    val trips = tripsResult.data
     val upcomingTrip = trips
         .filter { (it.optLong("startDate") ?: 0) > System.currentTimeMillis() }
         .minByOrNull { it.optLong("startDate") ?: Long.MAX_VALUE }
@@ -168,21 +202,59 @@ fun DashboardScreen(
                 Spacer(Modifier.height(4.dp))
                 Text(dateStr, style = TextStyle(fontSize = 14.sp, color = TextSecondary))
             }
-            // Settings gear
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(GlassBg)
-                    .border(0.5.dp, GlassBorder, CircleShape)
-                    .clickable(onClick = onNavigateToSettings),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Outlined.Settings, contentDescription = "Settings", tint = TextSecondary, modifier = Modifier.size(20.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Refresh button
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(GlassBg)
+                        .border(0.5.dp, GlassBorder, CircleShape)
+                        .clickable { refreshKey++ },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = TextSecondary, modifier = Modifier.size(20.dp))
+                }
+                // Settings gear
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(GlassBg)
+                        .border(0.5.dp, GlassBorder, CircleShape)
+                        .clickable(onClick = onNavigateToSettings),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Outlined.Settings, contentDescription = "Settings", tint = TextSecondary, modifier = Modifier.size(20.dp))
+                }
             }
         }
 
         Spacer(Modifier.height(16.dp))
+
+        // ── Offline Banner ───────────────────────────────────────────
+        OfflineBanner(isOnline = isOnline)
+
+        // ── Data Error Banner ────────────────────────────────────────
+        if (dataErrors.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(SmallCardShape)
+                    .background(Red.copy(alpha = 0.10f))
+                    .border(0.5.dp, Red.copy(alpha = 0.25f), SmallCardShape)
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = Red, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "Some data couldn't be loaded. Try asking AI to fix it.",
+                    style = TextStyle(fontSize = 13.sp, color = Red),
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+        }
 
         // ── Daily Briefing Banner ─────────────────────────────────────
         AnimatedVisibility(
@@ -818,11 +890,57 @@ private val quickActions = listOf(
     QuickAction("Team", Icons.Outlined.Groups, Violet),
 )
 
+// ─── Offline Banner ──────────────────────────────────────────────────────────
+
+@Composable
+private fun OfflineBanner(isOnline: Boolean) {
+    AnimatedVisibility(
+        visible = !isOnline,
+        enter = expandVertically() + fadeIn(),
+        exit = shrinkVertically() + fadeOut(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFF59E0B).copy(alpha = 0.12f))
+                .padding(horizontal = 20.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Default.WifiOff, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(10.dp))
+            Text("You're offline \u2014 showing cached data", style = TextStyle(fontSize = 13.sp, color = Color(0xFFF59E0B)))
+        }
+    }
+}
+
 // ─── Data Helpers ────────────────────────────────────────────────────────────
+
+private data class DataResult<T>(val data: T, val hasError: Boolean = false, val errorMessage: String? = null)
 
 private data class SimpleJsonObj(val map: Map<String, Any?>) {
     fun optString(key: String): String? = map[key] as? String
     fun optLong(key: String): Long? = (map[key] as? Number)?.toLong()
+}
+
+private fun parseJsonListSafe(raw: String, json: Json): DataResult<List<SimpleJsonObj>> {
+    return try {
+        val arr = json.parseToJsonElement(raw).let {
+            if (it is kotlinx.serialization.json.JsonArray) it else return DataResult(emptyList())
+        }
+        DataResult(arr.map { elem ->
+            val obj = elem as? kotlinx.serialization.json.JsonObject ?: return@map SimpleJsonObj(emptyMap())
+            SimpleJsonObj(obj.mapValues { (_, v) ->
+                when (v) {
+                    is kotlinx.serialization.json.JsonPrimitive -> {
+                        v.longOrNull ?: v.doubleOrNull ?: v.booleanOrNull ?: v.contentOrNull
+                    }
+                    else -> v.toString()
+                }
+            })
+        })
+    } catch (e: Exception) {
+        DataResult(emptyList(), hasError = true, errorMessage = "Could not load data: ${e.message?.take(50) ?: "unknown error"}")
+    }
 }
 
 private fun parseJsonList(raw: String, json: Json): List<SimpleJsonObj> {

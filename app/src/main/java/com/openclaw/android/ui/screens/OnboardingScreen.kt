@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,6 +49,8 @@ private val DarkBg = Color(0xFF050508)
 private val Violet = Color(0xFFA855F7)
 private val Cyan = Color(0xFF22D3EE)
 private val Pink = Color(0xFFEC4899)
+private val Amber = Color(0xFFF59E0B)
+private val Green = Color(0xFF22C55E)
 private val GlassFill = Color.White.copy(alpha = 0.06f)
 private val GlassBorder = Color.White.copy(alpha = 0.12f)
 private val SubtleText = Color.White.copy(alpha = 0.55f)
@@ -161,6 +164,10 @@ fun OnboardingScreen(
     }
 }
 
+// ── Data classes for categorized features ────────────────────────────────────
+private data class Feature(val icon: ImageVector, val label: String, val description: String)
+private data class FeatureCategory(val name: String, val color: Color, val features: List<Feature>)
+
 // ══════════════════════════════════════════════════════════════════════════════
 // PAGE 1 — Welcome
 // ══════════════════════════════════════════════════════════════════════════════
@@ -190,6 +197,43 @@ private fun WelcomePage() {
         ),
         label = "logoGlow",
     )
+
+    // Animated capability counter
+    val counterTarget by remember { derivedStateOf { if (visible) 30 else 0 } }
+    val animatedCount by animateIntAsState(
+        targetValue = counterTarget,
+        animationSpec = tween(durationMillis = 1500, delayMillis = 400, easing = EaseOutCubic),
+        label = "toolCounter",
+    )
+
+    val categories = remember {
+        listOf(
+            FeatureCategory("Productivity", Violet, listOf(
+                Feature(Icons.Default.WbSunny, "Briefings", "Daily priorities & schedule"),
+                Feature(Icons.Default.CheckCircle, "Tasks", "Track & manage tasks"),
+                Feature(Icons.Default.EditNote, "Notes", "Smart categorized notes"),
+                Feature(Icons.Default.FitnessCenter, "Habits", "Build daily habits"),
+                Feature(Icons.Default.TrendingUp, "Insights", "Productivity analytics"),
+                Feature(Icons.Default.CalendarMonth, "Calendar", "Events & scheduling"),
+            )),
+            FeatureCategory("Communication", Cyan, listOf(
+                Feature(Icons.Default.Chat, "AI Chat", "Your personal assistant"),
+                Feature(Icons.Default.Mic, "Voice Mode", "Hands-free conversation"),
+                Feature(Icons.Default.Groups, "Team", "Team management"),
+                Feature(Icons.Default.Contacts, "Contacts", "Find & manage contacts"),
+                Feature(Icons.Default.Sms, "SMS", "Read & compose messages"),
+                Feature(Icons.Default.Email, "Email", "Draft & send emails"),
+            )),
+            FeatureCategory("Planning & Tools", Pink, listOf(
+                Feature(Icons.Default.FlightTakeoff, "Travel", "Trip planning"),
+                Feature(Icons.Default.Gavel, "Decisions", "Decision journal"),
+                Feature(Icons.Default.Psychology, "Memory", "AI remembers you"),
+                Feature(Icons.Default.Folder, "Files", "File management"),
+                Feature(Icons.Default.TravelExplore, "Web Search", "Search the internet"),
+                Feature(Icons.Default.NotificationsActive, "Reminders", "Smart notifications"),
+            )),
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -266,73 +310,75 @@ private fun WelcomePage() {
             letterSpacing = 0.5.sp,
         )
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(10.dp))
 
-        // ── Feature grid (2x3) with staggered entrance ──────────────
-        data class Feature(val icon: ImageVector, val label: String)
+        // ── Animated capability counter ──────────────────────────────
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(tween(500, delayMillis = 200)),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = "${animatedCount}+",
+                    style = TextStyle(
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        brush = VioletCyanGradient,
+                    ),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "AI-powered tools at your fingertips",
+                    fontSize = 14.sp,
+                    color = SubtleText,
+                )
+            }
+        }
 
-        val features = listOf(
-            Feature(Icons.Default.WbSunny, "Briefings"),
-            Feature(Icons.Default.CheckCircle, "Tasks"),
-            Feature(Icons.Default.FlightTakeoff, "Travel"),
-            Feature(Icons.Default.Groups, "Team"),
-            Feature(Icons.Default.EditNote, "Notes"),
-            Feature(Icons.Default.TrendingUp, "Insights"),
-            Feature(Icons.Default.CalendarMonth, "Calendar"),
-            Feature(Icons.Default.Gavel, "Decisions"),
-        )
-        val rows = features.chunked(2)
+        Spacer(Modifier.height(24.dp))
 
-        rows.forEachIndexed { rowIndex, rowFeatures ->
-            val delayMs = 80 * rowIndex
-            val rowVisible = remember { mutableStateOf(false) }
+        // ── Categorized feature rows with staggered entrance ─────────
+        categories.forEachIndexed { catIndex, category ->
+            val catVisible = remember { mutableStateOf(false) }
             LaunchedEffect(visible) {
                 if (visible) {
-                    kotlinx.coroutines.delay(delayMs.toLong() + 200L)
-                    rowVisible.value = true
+                    kotlinx.coroutines.delay(300L + catIndex * 150L)
+                    catVisible.value = true
                 }
             }
 
             AnimatedVisibility(
-                visible = rowVisible.value,
+                visible = catVisible.value,
                 enter = fadeIn(tween(400)) + slideInVertically(
                     tween(400, easing = EaseOutCubic),
                     initialOffsetY = { it / 3 },
                 ),
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 5.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    for (feature in rowFeatures) {
-                        GlassCard(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(80.dp),
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(12.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center,
-                            ) {
-                                Icon(
-                                    feature.icon,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(26.dp),
-                                    tint = Cyan,
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    feature.label,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = BodyText,
-                                )
-                            }
+                Column(modifier = Modifier.padding(bottom = 16.dp)) {
+                    // Category label
+                    Text(
+                        text = category.name,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = category.color,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+
+                    // Horizontal scroll row of feature cards
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        for (feature in category.features) {
+                            FeatureCard(
+                                feature = feature,
+                                accentColor = category.color,
+                            )
                         }
                     }
                 }
@@ -340,6 +386,52 @@ private fun WelcomePage() {
         }
 
         Spacer(Modifier.height(16.dp))
+    }
+}
+
+/** A single feature card showing icon, label, and description. */
+@Composable
+private fun FeatureCard(
+    feature: Feature,
+    accentColor: Color,
+) {
+    GlassCard(
+        modifier = Modifier
+            .width(110.dp)
+            .height(90.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                feature.icon,
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+                tint = accentColor,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                feature.label,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = BodyText,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                feature.description,
+                fontSize = 10.sp,
+                color = SubtleText,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                lineHeight = 12.sp,
+            )
+        }
     }
 }
 
@@ -757,14 +849,18 @@ private fun ReadyPage() {
 
         Spacer(Modifier.height(24.dp))
 
-        // ── Tips in glass cards with staggered entrance ──────────────
+        // ── Tip cards with category pills and staggered entrance ─────
+        data class Tip(val category: String, val color: Color, val prompt: String)
+
         val tips = listOf(
-            "\"Give me my daily briefing\"",
-            "\"Create a high-priority task to review Q3 budget\"",
-            "\"Plan a trip to Tokyo next month\"",
-            "\"Delegate API review to Rahul, due Friday\"",
-            "\"I decided to go with vendor B — log this decision\"",
-            "\"Show my weekly productivity report\"",
+            Tip("Briefing", Amber, "\"Give me my daily briefing\""),
+            Tip("Tasks", Violet, "\"Create a high-priority task to review Q3 budget\""),
+            Tip("Travel", Pink, "\"Plan a trip to Tokyo next month\""),
+            Tip("Team", Cyan, "\"Delegate API review to Rahul, due Friday\""),
+            Tip("Decisions", Green, "\"I decided to go with vendor B — log this\""),
+            Tip("Habits", Violet, "\"Track a new habit: exercise daily\""),
+            Tip("Memory", Cyan, "\"Remember that I prefer dark mode\""),
+            Tip("Search", Amber, "\"Search the web for latest AI news\""),
         )
 
         tips.forEachIndexed { index, tip ->
@@ -792,29 +888,55 @@ private fun ReadyPage() {
                         modifier = Modifier.padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        // Category pill
                         Box(
                             modifier = Modifier
-                                .size(28.dp)
+                                .clip(RoundedCornerShape(10.dp))
                                 .background(
-                                    Violet.copy(alpha = 0.15f),
-                                    CircleShape,
-                                ),
+                                    tip.color.copy(alpha = 0.15f),
+                                    RoundedCornerShape(10.dp),
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
-                                "${index + 1}",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Violet,
+                                tip.category,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = tip.color,
+                                maxLines = 1,
                             )
                         }
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            tip,
-                            fontSize = 14.sp,
-                            color = BodyText,
-                            lineHeight = 20.sp,
-                        )
+                        Spacer(Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                tip.prompt,
+                                fontSize = 14.sp,
+                                color = BodyText,
+                                lineHeight = 20.sp,
+                            )
+                        }
+                        // "Try this first!" badge on the first tip
+                        if (index == 0) {
+                            Spacer(Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(
+                                        Brush.linearGradient(listOf(Violet, Pink)),
+                                        RoundedCornerShape(8.dp),
+                                    )
+                                    .padding(horizontal = 6.dp, vertical = 3.dp),
+                            ) {
+                                Text(
+                                    "Try this first!",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
                     }
                 }
             }
