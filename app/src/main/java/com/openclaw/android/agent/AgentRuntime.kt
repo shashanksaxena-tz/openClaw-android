@@ -179,7 +179,7 @@ class AgentRuntime(
                         onChunk = { chunk ->
                             if (_isCancelled) return@chatCompletion
                             streamBuffer.append(chunk)
-                            emit(AgentEvent.StreamChunk(chunk, streamBuffer.toString()))
+                            emit(AgentEvent.StreamChunk(chunk))
                         },
                         onToolCall = { /* collected in onDone */ },
                         onDone = { response ->
@@ -353,7 +353,7 @@ sealed class AgentEvent {
     data class AssistantMessage(val text: String) : AgentEvent()
     data class ModelSelected(val modelName: String) : AgentEvent()
     data object StreamStart : AgentEvent()
-    data class StreamChunk(val chunk: String, val fullText: String) : AgentEvent()
+    data class StreamChunk(val chunk: String) : AgentEvent()
     data object StreamEnd : AgentEvent()
     data class ToolCallStart(val toolName: String, val arguments: String) : AgentEvent()
     data class ToolCallResult(val toolName: String, val result: String, val isError: Boolean) : AgentEvent()

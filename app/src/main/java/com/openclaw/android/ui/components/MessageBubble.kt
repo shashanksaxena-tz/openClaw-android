@@ -67,7 +67,7 @@ fun MessageBubble(
             is AgentEvent.ToolCallStart -> ToolCallBubble(event, modifier)
             is AgentEvent.ToolCallResult -> ToolResultBubble(event, modifier)
             is AgentEvent.Error -> ErrorBubble(event.message, onRetry, modifier)
-            is AgentEvent.StreamChunk -> StreamChunkBubble(event.fullText, modifier)
+            is AgentEvent.StreamChunk -> StreamChunkBubble(event.chunk, modifier)
             is AgentEvent.ModelSelected -> ModelBadge(event.modelName, modifier)
             is AgentEvent.Escalation -> EscalationBadge(event.from, event.to, modifier)
             else -> {}

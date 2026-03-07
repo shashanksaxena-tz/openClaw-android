@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -167,29 +168,31 @@ fun ChatScreen(
         pendingMedia = pendingMedia + newMedia
     }
 
-    // Filter display events
+    // Filter display events — accumulate stream chunks into a single synthetic event
     val displayEvents = remember(events) {
         val filtered = mutableListOf<AgentEvent>()
-        var lastStreamChunk: AgentEvent.StreamChunk? = null
-        var streamComplete = false
+        val streamAccumulator = StringBuilder()
+        var streaming = false
 
         for (event in events) {
             when (event) {
-                is AgentEvent.StreamStart -> { lastStreamChunk = null; streamComplete = false }
-                is AgentEvent.StreamChunk -> lastStreamChunk = event
-                is AgentEvent.StreamEnd -> streamComplete = true
-                is AgentEvent.AssistantMessage -> { lastStreamChunk = null; filtered.add(event) }
+                is AgentEvent.StreamStart -> { streamAccumulator.setLength(0); streaming = true }
+                is AgentEvent.StreamChunk -> streamAccumulator.append(event.chunk)
+                is AgentEvent.StreamEnd -> streaming = false
+                is AgentEvent.AssistantMessage -> { streamAccumulator.setLength(0); streaming = false; filtered.add(event) }
                 is AgentEvent.TokenUsage -> { /* skip */ }
                 else -> {
-                    if (lastStreamChunk != null && !streamComplete) {
-                        filtered.add(lastStreamChunk!!)
-                        lastStreamChunk = null
+                    if (streaming && streamAccumulator.isNotEmpty()) {
+                        filtered.add(AgentEvent.StreamChunk(streamAccumulator.toString()))
+                        streamAccumulator.setLength(0)
                     }
                     filtered.add(event)
                 }
             }
         }
-        if (lastStreamChunk != null && !streamComplete) filtered.add(lastStreamChunk!!)
+        if (streaming && streamAccumulator.isNotEmpty()) {
+            filtered.add(AgentEvent.StreamChunk(streamAccumulator.toString()))
+        }
         filtered
     }
 
@@ -361,7 +364,22 @@ fun ChatScreen(
                             )
                         }
                     }
-                    items(displayEvents) { event ->
+                    itemsIndexed(
+                        items = displayEvents,
+                        key = { index, event ->
+                            when (event) {
+                                is AgentEvent.UserMessage -> "user-$index"
+                                is AgentEvent.AssistantMessage -> "assistant-$index"
+                                is AgentEvent.ToolCallStart -> "tool-start-$index"
+                                is AgentEvent.ToolCallResult -> "tool-result-$index"
+                                is AgentEvent.StreamChunk -> "stream-$index"
+                                is AgentEvent.ModelSelected -> "model-$index"
+                                is AgentEvent.Escalation -> "escalation-$index"
+                                is AgentEvent.Error -> "error-$index"
+                                else -> "event-$index"
+                            }
+                        },
+                    ) { _, event ->
                         MessageBubble(
                             event = event,
                             onRetry = if (event is AgentEvent.Error) {

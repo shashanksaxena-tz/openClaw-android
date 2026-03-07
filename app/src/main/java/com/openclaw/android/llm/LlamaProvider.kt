@@ -3,6 +3,7 @@ package com.openclaw.android.llm
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.isActive
 import kotlinx.serialization.json.*
 import java.util.UUID
 
@@ -29,6 +30,9 @@ class LlamaProvider(
          * AgentRuntime watches for this and re-routes to cloud.
          */
         const val ESCALATION_MARKER = "[ESCALATE_TO_CLOUD]"
+
+        /** Regex for parsing tool_call blocks from model output. */
+        private val TOOL_CALL_PATTERN = Regex("```tool_call\\s*\\n(\\{[^`]+\\})\\s*\\n```", RegexOption.DOT_MATCHES_ALL)
 
         /** System prompt addendum that teaches the model about escalation. */
         private const val LOCAL_MODEL_INSTRUCTIONS = """
@@ -148,7 +152,7 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
         onToolCall: (ToolCallRequest) -> Unit,
         onDone: (ChatResponse) -> Unit,
         onError: (Exception) -> Unit,
-    ) = withContext(Dispatchers.Default) {
+    ) = withContext(Dispatchers.IO) {
         try {
             // Ensure model is loaded
             if (!ensureModelLoaded()) {
@@ -241,9 +245,8 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
     /** Extract tool calls from the model's response text. */
     private fun parseToolCalls(text: String): List<ToolCallRequest> {
         val toolCalls = mutableListOf<ToolCallRequest>()
-        val pattern = Regex("```tool_call\\s*\\n(\\{[^`]+\\})\\s*\\n```", RegexOption.DOT_MATCHES_ALL)
 
-        for (match in pattern.findAll(text)) {
+        for (match in TOOL_CALL_PATTERN.findAll(text)) {
             try {
                 val jsonStr = match.groupValues[1].trim()
                 val json = Json.parseToJsonElement(jsonStr).jsonObject

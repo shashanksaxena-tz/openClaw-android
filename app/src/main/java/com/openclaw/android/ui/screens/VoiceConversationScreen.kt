@@ -139,10 +139,11 @@ fun VoiceConversationScreen(
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {}
                 override fun onDone(utteranceId: String?) {
-                    voiceState = VoiceState.IDLE
-                    // Auto-listen after speaking
-                    if (autoListen && micPermission.status.isGranted && speechRecognizer != null) {
-                        scope.launch {
+                    // TTS callbacks run on a background thread — dispatch to main for Compose state
+                    scope.launch {
+                        voiceState = VoiceState.IDLE
+                        // Auto-listen after speaking
+                        if (autoListen && micPermission.status.isGranted && speechRecognizer != null) {
                             delay(500)
                             startListening(speechRecognizer, recognizerIntent)
                             voiceState = VoiceState.LISTENING
@@ -150,7 +151,9 @@ fun VoiceConversationScreen(
                     }
                 }
                 override fun onError(utteranceId: String?) {
-                    voiceState = VoiceState.IDLE
+                    scope.launch {
+                        voiceState = VoiceState.IDLE
+                    }
                 }
             })
             // Strip markdown for cleaner TTS

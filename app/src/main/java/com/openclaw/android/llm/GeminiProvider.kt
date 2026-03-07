@@ -103,80 +103,82 @@ class GeminiProvider(
 
             val response = client.newCall(httpRequest).execute()
 
-            if (!response.isSuccessful) {
-                val errorBody = response.body?.string() ?: "Unknown error"
-                onError(Exception("Gemini API error ${response.code}: $errorBody"))
-                return@withContext
-            }
+            response.use { resp ->
+                if (!resp.isSuccessful) {
+                    val errorBody = resp.body?.string() ?: "Unknown error"
+                    onError(Exception("Gemini API error ${resp.code}: $errorBody"))
+                    return@withContext
+                }
 
-            val fullText = StringBuilder()
-            val toolCalls = mutableListOf<ToolCallRequest>()
-            var totalPromptTokens = 0
-            var totalCompletionTokens = 0
+                val fullText = StringBuilder()
+                val toolCalls = mutableListOf<ToolCallRequest>()
+                var totalPromptTokens = 0
+                var totalCompletionTokens = 0
 
-            response.body?.source()?.let { source ->
-                while (!source.exhausted()) {
-                    val line = source.readUtf8Line() ?: break
+                resp.body?.source()?.let { source ->
+                    while (!source.exhausted()) {
+                        val line = source.readUtf8Line() ?: break
 
-                    if (line.startsWith("data: ")) {
-                        val data = line.removePrefix("data: ").trim()
-                        if (data.isEmpty()) continue
+                        if (line.startsWith("data: ")) {
+                            val data = line.removePrefix("data: ").trim()
+                            if (data.isEmpty()) continue
 
-                        try {
-                            val chunk = json.parseToJsonElement(data).jsonObject
-                            val candidates = chunk["candidates"]?.jsonArray ?: continue
+                            try {
+                                val chunk = json.parseToJsonElement(data).jsonObject
+                                val candidates = chunk["candidates"]?.jsonArray ?: continue
 
-                            for (candidate in candidates) {
-                                val content = candidate.jsonObject["content"]?.jsonObject ?: continue
-                                val parts = content["parts"]?.jsonArray ?: continue
+                                for (candidate in candidates) {
+                                    val content = candidate.jsonObject["content"]?.jsonObject ?: continue
+                                    val parts = content["parts"]?.jsonArray ?: continue
 
-                                for (part in parts) {
-                                    val partObj = part.jsonObject
+                                    for (part in parts) {
+                                        val partObj = part.jsonObject
 
-                                    // Skip thinking/thought parts (Gemini 3)
-                                    if (partObj["thought"]?.jsonPrimitive?.booleanOrNull == true) continue
+                                        // Skip thinking/thought parts (Gemini 3)
+                                        if (partObj["thought"]?.jsonPrimitive?.booleanOrNull == true) continue
 
-                                    // Text content
-                                    partObj["text"]?.jsonPrimitive?.contentOrNull?.let { text ->
-                                        fullText.append(text)
-                                        onChunk(text)
-                                    }
+                                        // Text content
+                                        partObj["text"]?.jsonPrimitive?.contentOrNull?.let { text ->
+                                            fullText.append(text)
+                                            onChunk(text)
+                                        }
 
-                                    // Function call (tool use)
-                                    partObj["functionCall"]?.jsonObject?.let { fc ->
-                                        val name = fc["name"]?.jsonPrimitive?.content ?: return@let
-                                        val args = fc["args"] ?: JsonObject(emptyMap())
-                                        val toolCall = ToolCallRequest(
-                                            id = UUID.randomUUID().toString(),
-                                            name = name,
-                                            arguments = args,
-                                        )
-                                        toolCalls.add(toolCall)
-                                        onToolCall(toolCall)
+                                        // Function call (tool use)
+                                        partObj["functionCall"]?.jsonObject?.let { fc ->
+                                            val name = fc["name"]?.jsonPrimitive?.content ?: return@let
+                                            val args = fc["args"] ?: JsonObject(emptyMap())
+                                            val toolCall = ToolCallRequest(
+                                                id = UUID.randomUUID().toString(),
+                                                name = name,
+                                                arguments = args,
+                                            )
+                                            toolCalls.add(toolCall)
+                                            onToolCall(toolCall)
+                                        }
                                     }
                                 }
-                            }
 
-                            // Usage metadata
-                            chunk["usageMetadata"]?.jsonObject?.let { usage ->
-                                totalPromptTokens = usage["promptTokenCount"]?.jsonPrimitive?.intOrNull ?: totalPromptTokens
-                                totalCompletionTokens = usage["candidatesTokenCount"]?.jsonPrimitive?.intOrNull ?: totalCompletionTokens
+                                // Usage metadata
+                                chunk["usageMetadata"]?.jsonObject?.let { usage ->
+                                    totalPromptTokens = usage["promptTokenCount"]?.jsonPrimitive?.intOrNull ?: totalPromptTokens
+                                    totalCompletionTokens = usage["candidatesTokenCount"]?.jsonPrimitive?.intOrNull ?: totalCompletionTokens
+                                }
+                            } catch (_: Exception) {
+                                // Skip malformed chunks
                             }
-                        } catch (_: Exception) {
-                            // Skip malformed chunks
                         }
                     }
                 }
-            }
 
-            onDone(
-                ChatResponse(
-                    content = fullText.toString(),
-                    toolCalls = toolCalls,
-                    usage = TokenUsage(totalPromptTokens, totalCompletionTokens, totalPromptTokens + totalCompletionTokens),
-                    finishReason = if (toolCalls.isNotEmpty()) "tool_calls" else "stop",
+                onDone(
+                    ChatResponse(
+                        content = fullText.toString(),
+                        toolCalls = toolCalls,
+                        usage = TokenUsage(totalPromptTokens, totalCompletionTokens, totalPromptTokens + totalCompletionTokens),
+                        finishReason = if (toolCalls.isNotEmpty()) "tool_calls" else "stop",
+                    )
                 )
-            )
+            }
         } catch (e: Exception) {
             onError(e)
         }

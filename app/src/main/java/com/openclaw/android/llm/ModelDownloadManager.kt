@@ -185,6 +185,7 @@ class ModelDownloadManager(private val context: Context) {
 
             val response = client.newCall(requestBuilder.build()).execute()
 
+            response.use {
             if (!response.isSuccessful && response.code != 206) {
                 throw RuntimeException("Download failed: HTTP ${response.code}")
             }
@@ -197,53 +198,56 @@ class ModelDownloadManager(private val context: Context) {
                 response.body?.contentLength() ?: model.sizeBytes
             }
 
-            val raf = RandomAccessFile(file, "rw")
-            if (response.code == 206) {
-                raf.seek(existingBytes) // Resume at end
-            } else {
-                raf.setLength(0) // Fresh start
-            }
-
             val inputStream = response.body?.byteStream()
                 ?: throw RuntimeException("Empty response body")
 
-            val buffer = ByteArray(BUFFER_SIZE)
-            var bytesWritten = if (response.code == 206) existingBytes else 0L
-            var lastProgressUpdate = System.currentTimeMillis()
+            val raf = RandomAccessFile(file, "rw")
+            try {
+                if (response.code == 206) {
+                    raf.seek(existingBytes) // Resume at end
+                } else {
+                    raf.setLength(0) // Fresh start
+                }
 
-            inputStream.use { stream ->
-                while (true) {
-                    if (cancelRequested) {
-                        raf.close()
-                        _downloadState.value = DownloadState.Idle
-                        Log.i(TAG, "Download cancelled. ${bytesWritten / (1024 * 1024)}MB saved for resume.")
-                        return@withContext
-                    }
+                val buffer = ByteArray(BUFFER_SIZE)
+                var bytesWritten = if (response.code == 206) existingBytes else 0L
+                var lastProgressUpdate = System.currentTimeMillis()
 
-                    val read = stream.read(buffer)
-                    if (read == -1) break
+                inputStream.use { stream ->
+                    while (true) {
+                        if (cancelRequested) {
+                            _downloadState.value = DownloadState.Idle
+                            Log.i(TAG, "Download cancelled. ${bytesWritten / (1024 * 1024)}MB saved for resume.")
+                            return@withContext
+                        }
 
-                    raf.write(buffer, 0, read)
-                    bytesWritten += read
+                        val read = stream.read(buffer)
+                        if (read == -1) break
 
-                    // Update progress at most every 200ms to avoid UI thrashing
-                    val now = System.currentTimeMillis()
-                    if (now - lastProgressUpdate > 200) {
-                        _downloadState.value = DownloadState.Downloading(
-                            modelId = modelId,
-                            modelName = model.name,
-                            progress = if (totalBytes > 0) bytesWritten.toFloat() / totalBytes else 0f,
-                            downloadedBytes = bytesWritten,
-                            totalBytes = totalBytes,
-                        )
-                        lastProgressUpdate = now
+                        raf.write(buffer, 0, read)
+                        bytesWritten += read
+
+                        // Update progress at most every 200ms to avoid UI thrashing
+                        val now = System.currentTimeMillis()
+                        if (now - lastProgressUpdate > 200) {
+                            _downloadState.value = DownloadState.Downloading(
+                                modelId = modelId,
+                                modelName = model.name,
+                                progress = if (totalBytes > 0) bytesWritten.toFloat() / totalBytes else 0f,
+                                downloadedBytes = bytesWritten,
+                                totalBytes = totalBytes,
+                            )
+                            lastProgressUpdate = now
+                        }
                     }
                 }
-            }
 
-            raf.close()
-            Log.i(TAG, "Download complete: ${model.name} (${bytesWritten / (1024 * 1024)}MB)")
-            _downloadState.value = DownloadState.Complete(modelId, model.name, file.absolutePath)
+                Log.i(TAG, "Download complete: ${model.name} (${bytesWritten / (1024 * 1024)}MB)")
+                _downloadState.value = DownloadState.Complete(modelId, model.name, file.absolutePath)
+            } finally {
+                raf.close()
+            }
+            } // response.use
 
         } catch (e: Exception) {
             Log.e(TAG, "Download failed", e)
