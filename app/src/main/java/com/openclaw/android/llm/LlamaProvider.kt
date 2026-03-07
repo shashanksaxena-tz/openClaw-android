@@ -139,6 +139,7 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
 
     override fun isConfigured(): Boolean {
         if (!LlamaBridge.isLoaded) return false
+        if (!LlamaBridge.isRealBuild) return false // Stub build: inference not available
         val activeId = getActiveModelId()
         if (activeId != null) {
             return downloadManager.isModelDownloaded(activeId)
@@ -155,8 +156,9 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
     ) = withContext(Dispatchers.IO) {
         try {
             // Ensure model is loaded
-            if (!ensureModelLoaded()) {
-                onError(IllegalStateException("No local model loaded. Download a model in Settings."))
+            val loadError = ensureModelLoadedWithReason()
+            if (loadError != null) {
+                onError(IllegalStateException(loadError))
                 return@withContext
             }
 
@@ -211,9 +213,21 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
         }
     }
 
-    /** Load the active model into memory if not already loaded. */
-    private fun ensureModelLoaded(): Boolean {
-        if (LlamaBridge.isModelLoaded()) return true
+    /**
+     * Load the active model into memory if not already loaded.
+     * Returns null on success, or an error message string on failure.
+     */
+    private fun ensureModelLoadedWithReason(): String? {
+        if (LlamaBridge.isModelLoaded()) return null
+
+        if (!LlamaBridge.isLoaded) {
+            return "Local inference engine not available. The native library failed to load."
+        }
+
+        if (!LlamaBridge.isRealBuild) {
+            return "Local inference not available in this build. llama.cpp was not compiled in. " +
+                "Please use a build that includes on-device inference support, or switch to a cloud model."
+        }
 
         val activeId = getActiveModelId()
         val modelPath = if (activeId != null) {
@@ -224,9 +238,12 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
         }
 
         if (modelPath == null) {
-            Log.w(TAG, "No model available to load")
-            return false
+            return "No local model loaded. Download a model in Settings."
         }
+
+        // Check available memory before attempting load
+        val availableMemMb = LlamaBridge.getAvailableMemoryMb()
+        Log.i(TAG, "Available memory: ${availableMemMb}MB, loading model: $modelPath")
 
         // Determine optimal thread count based on device
         val cpuCores = Runtime.getRuntime().availableProcessors()
@@ -239,7 +256,18 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
             contextSize = 4096,
         )
 
-        return result.isSuccess
+        if (result.isFailure) {
+            val reason = result.exceptionOrNull()?.message ?: "Unknown error"
+            Log.e(TAG, "Model load failed: $reason (available RAM: ${availableMemMb}MB)")
+            return if (availableMemMb < 1024) {
+                "Failed to load model: not enough RAM (${availableMemMb}MB available). " +
+                    "Close other apps and try again, or use a smaller model."
+            } else {
+                "Failed to load model: $reason"
+            }
+        }
+
+        return null
     }
 
     /** Extract tool calls from the model's response text. */

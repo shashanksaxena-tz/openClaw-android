@@ -22,18 +22,30 @@ object LlamaBridge {
     var isLoaded: Boolean = false
         private set
 
+    /**
+     * Whether this is a real build with llama.cpp compiled in (not a stub).
+     * When false, model loading and inference will always fail.
+     */
+    var isRealBuild: Boolean = false
+        private set
+
     init {
         try {
             System.loadLibrary("llama_bridge")
             isLoaded = true
-            Log.i(TAG, "llama_bridge native library loaded")
+            isRealBuild = try { nativeIsRealBuild() } catch (e: Exception) { false }
+            Log.i(TAG, "llama_bridge native library loaded (realBuild=$isRealBuild)")
         } catch (e: UnsatisfiedLinkError) {
             isLoaded = false
+            isRealBuild = false
             Log.w(TAG, "llama_bridge native library not available: ${e.message}")
         }
     }
 
     // ── Native methods (implemented in llama_bridge.cpp) ─────────────────────
+
+    /** Returns true if llama.cpp is compiled in (not a stub build). */
+    external fun nativeIsRealBuild(): Boolean
 
     /**
      * Load a GGUF model from disk.

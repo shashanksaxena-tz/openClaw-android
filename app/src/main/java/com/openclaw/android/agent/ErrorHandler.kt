@@ -67,6 +67,22 @@ object ErrorHandler {
                     action = ErrorAction.OpenSettings,
                 )
 
+            // Local model errors
+            msg.contains("not available in this build", ignoreCase = true) ->
+                UserError(
+                    title = "Local inference unavailable",
+                    message = "This build doesn't include the on-device AI engine. Switch to a cloud model in Settings.",
+                    action = ErrorAction.OpenSettings,
+                )
+
+            msg.contains("not enough RAM", ignoreCase = true) ||
+            msg.contains("Failed to load model", ignoreCase = true) ->
+                UserError(
+                    title = "Model load failed",
+                    message = msg,
+                    action = ErrorAction.Retry,
+                )
+
             // Model errors
             msg.contains("404") || msg.contains("not found", ignoreCase = true) ->
                 UserError(
