@@ -12,6 +12,7 @@ import com.openclaw.android.data.SettingsRepository
 import com.openclaw.android.data.SpaceManager
 import com.openclaw.android.data.db.AppDatabase
 import com.openclaw.android.llm.*
+import com.openclaw.android.llm.ModelDownloadManager
 import com.openclaw.android.sandbox.SandboxedFileSystem
 import com.openclaw.android.tools.*
 import kotlinx.coroutines.CoroutineScope
@@ -59,6 +60,9 @@ class OpenClawApp : Application() {
     lateinit var permissionManager: PermissionManager
         private set
 
+    lateinit var modelDownloadManager: ModelDownloadManager
+        private set
+
     override fun onCreate() {
         super.onCreate()
 
@@ -97,14 +101,23 @@ class OpenClawApp : Application() {
         // Permission manager (bridges tool execution ↔ UI permission dialogs)
         permissionManager = PermissionManager(this)
 
-        // LLM providers (including local model)
-        val localProvider = LocalModelProvider(this)
-        val providers = mapOf(
+        // Model download manager for local GGUF models
+        modelDownloadManager = ModelDownloadManager(this)
+
+        // LLM providers (including local llama.cpp model)
+        val llamaProvider = LlamaProvider(
+            downloadManager = modelDownloadManager,
+            getActiveModelId = { settings.getActiveLocalModelId().ifBlank { null } },
+        )
+        val providers = mutableMapOf<String, LlmProvider>(
             "gemini" to GeminiProvider(apiKeyProvider = { settings.getGeminiKey() }),
             "groq" to GroqProvider(apiKeyProvider = { settings.getGroqKey() }),
             "cerebras" to CerebrasProvider(apiKeyProvider = { settings.getCerebrasKey() }),
-            "local" to localProvider,
         )
+        // Only add local provider if enabled in settings
+        if (settings.getLocalModelEnabled()) {
+            providers["local-llama"] = llamaProvider
+        }
         modelRouter = ModelRouter(providers)
 
         // Tools — original

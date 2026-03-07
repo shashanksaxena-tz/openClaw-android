@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,7 +44,11 @@ import com.openclaw.android.data.PrivacyAudit
 import com.openclaw.android.data.SettingsRepository
 import com.openclaw.android.data.Space
 import com.openclaw.android.data.SpaceManager
+import com.openclaw.android.llm.DownloadState
+import com.openclaw.android.llm.DownloadableModel
+import com.openclaw.android.llm.ModelDownloadManager
 import com.openclaw.android.llm.ModelRouter
+import com.openclaw.android.llm.ModelTier
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -299,6 +304,19 @@ fun SettingsScreen(
                     },
                     onDismiss = { showModelPicker = false },
                 )
+            }
+
+            // ── Local Models Section ──────────────────────────────────────────
+            run {
+                val app = context.applicationContext as? com.openclaw.android.OpenClawApp
+                val downloadManager = app?.modelDownloadManager
+                if (downloadManager != null) {
+                    Spacer(Modifier.height(18.dp))
+                    LocalModelsSection(
+                        downloadManager = downloadManager,
+                        settings = settings,
+                    )
+                }
             }
 
             // ── Spaces Section ───────────────────────────────────────────────
@@ -1475,4 +1493,566 @@ private fun SparkleIcon(
             .size(20.dp)
             .graphicsLayer { rotationZ = rotation },
     )
+}
+
+// ─── Local Models Section ────────────────────────────────────────────────────
+
+private val WarningAmber = Color(0xFFFBBF24)
+
+@Composable
+private fun LocalModelsSection(
+    downloadManager: ModelDownloadManager,
+    settings: SettingsRepository,
+) {
+    val scope = rememberCoroutineScope()
+    val downloadState by downloadManager.downloadState.collectAsState()
+    var downloadedModels by remember { mutableStateOf(downloadManager.getDownloadedModels()) }
+    var activeModelId by remember { mutableStateOf(settings.getActiveLocalModelId()) }
+    var localEnabled by remember { mutableStateOf(settings.getLocalModelEnabled()) }
+    var showModelBrowser by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf<String?>(null) }
+
+    // Refresh downloaded models when download completes
+    LaunchedEffect(downloadState) {
+        if (downloadState is DownloadState.Complete) {
+            downloadedModels = downloadManager.getDownloadedModels()
+            val completedId = (downloadState as DownloadState.Complete).modelId
+            if (activeModelId.isBlank()) {
+                activeModelId = completedId
+                settings.setActiveLocalModelId(completedId)
+            }
+        }
+    }
+
+    GlassSection(
+        icon = Icons.Outlined.PhoneAndroid,
+        title = "On-Device Models",
+        description = "Download AI models to run locally. No internet needed.",
+        trailing = {
+            // Enable/disable toggle
+            Switch(
+                checked = localEnabled,
+                onCheckedChange = {
+                    localEnabled = it
+                    settings.setLocalModelEnabled(it)
+                },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = PrimaryViolet,
+                    checkedTrackColor = PrimaryViolet.copy(alpha = 0.3f),
+                    uncheckedThumbColor = TextMuted,
+                    uncheckedTrackColor = SurfaceCharcoal,
+                ),
+                modifier = Modifier.height(24.dp),
+            )
+        },
+    ) {
+        if (!localEnabled) {
+            Text(
+                "Local AI is disabled. Enable to use on-device models.",
+                style = TextStyle(fontSize = 13.sp, color = TextMuted),
+            )
+            return@GlassSection
+        }
+
+        // Show downloaded models
+        if (downloadedModels.isNotEmpty()) {
+            Text(
+                "INSTALLED",
+                style = TextStyle(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextMuted,
+                    letterSpacing = 1.sp,
+                ),
+            )
+            Spacer(Modifier.height(8.dp))
+
+            for (downloaded in downloadedModels) {
+                val isActive = downloaded.model.id == activeModelId
+                InstalledModelCard(
+                    model = downloaded.model,
+                    size = downloaded.sizeDisplay,
+                    isActive = isActive,
+                    onSelect = {
+                        activeModelId = downloaded.model.id
+                        settings.setActiveLocalModelId(downloaded.model.id)
+                    },
+                    onDelete = { showDeleteConfirm = downloaded.model.id },
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+
+        // Download progress
+        val currentDownload = downloadState
+        if (currentDownload is DownloadState.Downloading) {
+            DownloadProgressCard(
+                state = currentDownload,
+                onCancel = { downloadManager.cancelDownload() },
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+
+        if (currentDownload is DownloadState.Error) {
+            ErrorCard(
+                modelName = currentDownload.modelName,
+                message = currentDownload.message,
+                onDismiss = { downloadManager.resetState() },
+                onRetry = {
+                    downloadManager.resetState()
+                    scope.launch { downloadManager.downloadModel(currentDownload.modelId) }
+                },
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+
+        // Browse more models button
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(InnerShape)
+                .background(InputBg)
+                .border(0.5.dp, GlassBorder, InnerShape)
+                .clickable { showModelBrowser = true }
+                .padding(14.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Download,
+                    contentDescription = null,
+                    tint = SecondaryCyan,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Browse Models to Download",
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = SecondaryCyan,
+                    ),
+                )
+            }
+        }
+
+        // Disk usage
+        val diskUsage = downloadManager.getTotalDiskUsage()
+        if (diskUsage > 0) {
+            Spacer(Modifier.height(8.dp))
+            val gb = diskUsage / 1_000_000_000.0
+            val display = if (gb >= 1.0) "%.1f GB".format(gb) else "${diskUsage / 1_000_000} MB"
+            Text(
+                "Total disk usage: $display",
+                style = TextStyle(fontSize = 11.sp, color = TextMuted),
+            )
+        }
+
+        // Available RAM info
+        val availableRam = com.openclaw.android.llm.LlamaBridge.getAvailableMemoryMb()
+        if (availableRam > 0) {
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "Available RAM: ${availableRam / 1024.0}GB",
+                style = TextStyle(
+                    fontSize = 11.sp,
+                    color = if (availableRam > 3000) SuccessGreen else WarningAmber,
+                ),
+            )
+        }
+    }
+
+    // Model browser dialog
+    if (showModelBrowser) {
+        ModelBrowserDialog(
+            downloadManager = downloadManager,
+            downloadedIds = downloadedModels.map { it.model.id }.toSet(),
+            downloading = (downloadState as? DownloadState.Downloading)?.modelId,
+            onDownload = { modelId ->
+                scope.launch { downloadManager.downloadModel(modelId) }
+            },
+            onDismiss = { showModelBrowser = false },
+        )
+    }
+
+    // Delete confirmation
+    showDeleteConfirm?.let { modelId ->
+        val model = downloadManager.availableModels.find { it.id == modelId }
+        if (model != null) {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirm = null },
+                title = { Text("Delete ${model.name}?", color = TextPrimary) },
+                text = {
+                    Text(
+                        "This will free ${model.sizeDisplay} of storage. You can re-download it later.",
+                        color = TextSecondary,
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        downloadManager.deleteModel(modelId)
+                        downloadedModels = downloadManager.getDownloadedModels()
+                        if (activeModelId == modelId) {
+                            activeModelId = downloadedModels.firstOrNull()?.model?.id ?: ""
+                            settings.setActiveLocalModelId(activeModelId)
+                        }
+                        showDeleteConfirm = null
+                    }) {
+                        Text("Delete", color = ErrorRed)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirm = null }) {
+                        Text("Cancel", color = TextSecondary)
+                    }
+                },
+                containerColor = SurfaceCharcoal,
+            )
+        }
+    }
+}
+
+@Composable
+private fun InstalledModelCard(
+    model: DownloadableModel,
+    size: String,
+    isActive: Boolean,
+    onSelect: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(InnerShape)
+            .background(InputBg)
+            .border(
+                width = if (isActive) 1.dp else 0.5.dp,
+                brush = if (isActive) VioletCyanGradient
+                else Brush.linearGradient(listOf(GlassBorder, GlassBorder)),
+                shape = InnerShape,
+            )
+            .clickable(onClick = onSelect)
+            .padding(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // Status indicator
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .background(
+                        if (isActive) SuccessGreen else TextMuted.copy(alpha = 0.3f),
+                        CircleShape,
+                    ),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    model.name,
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary,
+                    ),
+                )
+                Spacer(Modifier.height(2.dp))
+                Row {
+                    MiniPill(size, TextMuted)
+                    Spacer(Modifier.width(4.dp))
+                    MiniPill(model.tier.label, when (model.tier) {
+                        ModelTier.SMALL -> SecondaryCyan
+                        ModelTier.MEDIUM -> PrimaryViolet
+                        ModelTier.LARGE -> TertiaryPink
+                    })
+                    if (model.supportsToolUse) {
+                        Spacer(Modifier.width(4.dp))
+                        MiniPill("Tools", SuccessGreen)
+                    }
+                }
+            }
+            if (isActive) {
+                MiniPill("Active", SuccessGreen)
+                Spacer(Modifier.width(8.dp))
+            }
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = "Delete model",
+                tint = TextMuted,
+                modifier = Modifier
+                    .size(20.dp)
+                    .clickable(onClick = onDelete),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DownloadProgressCard(
+    state: DownloadState.Downloading,
+    onCancel: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(InnerShape)
+            .background(InputBg)
+            .border(0.5.dp, SecondaryCyan.copy(alpha = 0.3f), InnerShape)
+            .padding(14.dp),
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Downloading ${state.modelName}",
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary,
+                    ),
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onCancel) {
+                    Text("Cancel", color = ErrorRed, fontSize = 12.sp)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { state.progress },
+                modifier = Modifier.fillMaxWidth().height(4.dp).clip(PillShape),
+                color = SecondaryCyan,
+                trackColor = SurfaceCharcoal,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "${state.progressPercent}% - ${state.downloadedDisplay} / ${state.totalDisplay}",
+                style = TextStyle(fontSize = 12.sp, color = TextMuted),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ErrorCard(
+    modelName: String,
+    message: String,
+    onDismiss: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(InnerShape)
+            .background(ErrorRed.copy(alpha = 0.08f))
+            .border(0.5.dp, ErrorRed.copy(alpha = 0.3f), InnerShape)
+            .padding(14.dp),
+    ) {
+        Column {
+            Text(
+                "Failed to download $modelName",
+                style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ErrorRed),
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(message, style = TextStyle(fontSize = 12.sp, color = TextSecondary))
+            Spacer(Modifier.height(8.dp))
+            Row {
+                TextButton(onClick = onRetry) {
+                    Text("Retry", color = SecondaryCyan, fontSize = 13.sp)
+                }
+                Spacer(Modifier.width(8.dp))
+                TextButton(onClick = onDismiss) {
+                    Text("Dismiss", color = TextMuted, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModelBrowserDialog(
+    downloadManager: ModelDownloadManager,
+    downloadedIds: Set<String>,
+    downloading: String?,
+    onDownload: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .fillMaxHeight(0.85f)
+                .clip(GlassShape)
+                .background(SurfaceCharcoal)
+                .border(0.5.dp, GlassBorder, GlassShape)
+                .padding(20.dp),
+        ) {
+            Column {
+                // Header
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Download Model",
+                        style = TextStyle(
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            brush = VioletCyanGradient,
+                        ),
+                    )
+                    Spacer(Modifier.weight(1f))
+                    GlassIconButton(onClick = onDismiss, icon = Icons.Default.Close)
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Choose a model based on your device's RAM and storage.",
+                    style = TextStyle(fontSize = 13.sp, color = TextSecondary),
+                )
+                Spacer(Modifier.height(16.dp))
+
+                // Model list grouped by tier
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    for (tier in ModelTier.entries) {
+                        val modelsInTier = downloadManager.availableModels.filter { it.tier == tier }
+                        if (modelsInTier.isEmpty()) continue
+
+                        val tierColor = when (tier) {
+                            ModelTier.SMALL -> SecondaryCyan
+                            ModelTier.MEDIUM -> PrimaryViolet
+                            ModelTier.LARGE -> TertiaryPink
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(tierColor, CircleShape),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                tier.label.uppercase(),
+                                style = TextStyle(
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = tierColor,
+                                    letterSpacing = 1.sp,
+                                ),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                when (tier) {
+                                    ModelTier.SMALL -> "Works on any modern phone"
+                                    ModelTier.MEDIUM -> "Recommended for flagship phones"
+                                    ModelTier.LARGE -> "For 12GB+ RAM devices"
+                                },
+                                style = TextStyle(fontSize = 11.sp, color = TextMuted),
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+
+                        for (model in modelsInTier) {
+                            val isDownloaded = model.id in downloadedIds
+                            val isDownloading = model.id == downloading
+
+                            DownloadableModelCard(
+                                model = model,
+                                isDownloaded = isDownloaded,
+                                isDownloading = isDownloading,
+                                onDownload = { onDownload(model.id) },
+                            )
+                            Spacer(Modifier.height(8.dp))
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DownloadableModelCard(
+    model: DownloadableModel,
+    isDownloaded: Boolean,
+    isDownloading: Boolean,
+    onDownload: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(InnerShape)
+            .background(InputBg)
+            .border(
+                0.5.dp,
+                if (isDownloaded) SuccessGreen.copy(alpha = 0.3f) else GlassBorder,
+                InnerShape,
+            )
+            .padding(14.dp),
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        model.name,
+                        style = TextStyle(
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary,
+                        ),
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        model.description,
+                        style = TextStyle(fontSize = 12.sp, color = TextSecondary),
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                when {
+                    isDownloaded -> {
+                        MiniPill("Installed", SuccessGreen)
+                    }
+                    isDownloading -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = SecondaryCyan,
+                        )
+                    }
+                    else -> {
+                        Box(
+                            modifier = Modifier
+                                .clip(PillShape)
+                                .background(SecondaryCyan.copy(alpha = 0.12f))
+                                .border(0.5.dp, SecondaryCyan.copy(alpha = 0.3f), PillShape)
+                                .clickable(onClick = onDownload)
+                                .padding(horizontal = 14.dp, vertical = 7.dp),
+                        ) {
+                            Text(
+                                "Download",
+                                style = TextStyle(
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = SecondaryCyan,
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row {
+                MiniPill(model.sizeDisplay, TextMuted)
+                Spacer(Modifier.width(4.dp))
+                MiniPill("RAM: ${model.ramRequired}", TextMuted)
+                Spacer(Modifier.width(4.dp))
+                MiniPill("${model.contextWindow / 1000}K ctx", TextMuted)
+                if (model.supportsToolUse) {
+                    Spacer(Modifier.width(4.dp))
+                    MiniPill("Tool Use", SuccessGreen)
+                }
+            }
+        }
+    }
 }

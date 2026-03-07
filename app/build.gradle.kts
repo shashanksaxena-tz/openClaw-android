@@ -18,6 +18,11 @@ android {
         versionName = "0.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            // Build for common Android architectures
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
     }
 
     buildTypes {
@@ -43,6 +48,16 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // Native build for llama.cpp JNI bridge
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+
+    ndkVersion = "27.0.12077973"
 }
 
 dependencies {

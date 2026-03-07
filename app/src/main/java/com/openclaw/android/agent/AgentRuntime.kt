@@ -3,6 +3,7 @@ package com.openclaw.android.agent
 import com.openclaw.android.PermissionManager
 import com.openclaw.android.data.SpaceManager
 import com.openclaw.android.llm.*
+import com.openclaw.android.llm.LlamaProvider
 import com.openclaw.android.sandbox.SandboxedFileSystem
 import com.openclaw.android.tools.ToolRegistry
 import com.openclaw.android.tools.ToolResult
@@ -151,6 +152,8 @@ class AgentRuntime(
 
         val fullSystemPrompt = buildSystemPrompt()
         var iterations = 0
+        // Track the active provider — may switch from local to cloud on escalation
+        var activeSelection = selection
 
         currentJob = scope.launch {
             try {
@@ -158,9 +161,9 @@ class AgentRuntime(
                     iterations++
 
                     val request = ChatRequest(
-                        model = selection.modelId,
+                        model = activeSelection.modelId,
                         messages = conversationManager.getMessagesForRequest(),
-                        tools = if (selection.modelInfo.supportsToolUse) toolRegistry.getDefinitions() else null,
+                        tools = if (activeSelection.modelInfo.supportsToolUse) toolRegistry.getDefinitions() else null,
                         systemPrompt = fullSystemPrompt,
                     )
 
@@ -171,7 +174,7 @@ class AgentRuntime(
                     val streamBuffer = StringBuilder()
                     emit(AgentEvent.StreamStart)
 
-                    selection.provider.chatCompletion(
+                    activeSelection.provider.chatCompletion(
                         request = request,
                         onChunk = { chunk ->
                             if (_isCancelled) return@chatCompletion
@@ -203,6 +206,33 @@ class AgentRuntime(
                         val errorMsg = ErrorHandler.formatForChat(userError)
                         emit(AgentEvent.Error(errorMsg))
                         conversationManager.addAssistantMessage(errorMsg)
+                        break
+                    }
+
+                    // ── Escalation: local model says it can't handle this ────
+                    if (activeSelection.isLocal &&
+                        responseText.contains(LlamaProvider.ESCALATION_MARKER)
+                    ) {
+                        val cloudSelection = modelRouter.selectCloudModel(hasImages, hasAudio)
+                        if (cloudSelection != null) {
+                            emit(AgentEvent.Escalation(
+                                from = activeSelection.modelInfo.displayName,
+                                to = cloudSelection.modelInfo.displayName,
+                            ))
+                            // Clear the escalation response from conversation
+                            // so cloud model gets a clean slate
+                            activeSelection = cloudSelection
+                            emit(AgentEvent.ModelSelected(cloudSelection.modelInfo.displayName))
+                            // Loop back to re-send with cloud model
+                            continue
+                        }
+                        // No cloud model available — show what we got
+                        val cleaned = responseText
+                            .replace(LlamaProvider.ESCALATION_MARKER, "")
+                            .trim()
+                            .ifBlank { "I need a cloud model for this task, but none is configured. Add an API key in Settings." }
+                        conversationManager.addAssistantMessage(cleaned)
+                        emit(AgentEvent.AssistantMessage(cleaned))
                         break
                     }
 
@@ -329,6 +359,7 @@ sealed class AgentEvent {
     data class ToolCallResult(val toolName: String, val result: String, val isError: Boolean) : AgentEvent()
     data class TokenUsage(val usage: com.openclaw.android.llm.TokenUsage) : AgentEvent()
     data class Error(val message: String) : AgentEvent()
+    data class Escalation(val from: String, val to: String) : AgentEvent()
 }
 
 const val DEFAULT_SYSTEM_PROMPT = """You are OpenClaw, a powerful personal executive AI assistant running natively on Android. You act as a digital executive assistant — reducing cognitive load, improving decision-making, and helping the user stay organized across work and life.
