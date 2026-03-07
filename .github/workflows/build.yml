@@ -7,6 +7,7 @@ on:
       - 'claude/fix-android-build-QBIl8'
       - 'claude/phase-2-features-QBIl8'
       - 'claude/fix-dashboard-kotlin-errors-zbLyi'
+      - 'claude/fix-kotlin-compilation-errors-HkcYZ'
       - 'main'
   pull_request:
     branches: [main]

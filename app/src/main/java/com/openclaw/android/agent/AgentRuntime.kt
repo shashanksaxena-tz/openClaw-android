@@ -153,7 +153,7 @@ class AgentRuntime(
         val fullSystemPrompt = buildSystemPrompt()
         var iterations = 0
         // Track the active provider — may switch from local to cloud on escalation
-        var activeSelection = selection
+        var activeSelection: ModelRouter.ModelSelection = selection
 
         currentJob = scope.launch {
             try {
