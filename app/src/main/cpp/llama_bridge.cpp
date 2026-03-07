@@ -47,6 +47,13 @@ static std::string jstring_to_string(JNIEnv *env, jstring jstr) {
 extern "C" {
 
 JNIEXPORT jboolean JNICALL
+Java_com_openclaw_android_llm_LlamaBridge_nativeIsRealBuild(
+    JNIEnv *env, jobject /* this */
+) {
+    return JNI_TRUE;
+}
+
+JNIEXPORT jboolean JNICALL
 Java_com_openclaw_android_llm_LlamaBridge_nativeLoadModel(
     JNIEnv *env, jobject /* this */,
     jstring modelPath, jint nThreads, jint nGpuLayers, jint contextSize
@@ -309,6 +316,13 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeGetAvailableMemory(
 // ── Stub implementations when llama.cpp is not available ─────────────────────
 
 extern "C" {
+
+JNIEXPORT jboolean JNICALL
+Java_com_openclaw_android_llm_LlamaBridge_nativeIsRealBuild(
+    JNIEnv *, jobject
+) {
+    return JNI_FALSE;
+}
 
 JNIEXPORT jboolean JNICALL
 Java_com_openclaw_android_llm_LlamaBridge_nativeLoadModel(

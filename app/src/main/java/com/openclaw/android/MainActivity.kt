@@ -465,7 +465,7 @@ private fun MainContent(app: OpenClawApp) {
                     11 -> FileBrowserScreen(
                         fs = app.sandboxedFileSystem,
                         modifier = Modifier.padding(padding),
-                        activeSpaceName = app.spaceManager.activeSpace.value?.name,
+                        activeSpaceName = app.agentRuntime.activeSpaceName,
                     )
 
                     12 -> VoiceConversationScreen(
