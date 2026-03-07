@@ -58,6 +58,7 @@ add_library(llama_bridge SHARED llama_bridge.cpp)
 target_include_directories(llama_bridge PRIVATE
     ${LLAMA_CPP_DIR}/include
     ${LLAMA_CPP_DIR}/ggml/include
+    ${LLAMA_CPP_DIR}/common
 )
 
 target_link_libraries(llama_bridge

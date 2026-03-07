@@ -163,13 +163,13 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeGenerate(
 
     LOGI("Prompt tokens: %d, generating up to %d tokens", n_tokens, maxTokens);
 
-    // Clear KV cache and decode prompt
-    llama_kv_cache_clear(g_ctx);
+    // Clear memory (KV cache) and decode prompt
+    llama_memory_clear(llama_get_memory(g_ctx), true);
 
     // Process prompt in batch
     llama_batch batch = llama_batch_init(n_tokens, 0, 1);
     for (int i = 0; i < n_tokens; i++) {
-        llama_batch_add(batch, tokens[i], i, {0}, false);
+        common_batch_add(batch, tokens[i], i, {0}, false);
     }
     batch.logits[batch.n_tokens - 1] = true;
 
@@ -246,7 +246,7 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeGenerate(
 
         // Reuse pre-allocated batch for next token
         next_batch.n_tokens = 0;
-        llama_batch_add(next_batch, new_token, n_cur, {0}, true);
+        common_batch_add(next_batch, new_token, n_cur, {0}, true);
         n_cur++;
 
         if (llama_decode(g_ctx, next_batch) != 0) {
