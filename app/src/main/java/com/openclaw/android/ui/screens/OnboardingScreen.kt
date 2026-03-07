@@ -683,7 +683,88 @@ private fun ApiKeyPage(settings: SettingsRepository) {
             shape = RoundedCornerShape(14.dp),
         )
 
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(10.dp))
+
+        // ── API Key Validation ────────────────────────────────────────
+        var validationState by remember { mutableStateOf<String?>(null) } // null = idle, "loading", "ok", "error:..."
+        val scope = rememberCoroutineScope()
+
+        if (currentKey.length > 10) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                when {
+                    validationState == "loading" -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = Violet,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Validating key...", fontSize = 12.sp, color = SubtleText)
+                    }
+                    validationState == "ok" -> {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF22C55E), modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Key is valid!", fontSize = 12.sp, color = Color(0xFF22C55E))
+                    }
+                    validationState?.startsWith("error") == true -> {
+                        Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            validationState?.removePrefix("error:") ?: "Invalid key",
+                            fontSize = 12.sp,
+                            color = Color(0xFFEF4444),
+                        )
+                    }
+                    else -> {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Violet.copy(alpha = 0.10f))
+                                .border(0.5.dp, Violet.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
+                                .clickable {
+                                    validationState = "loading"
+                                    scope.launch {
+                                        validationState = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                            try {
+                                                val url = when (selectedProvider) {
+                                                    "gemini" -> "https://generativelanguage.googleapis.com/v1beta/models?key=$currentKey"
+                                                    "groq" -> "https://api.groq.com/openai/v1/models"
+                                                    "cerebras" -> "https://api.cerebras.ai/v1/models"
+                                                    else -> null
+                                                }
+                                                if (url == null) {
+                                                    "error:Unknown provider"
+                                                } else {
+                                                    val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                                                    conn.requestMethod = "GET"
+                                                    conn.connectTimeout = 10000
+                                                    conn.readTimeout = 10000
+                                                    if (selectedProvider != "gemini") {
+                                                        conn.setRequestProperty("Authorization", "Bearer $currentKey")
+                                                    }
+                                                    val code = conn.responseCode
+                                                    conn.disconnect()
+                                                    if (code in 200..299) "ok" else "error:API returned $code"
+                                                }
+                                            } catch (e: Exception) {
+                                                "error:${e.message?.take(40) ?: "Connection failed"}"
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                        ) {
+                            Text("Test Key", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Violet)
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
 
         // ── "Get Free API Key" button ────────────────────────────────
         val url = providers.find { it.id == selectedProvider }?.url

@@ -80,6 +80,11 @@ fun DashboardScreen(
     onNavigateToTravel: () -> Unit = {},
     onNavigateToInsights: () -> Unit = {},
     onNavigateToBriefing: () -> Unit = {},
+    onNavigateToHabits: () -> Unit = {},
+    onNavigateToReminders: () -> Unit = {},
+    onNavigateToMemory: () -> Unit = {},
+    onNavigateToVoice: () -> Unit = {},
+    onNavigateToFiles: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -149,6 +154,31 @@ fun DashboardScreen(
     val upcomingTrip = trips
         .filter { (it.optLong("startDate") ?: 0) > System.currentTimeMillis() }
         .minByOrNull { it.optLong("startDate") ?: Long.MAX_VALUE }
+
+    // Reminders data
+    val notifPrefs = remember { context.getSharedPreferences("smart_notifications", Context.MODE_PRIVATE) }
+    val upcomingReminders = remember(refreshKey) {
+        try {
+            val raw = notifPrefs.getString("scheduled_list", "[]") ?: "[]"
+            val arr = json.parseToJsonElement(raw)
+            if (arr is kotlinx.serialization.json.JsonArray) {
+                arr.mapNotNull { elem ->
+                    val obj = elem as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                    val triggerMs = obj["triggerTimeMs"]?.let {
+                        (it as? kotlinx.serialization.json.JsonPrimitive)?.longOrNull
+                    } ?: return@mapNotNull null
+                    if (triggerMs > System.currentTimeMillis()) {
+                        SimpleJsonObj(obj.mapValues { (_, v) ->
+                            when (v) {
+                                is kotlinx.serialization.json.JsonPrimitive -> v.longOrNull ?: v.doubleOrNull ?: v.booleanOrNull ?: v.contentOrNull
+                                else -> v.toString()
+                            }
+                        })
+                    } else null
+                }.sortedBy { it.optLong("triggerTimeMs") ?: Long.MAX_VALUE }.take(3)
+            } else emptyList()
+        } catch (_: Exception) { emptyList() }
+    }
 
     // Calendar events
     val todayEvents = remember { getTodayEvents(context) }
@@ -423,11 +453,18 @@ fun DashboardScreen(
         Spacer(Modifier.height(16.dp))
 
         // ── Quick Actions ────────────────────────────────────────────────
+        var showAllActions by remember { mutableStateOf(false) }
+
         AnimatedVisibility(
             visible = visible,
             enter = fadeIn(tween(600, 500)) + slideInVertically(tween(500, 500)) { it / 3 },
         ) {
-            GlassSection(title = "Quick Actions", icon = Icons.Outlined.FlashOn) {
+            GlassSection(
+                title = "Quick Actions",
+                icon = Icons.Outlined.FlashOn,
+                actionLabel = "See all",
+                onAction = { showAllActions = true },
+            ) {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
@@ -453,6 +490,27 @@ fun DashboardScreen(
                     }
                 }
             }
+        }
+
+        // ── All Actions Bottom Sheet ──────────────────────────────────────
+        if (showAllActions) {
+            QuickActionBottomSheet(
+                onDismiss = { showAllActions = false },
+                onNavigateToChat = onNavigateToChat,
+                onNavigateToTasks = onNavigateToTasks,
+                onNavigateToNotes = onNavigateToNotes,
+                onNavigateToTeam = onNavigateToTeam,
+                onNavigateToCalendar = onNavigateToCalendar,
+                onNavigateToTravel = onNavigateToTravel,
+                onNavigateToInsights = onNavigateToInsights,
+                onNavigateToBriefing = onNavigateToBriefing,
+                onNavigateToHabits = onNavigateToHabits,
+                onNavigateToReminders = onNavigateToReminders,
+                onNavigateToMemory = onNavigateToMemory,
+                onNavigateToVoice = onNavigateToVoice,
+                onNavigateToFiles = onNavigateToFiles,
+                onNavigateToSettings = onNavigateToSettings,
+            )
         }
 
         Spacer(Modifier.height(16.dp))
@@ -483,6 +541,65 @@ fun DashboardScreen(
         }
 
         Spacer(Modifier.height(16.dp))
+
+        // ── Upcoming Reminders ────────────────────────────────────────────
+        if (upcomingReminders.isNotEmpty()) {
+            AnimatedVisibility(
+                visible = visible,
+                enter = fadeIn(tween(600, 650)) + slideInVertically(tween(500, 650)) { it / 3 },
+            ) {
+                GlassSection(
+                    title = "Upcoming Reminders",
+                    icon = Icons.Outlined.NotificationsActive,
+                    actionLabel = "All",
+                    onAction = onNavigateToReminders,
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (reminder in upcomingReminders) {
+                            val title = reminder.optString("title") ?: "Reminder"
+                            val triggerMs = reminder.optLong("triggerTimeMs") ?: 0
+                            val diff = triggerMs - System.currentTimeMillis()
+                            val timeLabel = when {
+                                diff < 60 * 60 * 1000 -> "${diff / (60 * 1000)}m"
+                                diff < 24 * 60 * 60 * 1000 -> "${diff / (60 * 60 * 1000)}h"
+                                else -> "${diff / (24 * 60 * 60 * 1000)}d"
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(SmallCardShape)
+                                    .background(SurfaceLight)
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .background(Amber.copy(alpha = 0.12f), CircleShape),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(Icons.Outlined.NotificationsActive, contentDescription = null, tint = Amber, modifier = Modifier.size(16.dp))
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    title,
+                                    style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary),
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    "in $timeLabel",
+                                    style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Amber),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+        }
 
         // ── Team Delegations ─────────────────────────────────────────────
         if (activeDelegations > 0) {
@@ -844,9 +961,9 @@ private fun NotePreviewCard(content: String, category: String, createdAt: Long) 
 }
 
 @Composable
-private fun QuickActionChip(label: String, icon: ImageVector, color: Color, onClick: () -> Unit) {
+private fun QuickActionChip(label: String, icon: ImageVector, color: Color, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .clip(PillShape)
             .background(color.copy(alpha = 0.10f))
             .border(0.5.dp, color.copy(alpha = 0.20f), PillShape)
@@ -872,6 +989,126 @@ private fun EmptyCard(message: String) {
         contentAlignment = Alignment.Center,
     ) {
         Text(message, style = TextStyle(fontSize = 13.sp, color = TextMuted))
+    }
+}
+
+// ─── Quick Action Bottom Sheet ───────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun QuickActionBottomSheet(
+    onDismiss: () -> Unit,
+    onNavigateToChat: () -> Unit,
+    onNavigateToTasks: () -> Unit,
+    onNavigateToNotes: () -> Unit,
+    onNavigateToTeam: () -> Unit,
+    onNavigateToCalendar: () -> Unit,
+    onNavigateToTravel: () -> Unit,
+    onNavigateToInsights: () -> Unit,
+    onNavigateToBriefing: () -> Unit,
+    onNavigateToHabits: () -> Unit,
+    onNavigateToReminders: () -> Unit,
+    onNavigateToMemory: () -> Unit,
+    onNavigateToVoice: () -> Unit,
+    onNavigateToFiles: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color(0xFF0D0D12),
+        scrimColor = Color.Black.copy(alpha = 0.5f),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp),
+        ) {
+            Text(
+                "All Actions",
+                style = TextStyle(
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    brush = VioletCyanGradient,
+                ),
+            )
+            Spacer(Modifier.height(16.dp))
+
+            // Communication
+            ActionCategory("Communication", Cyan, listOf(
+                QuickAction("AI Chat", Icons.Outlined.Chat, Cyan) to { onNavigateToChat(); onDismiss() },
+                QuickAction("Voice Mode", Icons.Outlined.Mic, Cyan) to { onNavigateToVoice(); onDismiss() },
+                QuickAction("Team", Icons.Outlined.Groups, Cyan) to { onNavigateToTeam(); onDismiss() },
+            ))
+            Spacer(Modifier.height(12.dp))
+
+            // Productivity
+            ActionCategory("Productivity", Violet, listOf(
+                QuickAction("Tasks", Icons.Outlined.CheckCircle, Violet) to { onNavigateToTasks(); onDismiss() },
+                QuickAction("Notes", Icons.Outlined.EditNote, Violet) to { onNavigateToNotes(); onDismiss() },
+                QuickAction("Calendar", Icons.Outlined.CalendarMonth, Violet) to { onNavigateToCalendar(); onDismiss() },
+                QuickAction("Habits", Icons.Outlined.FitnessCenter, Violet) to { onNavigateToHabits(); onDismiss() },
+                QuickAction("Reminders", Icons.Outlined.NotificationsActive, Violet) to { onNavigateToReminders(); onDismiss() },
+                QuickAction("Insights", Icons.Outlined.TrendingUp, Violet) to { onNavigateToInsights(); onDismiss() },
+            ))
+            Spacer(Modifier.height(12.dp))
+
+            // Planning
+            ActionCategory("Planning", Pink, listOf(
+                QuickAction("Briefing", Icons.Outlined.Summarize, Pink) to { onNavigateToBriefing(); onDismiss() },
+                QuickAction("Travel", Icons.Outlined.FlightTakeoff, Pink) to { onNavigateToTravel(); onDismiss() },
+                QuickAction("Memory", Icons.Outlined.Psychology, Pink) to { onNavigateToMemory(); onDismiss() },
+            ))
+            Spacer(Modifier.height(12.dp))
+
+            // Tools
+            ActionCategory("Tools", Amber, listOf(
+                QuickAction("Files", Icons.Outlined.Folder, Amber) to { onNavigateToFiles(); onDismiss() },
+                QuickAction("Settings", Icons.Outlined.Settings, Amber) to { onNavigateToSettings(); onDismiss() },
+            ))
+        }
+    }
+}
+
+@Composable
+private fun ActionCategory(title: String, accent: Color, actions: List<Pair<QuickAction, () -> Unit>>) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(accent, CircleShape),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(title, style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary))
+        }
+        Spacer(Modifier.height(8.dp))
+        // 3-column grid
+        for (row in actions.chunked(3)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                for ((action, onClick) in row) {
+                    QuickActionChip(
+                        label = action.label,
+                        icon = action.icon,
+                        color = action.color,
+                        onClick = onClick,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                repeat(3 - row.size) {
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
     }
 }
 

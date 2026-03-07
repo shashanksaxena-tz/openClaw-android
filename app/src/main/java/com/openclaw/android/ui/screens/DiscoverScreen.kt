@@ -78,6 +78,7 @@ fun DiscoverScreen(
     onNavigateToDecisions: () -> Unit = {},
     onNavigateToMemory: () -> Unit = {},
     onNavigateToVoice: () -> Unit = {},
+    onNavigateToReminders: () -> Unit = {},
 ) {
     val scrollState = rememberScrollState()
     var searchQuery by remember { mutableStateOf("") }
@@ -92,7 +93,7 @@ fun DiscoverScreen(
         onNavigateToBriefing, onNavigateToHabits, onNavigateToInsights,
         onNavigateToChat, onNavigateToVoice, onNavigateToTeam,
         onNavigateToTravel, onNavigateToDecisions, onNavigateToMemory,
-        onNavigateToFiles, onNavigateToSettings,
+        onNavigateToFiles, onNavigateToSettings, onNavigateToReminders,
     ) {
         listOf(
             DiscoverCategory(
@@ -135,7 +136,7 @@ fun DiscoverScreen(
                     DiscoverItem("Files", Icons.Outlined.Folder, onNavigateToFiles),
                     DiscoverItem("Web Search", Icons.Outlined.TravelExplore, onNavigateToChat, viaChatPrompt = "Search the web for"),
                     DiscoverItem("Clipboard", Icons.Outlined.ContentPaste, onNavigateToChat, viaChatPrompt = "Help me with clipboard content"),
-                    DiscoverItem("Notifications", Icons.Outlined.NotificationsActive, onNavigateToChat, viaChatPrompt = "Check my notifications"),
+                    DiscoverItem("Reminders", Icons.Outlined.NotificationsActive, onNavigateToReminders),
                     DiscoverItem("Settings", Icons.Outlined.Settings, onNavigateToSettings),
                 ),
             ),

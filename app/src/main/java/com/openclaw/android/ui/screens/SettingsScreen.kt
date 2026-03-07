@@ -86,6 +86,7 @@ fun SettingsScreen(
     agentRuntime: AgentRuntime? = null,
     conversationExpiry: ConversationExpiry? = null,
     privacyAudit: PrivacyAudit? = null,
+    onNavigateToFiles: (() -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -375,6 +376,37 @@ fun SettingsScreen(
                             showCreateSpace = false
                         },
                     )
+                }
+            }
+
+            // ── File Browser Section ──────────────────────────────────────────
+            if (onNavigateToFiles != null) {
+                Spacer(Modifier.height(18.dp))
+
+                GlassSection(
+                    icon = Icons.Outlined.Folder,
+                    title = "File Browser",
+                    description = "Browse and manage your workspace files.",
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(InnerShape)
+                            .background(InputBg)
+                            .border(0.5.dp, GlassBorder, InnerShape)
+                            .clickable(onClick = onNavigateToFiles)
+                            .padding(14.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Outlined.FolderOpen, contentDescription = null, tint = PrimaryViolet, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Open Files", style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TextPrimary))
+                                Text("View shared files and workspace", style = TextStyle(fontSize = 12.sp, color = TextMuted))
+                            }
+                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
+                        }
+                    }
                 }
             }
 

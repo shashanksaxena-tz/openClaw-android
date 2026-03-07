@@ -357,6 +357,11 @@ private fun MainContent(app: OpenClawApp) {
                         onNavigateToTravel = { currentTab = 7 },
                         onNavigateToInsights = { currentTab = 8 },
                         onNavigateToBriefing = { currentTab = 9 },
+                        onNavigateToHabits = { currentTab = 13 },
+                        onNavigateToReminders = { currentTab = 16 },
+                        onNavigateToMemory = { currentTab = 15 },
+                        onNavigateToVoice = { currentTab = 12 },
+                        onNavigateToFiles = { currentTab = 11 },
                     )
 
                     1 -> TasksScreen(
@@ -411,9 +416,10 @@ private fun MainContent(app: OpenClawApp) {
                         onNavigateToSettings = { currentTab = 5 },
                         onNavigateToFiles = { currentTab = 11 },
                         onNavigateToVoice = { currentTab = 12 },
-                        onNavigateToHabits = { currentTab = 3 },
-                        onNavigateToDecisions = { currentTab = 3 },
-                        onNavigateToMemory = { currentTab = 3 },
+                        onNavigateToHabits = { currentTab = 13 },
+                        onNavigateToDecisions = { currentTab = 14 },
+                        onNavigateToMemory = { currentTab = 15 },
+                        onNavigateToReminders = { currentTab = 16 },
                     )
 
                     5 -> SettingsScreen(
@@ -425,6 +431,7 @@ private fun MainContent(app: OpenClawApp) {
                         privacyAudit = app.privacyAudit,
                         onBack = { currentTab = 0 },
                         modifier = Modifier.padding(padding),
+                        onNavigateToFiles = { currentTab = 11 },
                     )
 
                     6 -> CalendarScreen(
@@ -467,10 +474,26 @@ private fun MainContent(app: OpenClawApp) {
                         modifier = Modifier.padding(padding),
                     )
 
-                    // Habits, Decisions, Memory placeholders → navigate to chat
-                    13, 14, 15 -> {
+                    13 -> HabitsScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 3 },
+                    )
+
+                    14 -> {
+                        // Decisions → still via chat for now
                         currentTab = 3
                     }
+
+                    15 -> MemoryScreen(
+                        memorySystem = app.memorySystem,
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 3 },
+                    )
+
+                    16 -> RemindersScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 3 },
+                    )
                 }
             }
         }
