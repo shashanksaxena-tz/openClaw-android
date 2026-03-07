@@ -15,10 +15,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Chat
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.EditNote
-import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -58,8 +58,8 @@ private val tabs = listOf(
     TabItem("Home", Icons.Rounded.Home),
     TabItem("Tasks", Icons.Rounded.CheckCircle),
     TabItem("Notes", Icons.Rounded.EditNote),
-    TabItem("Team", Icons.Rounded.Groups),
     TabItem("Chat", Icons.Rounded.Chat),
+    TabItem("More", Icons.Rounded.Apps),
 )
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -298,14 +298,14 @@ private fun MainContent(app: OpenClawApp) {
                         scope.launch {
                             app.agentRuntime.startNewConversation()
                             drawerState.close()
-                            currentTab = 4
+                            currentTab = 3
                         }
                     },
                     onSelectConversation = { id ->
                         scope.launch {
                             app.agentRuntime.loadConversation(id)
                             drawerState.close()
-                            currentTab = 4
+                            currentTab = 3
                         }
                     },
                     onDeleteConversation = { id ->
@@ -348,33 +348,33 @@ private fun MainContent(app: OpenClawApp) {
                 when (tab) {
                     0 -> DashboardScreen(
                         modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 4 },
+                        onNavigateToChat = { currentTab = 3 },
                         onNavigateToTasks = { currentTab = 1 },
                         onNavigateToNotes = { currentTab = 2 },
-                        onNavigateToTeam = { currentTab = 3 },
+                        onNavigateToTeam = { currentTab = 10 },
                         onNavigateToSettings = { currentTab = 5 },
                         onNavigateToCalendar = { currentTab = 6 },
                         onNavigateToTravel = { currentTab = 7 },
                         onNavigateToInsights = { currentTab = 8 },
                         onNavigateToBriefing = { currentTab = 9 },
+                        onNavigateToHabits = { currentTab = 13 },
+                        onNavigateToReminders = { currentTab = 16 },
+                        onNavigateToMemory = { currentTab = 15 },
+                        onNavigateToVoice = { currentTab = 12 },
+                        onNavigateToFiles = { currentTab = 11 },
                     )
 
                     1 -> TasksScreen(
                         modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 4 },
+                        onNavigateToChat = { currentTab = 3 },
                     )
 
                     2 -> NotesScreen(
                         modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 4 },
+                        onNavigateToChat = { currentTab = 3 },
                     )
 
-                    3 -> TeamScreen(
-                        modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 4 },
-                    )
-
-                    4 -> ChatScreen(
+                    3 -> ChatScreen(
                         runtime = app.agentRuntime,
                         onNavigateToSettings = { currentTab = 5 },
                         modifier = Modifier.padding(padding),
@@ -403,6 +403,25 @@ private fun MainContent(app: OpenClawApp) {
                         },
                     )
 
+                    4 -> DiscoverScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 3 },
+                        onNavigateToTasks = { currentTab = 1 },
+                        onNavigateToNotes = { currentTab = 2 },
+                        onNavigateToTeam = { currentTab = 10 },
+                        onNavigateToCalendar = { currentTab = 6 },
+                        onNavigateToTravel = { currentTab = 7 },
+                        onNavigateToInsights = { currentTab = 8 },
+                        onNavigateToBriefing = { currentTab = 9 },
+                        onNavigateToSettings = { currentTab = 5 },
+                        onNavigateToFiles = { currentTab = 11 },
+                        onNavigateToVoice = { currentTab = 12 },
+                        onNavigateToHabits = { currentTab = 13 },
+                        onNavigateToDecisions = { currentTab = 14 },
+                        onNavigateToMemory = { currentTab = 15 },
+                        onNavigateToReminders = { currentTab = 16 },
+                    )
+
                     5 -> SettingsScreen(
                         settings = app.settings,
                         modelRouter = app.modelRouter,
@@ -412,28 +431,70 @@ private fun MainContent(app: OpenClawApp) {
                         privacyAudit = app.privacyAudit,
                         onBack = { currentTab = 0 },
                         modifier = Modifier.padding(padding),
+                        onNavigateToFiles = { currentTab = 11 },
                     )
 
                     6 -> CalendarScreen(
                         modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 4 },
+                        onNavigateToChat = { currentTab = 3 },
                     )
 
                     7 -> TravelScreen(
                         modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 4 },
+                        onNavigateToChat = { currentTab = 3 },
                     )
 
                     8 -> InsightsScreen(
                         modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 4 },
+                        onNavigateToChat = { currentTab = 3 },
                     )
 
                     9 -> BriefingScreen(
                         modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 4 },
+                        onNavigateToChat = { currentTab = 3 },
                         onNavigateToTasks = { currentTab = 1 },
                         onNavigateToCalendar = { currentTab = 6 },
+                        onBack = { currentTab = 0 },
+                    )
+
+                    10 -> TeamScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 3 },
+                    )
+
+                    11 -> FileBrowserScreen(
+                        fs = app.sandboxedFileSystem,
+                        modifier = Modifier.padding(padding),
+                        activeSpaceName = app.spaceManager.activeSpace.value?.name,
+                    )
+
+                    12 -> VoiceConversationScreen(
+                        runtime = app.agentRuntime,
+                        onDismiss = { currentTab = 3 },
+                        modifier = Modifier.padding(padding),
+                    )
+
+                    13 -> HabitsScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 3 },
+                        onBack = { currentTab = 0 },
+                    )
+
+                    14 -> DecisionScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 3 },
+                        onBack = { currentTab = 0 },
+                    )
+
+                    15 -> MemoryScreen(
+                        memorySystem = app.memorySystem,
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 3 },
+                    )
+
+                    16 -> RemindersScreen(
+                        modifier = Modifier.padding(padding),
+                        onNavigateToChat = { currentTab = 3 },
                         onBack = { currentTab = 0 },
                     )
                 }

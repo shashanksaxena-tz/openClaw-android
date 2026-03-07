@@ -88,6 +88,36 @@ val defaultSuggestions = listOf(
         icon = Icons.Default.Assessment,
         prompt = "Show me my weekly productivity report",
     ),
+    PromptSuggestion(
+        text = "Search the web",
+        icon = Icons.Default.TravelExplore,
+        prompt = "Search the web for ",
+    ),
+    PromptSuggestion(
+        text = "Call a contact",
+        icon = Icons.Default.Phone,
+        prompt = "Call ",
+    ),
+    PromptSuggestion(
+        text = "Read my texts",
+        icon = Icons.Default.Sms,
+        prompt = "Read my recent text messages",
+    ),
+    PromptSuggestion(
+        text = "Track a habit",
+        icon = Icons.Default.FitnessCenter,
+        prompt = "Track a habit: ",
+    ),
+    PromptSuggestion(
+        text = "What do you know?",
+        icon = Icons.Default.Psychology,
+        prompt = "What do you remember about me?",
+    ),
+    PromptSuggestion(
+        text = "Take a screenshot",
+        icon = Icons.Default.Screenshot,
+        prompt = "Take a screenshot of my screen",
+    ),
 )
 
 /**

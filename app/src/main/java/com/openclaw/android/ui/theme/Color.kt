@@ -66,7 +66,7 @@ val DarkSurfaceBright = Color(0xFF22222F)       // Highest elevation
 val DarkOnBackground = Color(0xFFF0F0F8)        // Near-white with cool tint
 val DarkOnSurface = Color(0xFFE8E8F0)           // Primary text
 val DarkOnSurfaceVariant = Color(0xFF9898AC)    // Secondary text, muted
-val DarkOnSurfaceDim = Color(0xFF5C5C72)        // Disabled / hint text
+val DarkOnSurfaceDim = Color(0xFF7C7D8F)        // Disabled / hint text (WCAG AA)
 
 // Outline / borders
 val DarkOutline = Color(0xFF2A2A3C)             // Subtle borders

@@ -151,7 +151,7 @@ fun VoiceInputButton(
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
-            .size(40.dp)
+            .size(48.dp)
             .scale(buttonScale)
             .clip(CircleShape)
             .drawBehind {

@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import com.openclaw.android.agent.AgentEvent
 
@@ -67,8 +68,9 @@ fun MessageBubble(
             is AgentEvent.ToolCallStart -> ToolCallBubble(event, modifier)
             is AgentEvent.ToolCallResult -> ToolResultBubble(event, modifier)
             is AgentEvent.Error -> ErrorBubble(event.message, onRetry, modifier)
-            is AgentEvent.StreamChunk -> StreamChunkBubble(event.fullText, modifier)
+            is AgentEvent.StreamChunk -> StreamChunkBubble(event.chunk, modifier)
             is AgentEvent.ModelSelected -> ModelBadge(event.modelName, modifier)
+            is AgentEvent.Escalation -> EscalationBadge(event.from, event.to, modifier)
             else -> {}
         }
     }
@@ -306,7 +308,7 @@ private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modif
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     Icons.Default.Warning,
-                    contentDescription = null,
+                    contentDescription = "Error",
                     modifier = Modifier.size(16.dp),
                     tint = ErrorRed,
                 )
@@ -315,6 +317,8 @@ private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modif
                     text = message,
                     style = MaterialTheme.typography.bodySmall,
                     color = ErrorRed.copy(alpha = 0.90f),
+                    maxLines = 5,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             if (onRetry != null) {
@@ -330,7 +334,7 @@ private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modif
                 ) {
                     Icon(
                         Icons.Default.Refresh,
-                        contentDescription = null,
+                        contentDescription = "Retry",
                         modifier = Modifier.size(15.dp),
                         tint = Color.White,
                     )
@@ -416,6 +420,45 @@ private fun ModelBadge(modelName: String, modifier: Modifier) {
                     letterSpacing = 0.4.sp,
                 ),
                 color = Color.White.copy(alpha = 0.40f),
+            )
+        }
+    }
+}
+
+// ── 8. Escalation Badge ────────────────────────────────────────────────────────
+
+private val EscalationAmber = Color(0xFFFBBF24)
+
+@Composable
+private fun EscalationBadge(from: String, to: String, modifier: Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Row(
+            modifier = Modifier
+                .clip(ModelPillShape)
+                .border(0.5.dp, EscalationAmber.copy(alpha = 0.2f), ModelPillShape)
+                .background(EscalationAmber.copy(alpha = 0.06f))
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Default.CloudUpload,
+                contentDescription = null,
+                modifier = Modifier.size(11.dp),
+                tint = EscalationAmber.copy(alpha = 0.65f),
+            )
+            Spacer(Modifier.width(5.dp))
+            Text(
+                text = "Escalating to $to",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 10.sp,
+                    letterSpacing = 0.4.sp,
+                ),
+                color = EscalationAmber.copy(alpha = 0.55f),
             )
         }
     }

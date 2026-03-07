@@ -46,6 +46,13 @@ class SettingsRepository(context: Context) {
     fun getOnboardingComplete(): Boolean = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
     fun setOnboardingComplete(complete: Boolean) { prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETE, complete).apply() }
 
+    // Local model settings
+    fun getActiveLocalModelId(): String = prefs.getString(KEY_LOCAL_MODEL_ID, "") ?: ""
+    fun setActiveLocalModelId(modelId: String) { prefs.edit().putString(KEY_LOCAL_MODEL_ID, modelId).apply() }
+
+    fun getLocalModelEnabled(): Boolean = prefs.getBoolean(KEY_LOCAL_MODEL_ENABLED, true)
+    fun setLocalModelEnabled(enabled: Boolean) { prefs.edit().putBoolean(KEY_LOCAL_MODEL_ENABLED, enabled).apply() }
+
     // Check if any provider is configured
     fun hasAnyApiKey(): Boolean = getGeminiKey().isNotBlank() ||
             getGroqKey().isNotBlank() ||
@@ -58,5 +65,7 @@ class SettingsRepository(context: Context) {
         private const val KEY_DEFAULT_MODEL = "default_model"
         private const val KEY_SYSTEM_PROMPT = "system_prompt"
         private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
+        private const val KEY_LOCAL_MODEL_ID = "local_model_id"
+        private const val KEY_LOCAL_MODEL_ENABLED = "local_model_enabled"
     }
 }

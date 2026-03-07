@@ -104,11 +104,13 @@ fun VoiceConversationScreen(
     var autoListen by remember { mutableStateOf(true) }
 
     // TTS
+    var ttsReady by remember { mutableStateOf(false) }
     val tts = remember {
         var engine: TextToSpeech? = null
         engine = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 engine?.language = Locale.getDefault()
+                ttsReady = true
             }
         }
         engine
@@ -133,16 +135,17 @@ fun VoiceConversationScreen(
     // Watch for assistant responses to speak them
     LaunchedEffect(events.size) {
         val lastEvent = events.lastOrNull()
-        if (lastEvent is AgentEvent.AssistantMessage && voiceState == VoiceState.PROCESSING) {
+        if (lastEvent is AgentEvent.AssistantMessage && voiceState == VoiceState.PROCESSING && ttsReady) {
             responseText = lastEvent.text
             voiceState = VoiceState.SPEAKING
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {}
                 override fun onDone(utteranceId: String?) {
-                    voiceState = VoiceState.IDLE
-                    // Auto-listen after speaking
-                    if (autoListen && micPermission.status.isGranted && speechRecognizer != null) {
-                        scope.launch {
+                    // TTS callbacks run on a background thread — dispatch to main for Compose state
+                    scope.launch {
+                        voiceState = VoiceState.IDLE
+                        // Auto-listen after speaking
+                        if (autoListen && micPermission.status.isGranted && speechRecognizer != null) {
                             delay(500)
                             startListening(speechRecognizer, recognizerIntent)
                             voiceState = VoiceState.LISTENING
@@ -150,7 +153,9 @@ fun VoiceConversationScreen(
                     }
                 }
                 override fun onError(utteranceId: String?) {
-                    voiceState = VoiceState.IDLE
+                    scope.launch {
+                        voiceState = VoiceState.IDLE
+                    }
                 }
             })
             // Strip markdown for cleaner TTS
@@ -734,7 +739,7 @@ fun VoiceConversationScreen(
                             ) {
                                 Icon(
                                     Icons.Default.Stop,
-                                    contentDescription = null,
+                                    contentDescription = "Stop speaking",
                                     modifier = Modifier.size(18.dp),
                                     tint = MutedRed,
                                 )
@@ -762,7 +767,7 @@ fun VoiceConversationScreen(
                         ) {
                             Icon(
                                 Icons.Default.CallEnd,
-                                contentDescription = null,
+                                contentDescription = "End voice conversation",
                                 modifier = Modifier.size(18.dp),
                                 tint = MutedRed,
                             )

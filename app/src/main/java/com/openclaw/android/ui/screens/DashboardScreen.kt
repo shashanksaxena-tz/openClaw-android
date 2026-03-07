@@ -3,6 +3,10 @@ package com.openclaw.android.ui.screens
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.provider.CalendarContract
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -34,6 +38,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.longOrNull
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -73,9 +81,34 @@ fun DashboardScreen(
     onNavigateToTravel: () -> Unit = {},
     onNavigateToInsights: () -> Unit = {},
     onNavigateToBriefing: () -> Unit = {},
+    onNavigateToHabits: () -> Unit = {},
+    onNavigateToReminders: () -> Unit = {},
+    onNavigateToMemory: () -> Unit = {},
+    onNavigateToVoice: () -> Unit = {},
+    onNavigateToFiles: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+
+    // ── Offline detection ────────────────────────────────────────────────
+    var isOnline by remember { mutableStateOf(true) }
+    DisposableEffect(Unit) {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) { isOnline = true }
+            override fun onLost(network: Network) { isOnline = false }
+        }
+        val request = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        cm?.registerNetworkCallback(request, callback)
+        // Check initial state
+        isOnline = cm?.activeNetwork != null
+        onDispose { cm?.unregisterNetworkCallback(callback) }
+    }
+
+    // ── Refresh key for pull-to-refresh ──────────────────────────────────
+    var refreshKey by remember { mutableIntStateOf(0) }
 
     // Load data from SharedPreferences
     val taskPrefs = remember { context.getSharedPreferences("task_manager", Context.MODE_PRIVATE) }
@@ -85,11 +118,23 @@ fun DashboardScreen(
     val decisionPrefs = remember { context.getSharedPreferences("decision_log", Context.MODE_PRIVATE) }
     val json = remember { Json { ignoreUnknownKeys = true } }
 
-    // Parse data
-    val tasks = remember { parseJsonList(taskPrefs.getString("tasks_data", "[]") ?: "[]", json) }
-    val notes = remember { parseJsonList(notePrefs.getString("notes_data", "[]") ?: "[]", json) }
-    val members = remember { parseJsonList(teamPrefs.getString("members_data", "[]") ?: "[]", json) }
-    val delegations = remember { parseJsonList(teamPrefs.getString("delegations_data", "[]") ?: "[]", json) }
+    // Parse data with error tracking
+    val tasksResult = remember(refreshKey) { parseJsonListSafe(taskPrefs.getString("tasks_data", "[]") ?: "[]", json) }
+    val notesResult = remember(refreshKey) { parseJsonListSafe(notePrefs.getString("notes_data", "[]") ?: "[]", json) }
+    val membersResult = remember(refreshKey) { parseJsonListSafe(teamPrefs.getString("members_data", "[]") ?: "[]", json) }
+    val delegationsResult = remember(refreshKey) { parseJsonListSafe(teamPrefs.getString("delegations_data", "[]") ?: "[]", json) }
+    val tasks = tasksResult.data
+    val notes = notesResult.data
+    val members = membersResult.data
+    val delegations = delegationsResult.data
+
+    // Collect any data errors
+    val dataErrors = listOfNotNull(
+        tasksResult.errorMessage,
+        notesResult.errorMessage,
+        membersResult.errorMessage,
+        delegationsResult.errorMessage,
+    )
 
     val pendingTasks = tasks.count { it.optString("status") != "done" }
     val highPriorityTasks = tasks.count { it.optString("status") != "done" && it.optString("priority") == "high" }
@@ -107,16 +152,42 @@ fun DashboardScreen(
 
     // Travel data
     val travelPrefs = remember { context.getSharedPreferences("travel_manager", Context.MODE_PRIVATE) }
-    val trips = remember { parseJsonList(travelPrefs.getString("trips_data", "[]") ?: "[]", json) }
+    val tripsResult = remember(refreshKey) { parseJsonListSafe(travelPrefs.getString("trips_data", "[]") ?: "[]", json) }
+    val trips = tripsResult.data
     val upcomingTrip = trips
         .filter { (it.optLong("startDate") ?: 0) > System.currentTimeMillis() }
         .minByOrNull { it.optLong("startDate") ?: Long.MAX_VALUE }
 
+    // Reminders data
+    val notifPrefs = remember { context.getSharedPreferences("smart_notifications", Context.MODE_PRIVATE) }
+    val upcomingReminders = remember(refreshKey) {
+        try {
+            val raw = notifPrefs.getString("scheduled_list", "[]") ?: "[]"
+            val arr = json.parseToJsonElement(raw)
+            if (arr is kotlinx.serialization.json.JsonArray) {
+                arr.mapNotNull { elem ->
+                    val obj = elem as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                    val triggerMs = obj["triggerTimeMs"]?.let {
+                        (it as? kotlinx.serialization.json.JsonPrimitive)?.longOrNull
+                    } ?: return@mapNotNull null
+                    if (triggerMs > System.currentTimeMillis()) {
+                        SimpleJsonObj(obj.mapValues { (_, v) ->
+                            when (v) {
+                                is kotlinx.serialization.json.JsonPrimitive -> v.longOrNull ?: v.doubleOrNull ?: v.booleanOrNull ?: v.contentOrNull
+                                else -> v.toString()
+                            }
+                        })
+                    } else null
+                }.sortedBy { it.optLong("triggerTimeMs") ?: Long.MAX_VALUE }.take(3)
+            } else emptyList()
+        } catch (_: Exception) { emptyList() }
+    }
+
     // Calendar events
-    val todayEvents = remember { getTodayEvents(context) }
+    val todayEvents = remember(refreshKey) { getTodayEvents(context) }
 
     // Time of day greeting
-    val greeting = remember {
+    val greeting = remember(refreshKey) {
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
         when {
             hour < 12 -> "Good morning"
@@ -124,7 +195,7 @@ fun DashboardScreen(
             else -> "Good evening"
         }
     }
-    val dateStr = remember {
+    val dateStr = remember(refreshKey) {
         SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(Date())
     }
 
@@ -164,21 +235,59 @@ fun DashboardScreen(
                 Spacer(Modifier.height(4.dp))
                 Text(dateStr, style = TextStyle(fontSize = 14.sp, color = TextSecondary))
             }
-            // Settings gear
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(GlassBg)
-                    .border(0.5.dp, GlassBorder, CircleShape)
-                    .clickable(onClick = onNavigateToSettings),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Outlined.Settings, contentDescription = "Settings", tint = TextSecondary, modifier = Modifier.size(20.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Refresh button
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(GlassBg)
+                        .border(0.5.dp, GlassBorder, CircleShape)
+                        .clickable { refreshKey++ },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = TextSecondary, modifier = Modifier.size(20.dp))
+                }
+                // Settings gear
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(GlassBg)
+                        .border(0.5.dp, GlassBorder, CircleShape)
+                        .clickable(onClick = onNavigateToSettings),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Outlined.Settings, contentDescription = "Settings", tint = TextSecondary, modifier = Modifier.size(20.dp))
+                }
             }
         }
 
         Spacer(Modifier.height(16.dp))
+
+        // ── Offline Banner ───────────────────────────────────────────
+        OfflineBanner(isOnline = isOnline)
+
+        // ── Data Error Banner ────────────────────────────────────────
+        if (dataErrors.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(SmallCardShape)
+                    .background(Red.copy(alpha = 0.10f))
+                    .border(0.5.dp, Red.copy(alpha = 0.25f), SmallCardShape)
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Default.ErrorOutline, contentDescription = "Data parsing errors", tint = Red, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "Some data couldn't be loaded. Try asking AI to fix it.",
+                    style = TextStyle(fontSize = 13.sp, color = Red),
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+        }
 
         // ── Daily Briefing Banner ─────────────────────────────────────
         AnimatedVisibility(
@@ -347,11 +456,18 @@ fun DashboardScreen(
         Spacer(Modifier.height(16.dp))
 
         // ── Quick Actions ────────────────────────────────────────────────
+        var showAllActions by remember { mutableStateOf(false) }
+
         AnimatedVisibility(
             visible = visible,
             enter = fadeIn(tween(600, 500)) + slideInVertically(tween(500, 500)) { it / 3 },
         ) {
-            GlassSection(title = "Quick Actions", icon = Icons.Outlined.FlashOn) {
+            GlassSection(
+                title = "Quick Actions",
+                icon = Icons.Outlined.FlashOn,
+                actionLabel = "See all",
+                onAction = { showAllActions = true },
+            ) {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
@@ -377,6 +493,27 @@ fun DashboardScreen(
                     }
                 }
             }
+        }
+
+        // ── All Actions Bottom Sheet ──────────────────────────────────────
+        if (showAllActions) {
+            QuickActionBottomSheet(
+                onDismiss = { showAllActions = false },
+                onNavigateToChat = onNavigateToChat,
+                onNavigateToTasks = onNavigateToTasks,
+                onNavigateToNotes = onNavigateToNotes,
+                onNavigateToTeam = onNavigateToTeam,
+                onNavigateToCalendar = onNavigateToCalendar,
+                onNavigateToTravel = onNavigateToTravel,
+                onNavigateToInsights = onNavigateToInsights,
+                onNavigateToBriefing = onNavigateToBriefing,
+                onNavigateToHabits = onNavigateToHabits,
+                onNavigateToReminders = onNavigateToReminders,
+                onNavigateToMemory = onNavigateToMemory,
+                onNavigateToVoice = onNavigateToVoice,
+                onNavigateToFiles = onNavigateToFiles,
+                onNavigateToSettings = onNavigateToSettings,
+            )
         }
 
         Spacer(Modifier.height(16.dp))
@@ -407,6 +544,65 @@ fun DashboardScreen(
         }
 
         Spacer(Modifier.height(16.dp))
+
+        // ── Upcoming Reminders ────────────────────────────────────────────
+        if (upcomingReminders.isNotEmpty()) {
+            AnimatedVisibility(
+                visible = visible,
+                enter = fadeIn(tween(600, 650)) + slideInVertically(tween(500, 650)) { it / 3 },
+            ) {
+                GlassSection(
+                    title = "Upcoming Reminders",
+                    icon = Icons.Outlined.NotificationsActive,
+                    actionLabel = "All",
+                    onAction = onNavigateToReminders,
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (reminder in upcomingReminders) {
+                            val title = reminder.optString("title") ?: "Reminder"
+                            val triggerMs = reminder.optLong("triggerTimeMs") ?: 0
+                            val diff = triggerMs - System.currentTimeMillis()
+                            val timeLabel = when {
+                                diff < 60 * 60 * 1000 -> "${diff / (60 * 1000)}m"
+                                diff < 24 * 60 * 60 * 1000 -> "${diff / (60 * 60 * 1000)}h"
+                                else -> "${diff / (24 * 60 * 60 * 1000)}d"
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(SmallCardShape)
+                                    .background(SurfaceLight)
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .background(Amber.copy(alpha = 0.12f), CircleShape),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(Icons.Outlined.NotificationsActive, contentDescription = null, tint = Amber, modifier = Modifier.size(16.dp))
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    title,
+                                    style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary),
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    "in $timeLabel",
+                                    style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Amber),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+        }
 
         // ── Team Delegations ─────────────────────────────────────────────
         if (activeDelegations > 0) {
@@ -768,9 +964,9 @@ private fun NotePreviewCard(content: String, category: String, createdAt: Long) 
 }
 
 @Composable
-private fun QuickActionChip(label: String, icon: ImageVector, color: Color, onClick: () -> Unit) {
+private fun QuickActionChip(label: String, icon: ImageVector, color: Color, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .clip(PillShape)
             .background(color.copy(alpha = 0.10f))
             .border(0.5.dp, color.copy(alpha = 0.20f), PillShape)
@@ -799,6 +995,126 @@ private fun EmptyCard(message: String) {
     }
 }
 
+// ─── Quick Action Bottom Sheet ───────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun QuickActionBottomSheet(
+    onDismiss: () -> Unit,
+    onNavigateToChat: () -> Unit,
+    onNavigateToTasks: () -> Unit,
+    onNavigateToNotes: () -> Unit,
+    onNavigateToTeam: () -> Unit,
+    onNavigateToCalendar: () -> Unit,
+    onNavigateToTravel: () -> Unit,
+    onNavigateToInsights: () -> Unit,
+    onNavigateToBriefing: () -> Unit,
+    onNavigateToHabits: () -> Unit,
+    onNavigateToReminders: () -> Unit,
+    onNavigateToMemory: () -> Unit,
+    onNavigateToVoice: () -> Unit,
+    onNavigateToFiles: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color(0xFF0D0D12),
+        scrimColor = Color.Black.copy(alpha = 0.5f),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp),
+        ) {
+            Text(
+                "All Actions",
+                style = TextStyle(
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    brush = VioletCyanGradient,
+                ),
+            )
+            Spacer(Modifier.height(16.dp))
+
+            // Communication
+            ActionCategory("Communication", Cyan, listOf(
+                QuickAction("AI Chat", Icons.Outlined.Chat, Cyan) to { onNavigateToChat(); onDismiss() },
+                QuickAction("Voice Mode", Icons.Outlined.Mic, Cyan) to { onNavigateToVoice(); onDismiss() },
+                QuickAction("Team", Icons.Outlined.Groups, Cyan) to { onNavigateToTeam(); onDismiss() },
+            ))
+            Spacer(Modifier.height(12.dp))
+
+            // Productivity
+            ActionCategory("Productivity", Violet, listOf(
+                QuickAction("Tasks", Icons.Outlined.CheckCircle, Violet) to { onNavigateToTasks(); onDismiss() },
+                QuickAction("Notes", Icons.Outlined.EditNote, Violet) to { onNavigateToNotes(); onDismiss() },
+                QuickAction("Calendar", Icons.Outlined.CalendarMonth, Violet) to { onNavigateToCalendar(); onDismiss() },
+                QuickAction("Habits", Icons.Outlined.FitnessCenter, Violet) to { onNavigateToHabits(); onDismiss() },
+                QuickAction("Reminders", Icons.Outlined.NotificationsActive, Violet) to { onNavigateToReminders(); onDismiss() },
+                QuickAction("Insights", Icons.Outlined.TrendingUp, Violet) to { onNavigateToInsights(); onDismiss() },
+            ))
+            Spacer(Modifier.height(12.dp))
+
+            // Planning
+            ActionCategory("Planning", Pink, listOf(
+                QuickAction("Briefing", Icons.Outlined.Summarize, Pink) to { onNavigateToBriefing(); onDismiss() },
+                QuickAction("Travel", Icons.Outlined.FlightTakeoff, Pink) to { onNavigateToTravel(); onDismiss() },
+                QuickAction("Memory", Icons.Outlined.Psychology, Pink) to { onNavigateToMemory(); onDismiss() },
+            ))
+            Spacer(Modifier.height(12.dp))
+
+            // Tools
+            ActionCategory("Tools", Amber, listOf(
+                QuickAction("Files", Icons.Outlined.Folder, Amber) to { onNavigateToFiles(); onDismiss() },
+                QuickAction("Settings", Icons.Outlined.Settings, Amber) to { onNavigateToSettings(); onDismiss() },
+            ))
+        }
+    }
+}
+
+@Composable
+private fun ActionCategory(title: String, accent: Color, actions: List<Pair<QuickAction, () -> Unit>>) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(accent, CircleShape),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(title, style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary))
+        }
+        Spacer(Modifier.height(8.dp))
+        // 3-column grid
+        for (row in actions.chunked(3)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                for ((action, onClick) in row) {
+                    QuickActionChip(
+                        label = action.label,
+                        icon = action.icon,
+                        color = action.color,
+                        onClick = onClick,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                repeat(3 - row.size) {
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
 // ─── Quick Actions Data ──────────────────────────────────────────────────────
 
 private data class QuickAction(val label: String, val icon: ImageVector, val color: Color)
@@ -814,11 +1130,57 @@ private val quickActions = listOf(
     QuickAction("Team", Icons.Outlined.Groups, Violet),
 )
 
+// ─── Offline Banner ──────────────────────────────────────────────────────────
+
+@Composable
+private fun OfflineBanner(isOnline: Boolean) {
+    AnimatedVisibility(
+        visible = !isOnline,
+        enter = expandVertically() + fadeIn(),
+        exit = shrinkVertically() + fadeOut(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFF59E0B).copy(alpha = 0.12f))
+                .padding(horizontal = 20.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Default.WifiOff, contentDescription = "No internet connection", tint = Color(0xFFF59E0B), modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(10.dp))
+            Text("You're offline \u2014 showing cached data", style = TextStyle(fontSize = 13.sp, color = Color(0xFFF59E0B)))
+        }
+    }
+}
+
 // ─── Data Helpers ────────────────────────────────────────────────────────────
+
+private data class DataResult<T>(val data: T, val hasError: Boolean = false, val errorMessage: String? = null)
 
 private data class SimpleJsonObj(val map: Map<String, Any?>) {
     fun optString(key: String): String? = map[key] as? String
     fun optLong(key: String): Long? = (map[key] as? Number)?.toLong()
+}
+
+private fun parseJsonListSafe(raw: String, json: Json): DataResult<List<SimpleJsonObj>> {
+    return try {
+        val arr = json.parseToJsonElement(raw).let {
+            if (it is kotlinx.serialization.json.JsonArray) it else return DataResult(emptyList())
+        }
+        DataResult(arr.map { elem ->
+            val obj = elem as? kotlinx.serialization.json.JsonObject ?: return@map SimpleJsonObj(emptyMap())
+            SimpleJsonObj(obj.mapValues { (_, v) ->
+                when (v) {
+                    is kotlinx.serialization.json.JsonPrimitive -> {
+                        v.longOrNull ?: v.doubleOrNull ?: v.booleanOrNull ?: v.contentOrNull
+                    }
+                    else -> v.toString()
+                }
+            })
+        })
+    } catch (e: Exception) {
+        DataResult(emptyList(), hasError = true, errorMessage = "Could not load data: ${e.message?.take(50) ?: "unknown error"}")
+    }
 }
 
 private fun parseJsonList(raw: String, json: Json): List<SimpleJsonObj> {

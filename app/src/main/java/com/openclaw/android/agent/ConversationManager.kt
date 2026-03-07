@@ -42,19 +42,7 @@ class ConversationManager(
 
     // Start a new conversation
     suspend fun startNewConversation(spaceId: String? = _activeSpaceId): String = mutex.withLock {
-        val id = UUID.randomUUID().toString()
-        dao.deactivateAll()
-        dao.insertConversation(
-            ConversationEntity(
-                id = id,
-                title = "New conversation",
-                spaceId = spaceId,
-                isActive = true,
-            )
-        )
-        _activeConversationId = id
-        _messages.clear()
-        id
+        startNewConversationLocked(spaceId)
     }
 
     // Load an existing conversation
@@ -71,6 +59,8 @@ class ConversationManager(
     }
 
     // Ensure there's an active conversation (creates one if needed)
+    // IMPORTANT: Must only be called from within mutex.withLock blocks.
+    // Uses internal startNewConversationLocked() to avoid re-acquiring the non-reentrant mutex.
     private suspend fun ensureActiveConversation(): String {
         if (_activeConversationId != null) return _activeConversationId!!
         // Check DB for active
@@ -79,8 +69,24 @@ class ConversationManager(
             _activeConversationId = active.id
             return active.id
         }
-        // Create new
-        return startNewConversation()
+        // Create new (without re-acquiring mutex)
+        return startNewConversationLocked()
+    }
+
+    private suspend fun startNewConversationLocked(spaceId: String? = _activeSpaceId): String {
+        val id = UUID.randomUUID().toString()
+        dao.deactivateAll()
+        dao.insertConversation(
+            ConversationEntity(
+                id = id,
+                title = "New conversation",
+                spaceId = spaceId,
+                isActive = true,
+            )
+        )
+        _activeConversationId = id
+        _messages.clear()
+        return id
     }
 
     suspend fun addUserMessage(text: String, media: List<ContentPart> = emptyList()) = mutex.withLock {
@@ -141,7 +147,7 @@ class ConversationManager(
         dao.updateTitle(conversationId, newTitle)
     }
 
-    fun getMessagesForRequest(): List<ChatMessage> = _messages.toList()
+    fun getMessagesForRequest(): List<ChatMessage> = synchronized(_messages) { _messages.toList() }
 
     /**
      * Export the conversation as human-readable text for the export_chat tool.
@@ -184,8 +190,9 @@ class ConversationManager(
     }
 
     fun estimateTokens(): Int {
+        val snapshot = synchronized(_messages) { _messages.toList() }
         var tokens = 0
-        for (msg in _messages) {
+        for (msg in snapshot) {
             for (part in msg.content) {
                 when (part.type) {
                     "text" -> tokens += (part.text?.length ?: 0) / 4

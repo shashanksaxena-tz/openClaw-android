@@ -73,13 +73,15 @@ class CerebrasProvider(
 
             val response = client.newCall(httpRequest).execute()
 
-            if (!response.isSuccessful) {
-                val errorBody = response.body?.string() ?: "Unknown error"
-                onError(Exception("Cerebras API error ${response.code}: $errorBody"))
-                return@withContext
-            }
+            response.use { resp ->
+                if (!resp.isSuccessful) {
+                    val errorBody = resp.body?.string() ?: "Unknown error"
+                    onError(Exception("Cerebras API error ${resp.code}: $errorBody"))
+                    return@withContext
+                }
 
-            parseOpenAiCompatibleStream(response, json, onChunk, onToolCall, onDone)
+                parseOpenAiCompatibleStream(resp, json, onChunk, onToolCall, onDone)
+            }
         } catch (e: Exception) {
             onError(e)
         }
