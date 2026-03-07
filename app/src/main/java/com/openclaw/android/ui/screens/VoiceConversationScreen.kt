@@ -104,11 +104,13 @@ fun VoiceConversationScreen(
     var autoListen by remember { mutableStateOf(true) }
 
     // TTS
+    var ttsReady by remember { mutableStateOf(false) }
     val tts = remember {
         var engine: TextToSpeech? = null
         engine = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 engine?.language = Locale.getDefault()
+                ttsReady = true
             }
         }
         engine
@@ -133,7 +135,7 @@ fun VoiceConversationScreen(
     // Watch for assistant responses to speak them
     LaunchedEffect(events.size) {
         val lastEvent = events.lastOrNull()
-        if (lastEvent is AgentEvent.AssistantMessage && voiceState == VoiceState.PROCESSING) {
+        if (lastEvent is AgentEvent.AssistantMessage && voiceState == VoiceState.PROCESSING && ttsReady) {
             responseText = lastEvent.text
             voiceState = VoiceState.SPEAKING
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {

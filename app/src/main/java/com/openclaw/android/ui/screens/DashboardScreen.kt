@@ -181,10 +181,10 @@ fun DashboardScreen(
     }
 
     // Calendar events
-    val todayEvents = remember { getTodayEvents(context) }
+    val todayEvents = remember(refreshKey) { getTodayEvents(context) }
 
     // Time of day greeting
-    val greeting = remember {
+    val greeting = remember(refreshKey) {
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
         when {
             hour < 12 -> "Good morning"
@@ -192,7 +192,7 @@ fun DashboardScreen(
             else -> "Good evening"
         }
     }
-    val dateStr = remember {
+    val dateStr = remember(refreshKey) {
         SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(Date())
     }
 

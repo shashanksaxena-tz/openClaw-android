@@ -101,6 +101,7 @@ fun SettingsScreen(
     var cerebrasKey by remember { mutableStateOf(settings.getCerebrasKey()) }
     var selectedModel by remember { mutableStateOf(settings.getDefaultModel()) }
     var systemPrompt by remember { mutableStateOf(settings.getSystemPrompt()) }
+    var promptSaveJob by remember { mutableStateOf<Job?>(null) }
     var showModelPicker by remember { mutableStateOf(false) }
     var showCreateSpace by remember { mutableStateOf(false) }
     var spaces by remember { mutableStateOf(spaceManager?.getSpaces() ?: emptyList()) }
@@ -582,7 +583,14 @@ fun SettingsScreen(
                 ) {
                     BasicTextField(
                         value = systemPrompt,
-                        onValueChange = { systemPrompt = it; settings.setSystemPrompt(it) },
+                        onValueChange = {
+                            systemPrompt = it
+                            promptSaveJob?.cancel()
+                            promptSaveJob = scope.launch {
+                                delay(500)
+                                settings.setSystemPrompt(it)
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         textStyle = TextStyle(
                             fontSize = 13.sp,

@@ -146,7 +146,8 @@ fun ChatScreen(
     LaunchedEffect(events.size) {
         if (events.isNotEmpty()) {
             justSent = false
-            listState.animateScrollToItem(events.size - 1)
+            val lastIndex = maxOf(0, listState.layoutInfo.totalItemsCount - 1)
+            if (lastIndex > 0) listState.animateScrollToItem(lastIndex)
         }
     }
 
