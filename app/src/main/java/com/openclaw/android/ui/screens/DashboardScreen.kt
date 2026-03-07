@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.Network
+import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.provider.CalendarContract
 import androidx.compose.animation.*
@@ -97,7 +98,9 @@ fun DashboardScreen(
             override fun onAvailable(network: Network) { isOnline = true }
             override fun onLost(network: Network) { isOnline = false }
         }
-        val request = NetworkRequest.Builder().build()
+        val request = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
         cm?.registerNetworkCallback(request, callback)
         // Check initial state
         isOnline = cm?.activeNetwork != null
@@ -236,7 +239,7 @@ fun DashboardScreen(
                 // Refresh button
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(GlassBg)
                         .border(0.5.dp, GlassBorder, CircleShape)
@@ -276,7 +279,7 @@ fun DashboardScreen(
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = Red, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.ErrorOutline, contentDescription = "Data parsing errors", tint = Red, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(10.dp))
                 Text(
                     "Some data couldn't be loaded. Try asking AI to fix it.",
@@ -1143,7 +1146,7 @@ private fun OfflineBanner(isOnline: Boolean) {
                 .padding(horizontal = 20.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.WifiOff, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(18.dp))
+            Icon(Icons.Default.WifiOff, contentDescription = "No internet connection", tint = Color(0xFFF59E0B), modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(10.dp))
             Text("You're offline \u2014 showing cached data", style = TextStyle(fontSize = 13.sp, color = Color(0xFFF59E0B)))
         }

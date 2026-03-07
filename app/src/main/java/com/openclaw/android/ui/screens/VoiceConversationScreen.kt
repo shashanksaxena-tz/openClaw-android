@@ -739,7 +739,7 @@ fun VoiceConversationScreen(
                             ) {
                                 Icon(
                                     Icons.Default.Stop,
-                                    contentDescription = null,
+                                    contentDescription = "Stop speaking",
                                     modifier = Modifier.size(18.dp),
                                     tint = MutedRed,
                                 )
@@ -767,7 +767,7 @@ fun VoiceConversationScreen(
                         ) {
                             Icon(
                                 Icons.Default.CallEnd,
-                                contentDescription = null,
+                                contentDescription = "End voice conversation",
                                 modifier = Modifier.size(18.dp),
                                 tint = MutedRed,
                             )

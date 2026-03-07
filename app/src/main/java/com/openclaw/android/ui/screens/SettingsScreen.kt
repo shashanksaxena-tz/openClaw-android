@@ -61,7 +61,7 @@ private val SecondaryCyan = Color(0xFF22D3EE)
 private val TertiaryPink = Color(0xFFEC4899)
 private val TextPrimary = Color(0xFFEEEEF0)
 private val TextSecondary = Color(0xFF9293A0)
-private val TextMuted = Color(0xFF5D5E6C)
+private val TextMuted = Color(0xFF8B8C9A)
 private val GlassBg = Color(0xFF0D0D12).copy(alpha = 0.62f)
 private val GlassBorder = Color.White.copy(alpha = 0.06f)
 private val InputBg = Color(0xFF09090C)
@@ -124,7 +124,7 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Back button
-                GlassIconButton(onClick = onBack, icon = Icons.Default.ArrowBack)
+                GlassIconButton(onClick = onBack, icon = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Go back")
 
                 Spacer(Modifier.width(14.dp))
 
@@ -1438,8 +1438,9 @@ private fun CreateSpaceDialog(
 private fun GlassIconButton(
     onClick: () -> Unit,
     icon: ImageVector,
+    contentDescription: String? = null,
     tint: Color = TextSecondary,
-    size: Dp = 38.dp,
+    size: Dp = 48.dp,
 ) {
     Box(
         modifier = Modifier
@@ -1452,7 +1453,7 @@ private fun GlassIconButton(
     ) {
         Icon(
             icon,
-            contentDescription = null,
+            contentDescription = contentDescription,
             tint = tint,
             modifier = Modifier.size(20.dp),
         )

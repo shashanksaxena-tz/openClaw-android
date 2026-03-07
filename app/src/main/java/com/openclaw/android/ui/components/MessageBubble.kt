@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import com.openclaw.android.agent.AgentEvent
 
@@ -307,7 +308,7 @@ private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modif
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     Icons.Default.Warning,
-                    contentDescription = null,
+                    contentDescription = "Error",
                     modifier = Modifier.size(16.dp),
                     tint = ErrorRed,
                 )
@@ -316,6 +317,8 @@ private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modif
                     text = message,
                     style = MaterialTheme.typography.bodySmall,
                     color = ErrorRed.copy(alpha = 0.90f),
+                    maxLines = 5,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             if (onRetry != null) {
@@ -331,7 +334,7 @@ private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modif
                 ) {
                     Icon(
                         Icons.Default.Refresh,
-                        contentDescription = null,
+                        contentDescription = "Retry",
                         modifier = Modifier.size(15.dp),
                         tint = Color.White,
                     )
