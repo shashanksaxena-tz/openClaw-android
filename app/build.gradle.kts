@@ -82,6 +82,23 @@ android {
     ndkVersion = "27.0.12077973"
 }
 
+// Auto-initialize llama.cpp submodule before native build so we never get a stub build
+tasks.register("initLlamaCppSubmodule") {
+    val llamaCppDir = file("src/main/cpp/llama.cpp/CMakeLists.txt")
+    onlyIf { !llamaCppDir.exists() }
+    doLast {
+        logger.lifecycle("llama.cpp submodule not found — initializing...")
+        exec {
+            workingDir = rootDir
+            commandLine("git", "submodule", "update", "--init", "app/src/main/cpp/llama.cpp")
+        }
+    }
+}
+
+tasks.matching { it.name.contains("CMake") || it.name.contains("externalNative") }.configureEach {
+    dependsOn("initLlamaCppSubmodule")
+}
+
 dependencies {
     // Compose BOM
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")

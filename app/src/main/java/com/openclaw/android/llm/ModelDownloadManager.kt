@@ -175,7 +175,7 @@ class ModelDownloadManager(private val context: Context) {
         try {
             val requestBuilder = Request.Builder()
                 .url(model.downloadUrl)
-                .addHeader("User-Agent", "OpenClaw-Android/0.5")
+                .addHeader("User-Agent", "OpenClaw-Android/1.1")
 
             // Resume support
             if (existingBytes > 0) {
@@ -212,6 +212,10 @@ class ModelDownloadManager(private val context: Context) {
                 val buffer = ByteArray(BUFFER_SIZE)
                 var bytesWritten = if (response.code == 206) existingBytes else 0L
                 var lastProgressUpdate = System.currentTimeMillis()
+                // Speed / ETA tracking with rolling average
+                var speedSampleStart = System.currentTimeMillis()
+                var speedSampleBytes = 0L
+                var currentSpeed = 0L
 
                 inputStream.use { stream ->
                     while (true) {
@@ -226,16 +230,32 @@ class ModelDownloadManager(private val context: Context) {
 
                         raf.write(buffer, 0, read)
                         bytesWritten += read
+                        speedSampleBytes += read
 
-                        // Update progress at most every 200ms to avoid UI thrashing
+                        // Update progress at most every 500ms to avoid UI thrashing
                         val now = System.currentTimeMillis()
-                        if (now - lastProgressUpdate > 200) {
+                        if (now - lastProgressUpdate > 500) {
+                            // Calculate speed from sample window
+                            val sampleElapsed = now - speedSampleStart
+                            if (sampleElapsed > 0) {
+                                currentSpeed = (speedSampleBytes * 1000) / sampleElapsed
+                            }
+                            // Reset sample window every 2 seconds for smoother readings
+                            if (sampleElapsed > 2000) {
+                                speedSampleStart = now
+                                speedSampleBytes = 0L
+                            }
+                            val remaining = totalBytes - bytesWritten
+                            val eta = if (currentSpeed > 0) remaining / currentSpeed else -1L
+
                             _downloadState.value = DownloadState.Downloading(
                                 modelId = modelId,
                                 modelName = model.name,
                                 progress = if (totalBytes > 0) bytesWritten.toFloat() / totalBytes else 0f,
                                 downloadedBytes = bytesWritten,
                                 totalBytes = totalBytes,
+                                speedBytesPerSec = currentSpeed,
+                                etaSeconds = eta,
                             )
                             lastProgressUpdate = now
                         }
@@ -332,10 +352,26 @@ sealed class DownloadState {
         val progress: Float, // 0.0 to 1.0
         val downloadedBytes: Long,
         val totalBytes: Long,
+        val speedBytesPerSec: Long = 0L,
+        val etaSeconds: Long = -1L,
     ) : DownloadState() {
         val progressPercent: Int get() = (progress * 100).toInt()
-        val downloadedDisplay: String get() = "${downloadedBytes / (1024 * 1024)} MB"
-        val totalDisplay: String get() = "${totalBytes / (1024 * 1024)} MB"
+        val downloadedDisplay: String get() = formatBytes(downloadedBytes)
+        val totalDisplay: String get() = formatBytes(totalBytes)
+        val speedDisplay: String get() = if (speedBytesPerSec > 0) "${formatBytes(speedBytesPerSec)}/s" else ""
+        val etaDisplay: String get() = when {
+            etaSeconds < 0 -> "Calculating..."
+            etaSeconds < 60 -> "${etaSeconds}s remaining"
+            etaSeconds < 3600 -> "${etaSeconds / 60}m ${etaSeconds % 60}s remaining"
+            else -> "${etaSeconds / 3600}h ${(etaSeconds % 3600) / 60}m remaining"
+        }
+
+        private fun formatBytes(bytes: Long): String = when {
+            bytes >= 1_000_000_000 -> "%.1f GB".format(bytes / 1_000_000_000.0)
+            bytes >= 1_000_000 -> "${bytes / 1_000_000} MB"
+            bytes >= 1_000 -> "${bytes / 1_000} KB"
+            else -> "$bytes B"
+        }
     }
     data class Complete(val modelId: String, val modelName: String, val filePath: String) : DownloadState()
     data class Error(val modelId: String, val modelName: String, val message: String) : DownloadState()
