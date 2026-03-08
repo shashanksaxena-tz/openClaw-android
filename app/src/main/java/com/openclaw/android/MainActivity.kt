@@ -59,6 +59,9 @@ private val tabs = listOf(
     TabItem("More", Icons.Rounded.Apps),
 )
 
+// Tabs where the bottom nav should be hidden (chat is immersive like the reference design)
+private val immersiveTabs = setOf(3) // Chat tab
+
 // ════════════════════════════════════════════════════════════════════════════════
 //  Activity
 // ════════════════════════════════════════════════════════════════════════════════
@@ -309,10 +312,17 @@ private fun MainContent(app: OpenClawApp) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
-                GlassNavigationBar(
-                    currentTab = currentTab,
-                    onTabSelected = { currentTab = it },
-                )
+                // Hide bottom nav in immersive tabs (Chat) to match reference design
+                AnimatedVisibility(
+                    visible = currentTab !in immersiveTabs,
+                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(tween(200)),
+                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(tween(200)),
+                ) {
+                    GlassNavigationBar(
+                        currentTab = currentTab,
+                        onTabSelected = { currentTab = it },
+                    )
+                }
             },
         ) { padding ->
             AnimatedContent(
