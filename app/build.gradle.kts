@@ -39,7 +39,7 @@ android {
 
         ndk {
             // Build for common Android architectures
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            abiFilters += listOf("arm64-v8a", "x86_64")
         }
     }
 

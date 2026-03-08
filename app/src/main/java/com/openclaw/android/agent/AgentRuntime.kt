@@ -138,8 +138,8 @@ class AgentRuntime(
         val selection = modelRouter.selectBestModel(preferredModelId, hasImages, hasAudio)
         if (selection == null) {
             val error = ErrorHandler.UserError(
-                title = "No AI configured",
-                message = "Add an API key in Settings to start chatting.",
+                title = "No AI available",
+                message = "No model is available. Download a local model in Settings for offline use, or add a cloud API key.",
                 action = ErrorHandler.ErrorAction.OpenSettings,
             )
             emit(AgentEvent.Error(ErrorHandler.formatForChat(error)))

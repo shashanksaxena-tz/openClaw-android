@@ -114,8 +114,10 @@ class OpenClawApp : Application() {
             "groq" to GroqProvider(apiKeyProvider = { settings.getGroqKey() }),
             "cerebras" to CerebrasProvider(apiKeyProvider = { settings.getCerebrasKey() }),
         )
-        // Only add local provider if enabled in settings
-        if (settings.getLocalModelEnabled()) {
+        // Always register the local provider if enabled OR if models are downloaded.
+        // This ensures offline mode works even if the user toggled the setting off and
+        // back on, or if the app was restarted after downloading a model.
+        if (settings.getLocalModelEnabled() || modelDownloadManager.getDownloadedModels().isNotEmpty()) {
             providers["local-llama"] = llamaProvider
         }
         modelRouter = ModelRouter(providers)

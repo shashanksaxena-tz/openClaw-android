@@ -1,6 +1,5 @@
 package com.openclaw.android
 
-import com.openclaw.android.sandbox.SandboxedFileSystem
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Rule
@@ -112,13 +111,10 @@ class SandboxedFileSystemTest {
      * We use reflection to set the dirs since the constructor needs a Context.
      */
     private fun createFs(): SandboxedFileSystem {
-        // Create a minimal stub — in a real test you'd use Robolectric or instrumented tests
-        return object : SandboxedFileSystem(
-            // We can't easily mock Context here, so we test the logic directly
-            // This is a simplified test setup
+        return SandboxedFileSystem(
             workspaceDir = workspaceDir,
             sharedDir = sharedDir,
-        ) {}
+        )
     }
 }
 

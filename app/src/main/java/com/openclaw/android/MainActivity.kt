@@ -44,9 +44,6 @@ import kotlinx.coroutines.launch
 private val TrueBlack = Color(0xFF050508)
 private val ElectricViolet = Color(0xFFA855F7)
 private val NeonCyan = Color(0xFF22D3EE)
-private val GlassSurface = Color(0xFF0D0D12)
-private val GlassBorder = Color(0xFF1F1F2E)
-private val SubtleWhite = Color(0xB3F1F5F9)  // ~70 % white
 
 // ── State machine ──────────────────────────────────────────────────────────────
 private enum class AppScreen { SPLASH, ONBOARDING, MAIN }
@@ -125,7 +122,7 @@ private fun MainApp(app: OpenClawApp) {
                 SplashScreen(
                     onFinished = {
                         val needsOnboarding =
-                            !app.settings.hasAnyApiKey() && !app.settings.getOnboardingComplete()
+                            !app.settings.hasAnyProvider() && !app.settings.getOnboardingComplete()
                         currentScreen =
                             if (needsOnboarding) AppScreen.ONBOARDING else AppScreen.MAIN
                     },
@@ -273,23 +270,9 @@ private fun MainContent(app: OpenClawApp) {
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet(
-                drawerContainerColor = GlassSurface.copy(alpha = 0.92f),
-                drawerTonalElevation = 0.dp,
+                drawerContainerColor = MaterialTheme.colorScheme.surface,
+                drawerTonalElevation = 1.dp,
                 drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp),
-                modifier = Modifier
-                    .drawBehind {
-                        // Subtle top-edge gradient border
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    ElectricViolet.copy(alpha = 0.25f),
-                                    Color.Transparent,
-                                ),
-                                startY = 0f,
-                                endY = size.height * 0.15f,
-                            ),
-                        )
-                    },
             ) {
                 ConversationHistoryPanel(
                     conversations = conversations,
@@ -324,7 +307,7 @@ private fun MainContent(app: OpenClawApp) {
         },
     ) {
         Scaffold(
-            containerColor = TrueBlack,
+            containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
                 GlassNavigationBar(
                     currentTab = currentTab,
@@ -521,25 +504,21 @@ private fun GlassNavigationBar(
         label = "indicator-offset",
     )
 
+    val navBarBg = MaterialTheme.colorScheme.surface
+    val navBarBorder = MaterialTheme.colorScheme.outlineVariant
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .drawBehind {
-                // Top edge glow line
+                // Top divider
                 drawRect(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            ElectricViolet.copy(alpha = 0.4f),
-                            NeonCyan.copy(alpha = 0.3f),
-                            Color.Transparent,
-                        ),
-                    ),
+                    color = navBarBorder,
                     topLeft = Offset.Zero,
-                    size = Size(size.width, 1.dp.toPx()),
+                    size = Size(size.width, 0.5.dp.toPx()),
                 )
             }
-            .background(GlassSurface.copy(alpha = 0.80f))
+            .background(navBarBg)
             .navigationBarsPadding(),
     ) {
         Row(
@@ -604,7 +583,7 @@ private fun GlassNavItem(
         verticalArrangement = Arrangement.Center,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            // Pill background with glow
+            // Pill background
             if (pillScale > 0.01f) {
                 Box(
                     modifier = Modifier
@@ -615,19 +594,8 @@ private fun GlassNavItem(
                             scaleY = pillScale
                             alpha = indicatorProgress
                         }
-                        .shadow(
-                            elevation = 8.dp,
-                            shape = RoundedCornerShape(16.dp),
-                            ambientColor = ElectricViolet.copy(alpha = 0.5f),
-                            spotColor = ElectricViolet.copy(alpha = 0.5f),
-                        )
                         .background(
-                            brush = Brush.linearGradient(
-                                colors = listOf(
-                                    ElectricViolet.copy(alpha = 0.85f),
-                                    ElectricViolet.copy(alpha = 0.55f),
-                                ),
-                            ),
+                            color = MaterialTheme.colorScheme.primaryContainer,
                             shape = RoundedCornerShape(16.dp),
                         ),
                 )
@@ -636,7 +604,7 @@ private fun GlassNavItem(
             Icon(
                 imageVector = tab.icon,
                 contentDescription = tab.label,
-                tint = if (isSelected) Color.White else SubtleWhite,
+                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .size(22.dp)
                     .graphicsLayer { alpha = iconAlpha },
@@ -649,7 +617,7 @@ private fun GlassNavItem(
             text = tab.label,
             fontSize = 11.sp,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (isSelected) NeonCyan else SubtleWhite,
+            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.graphicsLayer { alpha = labelAlpha },
         )
     }
