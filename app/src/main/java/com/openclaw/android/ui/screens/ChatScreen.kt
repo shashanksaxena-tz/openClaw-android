@@ -20,6 +20,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -532,21 +533,27 @@ private fun GlassTopBar(
                     .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Settings gear (left, like Locally.ai)
-                IconButton(onClick = onNavigateToSettings, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Default.Settings, contentDescription = "Settings",
-                        tint = iconTint, modifier = Modifier.size(22.dp))
-                }
-
-                // Conversation history drawer
-                if (onOpenDrawer != null) {
-                    IconButton(onClick = onOpenDrawer, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Default.ChatBubbleOutline, contentDescription = "Conversations",
-                            tint = iconTint, modifier = Modifier.size(22.dp))
+                // Left pill: Settings gear + Chat bubble (grouped like reference design)
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = onNavigateToSettings, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings",
+                            tint = iconTint, modifier = Modifier.size(20.dp))
+                    }
+                    if (onOpenDrawer != null) {
+                        IconButton(onClick = onOpenDrawer, modifier = Modifier.size(36.dp)) {
+                            Icon(Icons.Default.ChatBubbleOutline, contentDescription = "Conversations",
+                                tint = iconTint, modifier = Modifier.size(20.dp))
+                        }
                     }
                 }
 
-                // Model name in center (prominent, like Locally.ai "Apple Foundation >")
+                // Model name in center (prominent, like reference "Apple Foundation >")
                 val currentModelName = runtime.activeModelName ?: "Auto"
                 Row(
                     modifier = Modifier
@@ -570,10 +577,10 @@ private fun GlassTopBar(
                     )
                 }
 
-                // New conversation (right, like Locally.ai compose icon)
+                // New conversation (right, compose icon like reference)
                 IconButton(onClick = onNewConversation, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Default.EditNote, contentDescription = "New conversation",
-                        tint = iconTint, modifier = Modifier.size(22.dp))
+                    Icon(Icons.Default.Edit, contentDescription = "New conversation",
+                        tint = iconTint, modifier = Modifier.size(20.dp))
                 }
             }
 
@@ -1011,83 +1018,98 @@ private fun FloatingInputBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .navigationBarsPadding(),
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(28.dp))
-                .background(inputBg)
-                .border(1.dp, borderColor, RoundedCornerShape(28.dp))
-                .padding(horizontal = 6.dp, vertical = 6.dp),
+                .fillMaxWidth(),
             verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            // Attach button with scale animation
+            // "+" button (attach) — circular, matches reference design
             val attachInteraction = remember { MutableInteractionSource() }
             val attachPressed by attachInteraction.collectIsPressedAsState()
             val attachScale by animateFloatAsState(
                 if (attachPressed) 0.85f else 1f, tween(100), label = "attachScale"
             )
 
-            IconButton(
-                onClick = onAttach,
-                modifier = Modifier.size(40.dp).scale(attachScale),
-                interactionSource = attachInteraction,
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .scale(attachScale)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                    .clickable(
+                        interactionSource = attachInteraction,
+                        indication = null,
+                        onClick = onAttach,
+                    ),
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    Icons.Default.AttachFile, "Attach",
+                    Icons.Default.Add, "Attach",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp),
                 )
             }
 
-            // Text input field
-            Box(
+            // Text input field — clean rounded pill
+            Row(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(vertical = 8.dp),
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(inputBg)
+                    .border(1.dp, borderColor, RoundedCornerShape(24.dp))
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (inputText.isEmpty()) {
-                    Text(
-                        "Ask anything",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                Box(modifier = Modifier.weight(1f)) {
+                    if (inputText.isEmpty()) {
+                        Text(
+                            "Ask anything",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        )
+                    }
+                    BasicTextField(
+                        value = inputText,
+                        onValueChange = onInputChange,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { isFocused = it.isFocused },
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            color = MaterialTheme.colorScheme.onSurface,
+                        ),
+                        maxLines = 15,
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     )
                 }
-                BasicTextField(
-                    value = inputText,
-                    onValueChange = onInputChange,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onFocusChanged { isFocused = it.isFocused },
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(
-                        color = MaterialTheme.colorScheme.onSurface,
-                    ),
-                    maxLines = 15,
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                )
             }
 
-            Spacer(Modifier.width(4.dp))
-
-            // ── Action buttons (consistent 36-40 dp, evenly spaced) ──
+            // Right action button — single button matching reference
             if (isRunning) {
                 StopButton(onClick = onStop)
-                Spacer(Modifier.width(4.dp))
+            } else if (canSend) {
+                SendButton(canSend = true, onClick = onSend)
             } else {
-                VoiceModeButton(onClick = onVoiceMode)
-                Spacer(Modifier.width(4.dp))
-                VoiceInputButton(
-                    onResult = onVoiceResult,
-                    enabled = !isRunning,
-                )
-                Spacer(Modifier.width(4.dp))
+                // Audio/waveform button (matches reference equalizer icon)
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.onSurface)
+                        .clickable(onClick = onVoiceMode),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Default.GraphicEq, "Voice",
+                        tint = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
-
-            SendButton(
-                canSend = canSend,
-                onClick = onSend,
-            )
         }
     }
 }

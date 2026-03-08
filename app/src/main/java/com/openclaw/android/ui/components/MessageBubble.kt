@@ -284,63 +284,88 @@ private fun ToolResultBubble(event: AgentEvent.ToolCallResult, modifier: Modifie
 }
 
 // ── 5. Error Bubble ────────────────────────────────────────────────────────────
-// Clean red card. No heavy shadows.
+// Clean error card with clear message and actions. Matches reference design.
 
 @Composable
 private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modifier) {
     val isDark = isSystemInDarkTheme()
     val bgColor = if (isDark) ErrorBgDark else ErrorBgLight
+    val textColor = if (isDark) ErrorRed.copy(alpha = 0.85f) else ErrorRed.copy(alpha = 0.9f)
+
+    // Parse message: split main text from action hint (e.g. "Go to Settings to fix this.")
+    val parts = message.split("\n\n")
+    val mainMessage = parts.firstOrNull() ?: message
+    val actionHint = parts.getOrNull(1)
+    val hasSettingsAction = actionHint?.contains("Settings", ignoreCase = true) == true
 
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.Center,
+        horizontalArrangement = Arrangement.Start,
     ) {
         Column(
             modifier = Modifier
-                .widthIn(max = 340.dp)
+                .widthIn(max = 360.dp)
                 .clip(ErrorCardShape)
                 .background(bgColor)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // Warning icon + error message
+            Row(verticalAlignment = Alignment.Top) {
                 Icon(
                     Icons.Default.Warning,
                     contentDescription = "Error",
                     modifier = Modifier.size(16.dp),
                     tint = ErrorRed,
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(10.dp))
                 Text(
-                    text = message,
+                    text = mainMessage,
                     style = MaterialTheme.typography.bodySmall,
-                    color = ErrorRed.copy(alpha = 0.9f),
-                    maxLines = 5,
-                    overflow = TextOverflow.Ellipsis,
+                    color = textColor,
+                    lineHeight = 18.sp,
                 )
             }
-            if (onRetry != null) {
-                Spacer(Modifier.height(10.dp))
-                OutlinedButton(
-                    onClick = onRetry,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = ErrorRed,
+
+            // Action hint text
+            if (hasSettingsAction) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Go to Settings to fix this.",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
                     ),
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 6.dp),
+                    color = ErrorRed.copy(alpha = 0.75f),
+                )
+            }
+
+            // Retry button
+            if (onRetry != null) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
                 ) {
-                    Icon(
-                        Icons.Default.Refresh,
-                        contentDescription = "Retry",
-                        modifier = Modifier.size(15.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "Retry",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                    )
+                    OutlinedButton(
+                        onClick = onRetry,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = ErrorRed,
+                        ),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 6.dp),
+                    ) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Retry",
+                            modifier = Modifier.size(15.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "Retry",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                        )
+                    }
                 }
             }
         }
