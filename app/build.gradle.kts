@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -7,9 +9,10 @@ plugins {
 }
 
 // Load version from properties file
-val versionProps = java.util.Properties().apply {
-    val file = file("version.properties")
-    if (file.exists()) load(file.inputStream())
+val versionProps = Properties()
+val versionFile = file("version.properties")
+if (versionFile.exists()) {
+    versionFile.inputStream().use { versionProps.load(it) }
 }
 
 android {
