@@ -1674,14 +1674,14 @@ private fun LocalModelsSection(
             return@GlassSection
         }
 
-        // Warn if native inference engine is not available (stub build)
+        // Block the entire local model section if native inference engine is not available (stub build)
         if (!com.openclaw.android.llm.LlamaBridge.isRealBuild) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(InnerShape)
-                    .background(WarningAmber.copy(alpha = 0.1f))
-                    .border(0.5.dp, WarningAmber.copy(alpha = 0.3f), InnerShape)
+                    .background(ErrorRed.copy(alpha = 0.1f))
+                    .border(0.5.dp, ErrorRed.copy(alpha = 0.3f), InnerShape)
                     .padding(12.dp),
             ) {
                 Row(verticalAlignment = Alignment.Top) {
@@ -1691,14 +1691,14 @@ private fun LocalModelsSection(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "On-device inference is not available in this build. " +
-                            "Models can be downloaded but won't run locally. " +
-                            "Use a cloud model instead, or install a build with llama.cpp support.",
-                        style = TextStyle(fontSize = 12.sp, color = WarningAmber),
+                        "On-device AI engine is not included in this build. " +
+                            "Local models cannot be used. " +
+                            "Install the full release build or use a cloud model instead.",
+                        style = TextStyle(fontSize = 12.sp, color = ErrorRed),
                     )
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            return@GlassSection
         }
 
         // Show downloaded models

@@ -68,10 +68,12 @@ object ErrorHandler {
                 )
 
             // Local model errors
-            msg.contains("not available in this build", ignoreCase = true) ->
+            msg.contains("not available in this build", ignoreCase = true) ||
+            msg.contains("llama.cpp was not compiled", ignoreCase = true) ->
                 UserError(
-                    title = "Local inference unavailable",
-                    message = "This build doesn't include the on-device AI engine. Switch to a cloud model in Settings.",
+                    title = "Local AI engine missing",
+                    message = "This build doesn't include the on-device AI engine. " +
+                        "Install the full release build to use local models, or switch to a cloud model in Settings.",
                     action = ErrorAction.OpenSettings,
                 )
 
