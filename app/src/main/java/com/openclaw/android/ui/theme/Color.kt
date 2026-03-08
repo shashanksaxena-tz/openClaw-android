@@ -3,173 +3,167 @@ package com.openclaw.android.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // ============================================================================
-// OpenClaw Design System — "Created by AI" Aesthetic
-// Dark-first, electric neon accents, glass morphism, vibrant gradients
+// OpenClaw Design System — Clean Minimal
+// Light-first, white backgrounds, subtle grays, system-native feel
 // ============================================================================
 
-// ── Core Brand Colors ───────────────────────────────────────────────────────
+// ── Core Brand Color ────────────────────────────────────────────────────────
 
-/** Electric Violet — the soul of OpenClaw */
-val ElectricViolet = Color(0xFFA855F7)
-val ElectricVioletLight = Color(0xFFC084FC)     // Lighter variant for hover/pressed
-val ElectricVioletDim = Color(0xFF7C3AED)       // Deeper variant for containers
-val ElectricVioletSubtle = Color(0xFF2E1065)    // Very dark violet for tinted surfaces
+/** Soft teal — primary accent, subtle and professional */
+val BrandTeal = Color(0xFF2AC4A0)
+val BrandTealLight = Color(0xFF5EDFC4)
+val BrandTealDim = Color(0xFF1A9E7F)
+val BrandTealSubtle = Color(0xFFE8FAF5)
 
-/** Neon Cyan — secondary accent, futuristic edge */
-val NeonCyan = Color(0xFF22D3EE)
-val NeonCyanLight = Color(0xFF67E8F9)
-val NeonCyanDim = Color(0xFF0891B2)
-val NeonCyanSubtle = Color(0xFF083344)
+// ── Legacy aliases (referenced by other files) ──────────────────────────────
+val ElectricViolet = Color(0xFF8E8E93)       // mapped to system gray
+val ElectricVioletLight = Color(0xFFAEAEB2)
+val ElectricVioletDim = Color(0xFF636366)
+val NeonCyan = Color(0xFF2AC4A0)             // mapped to brand teal
+val NeonCyanLight = Color(0xFF5EDFC4)
+val NeonCyanDim = Color(0xFF1A9E7F)
+val HotPink = Color(0xFFFF3B30)              // mapped to error red
+val HotPinkLight = Color(0xFFFF6961)
+val HotPinkDim = Color(0xFFD63028)
 
-/** Hot Pink — tertiary accent, special moments */
-val HotPink = Color(0xFFEC4899)
-val HotPinkLight = Color(0xFFF472B6)
-val HotPinkDim = Color(0xFFDB2777)
+// ── Neutral Palette ─────────────────────────────────────────────────────────
 
-/** Bright Emerald — success states */
-val BrightEmerald = Color(0xFF34D399)
+val Neutral50 = Color(0xFFFAFAFA)
+val Neutral100 = Color(0xFFF5F5F5)
+val Neutral200 = Color(0xFFEEEEEE)
+val Neutral300 = Color(0xFFE0E0E0)
+val Neutral400 = Color(0xFFBDBDBD)
+val Neutral500 = Color(0xFF9E9E9E)
+val Neutral600 = Color(0xFF757575)
+val Neutral700 = Color(0xFF616161)
+val Neutral800 = Color(0xFF424242)
+val Neutral900 = Color(0xFF212121)
+
+// ── Semantic Colors ─────────────────────────────────────────────────────────
+
+val SuccessGreen = Color(0xFF34C759)
+val ErrorRedColor = Color(0xFFFF3B30)
+val WarningAmber = Color(0xFFFF9500)
+val InfoBlue = Color(0xFF007AFF)
+
+// Legacy aliases
+val BrightEmerald = SuccessGreen
 val BrightEmeraldLight = Color(0xFF6EE7B7)
 val BrightEmeraldDim = Color(0xFF059669)
-
-/** Error / Danger */
-val NeonRed = Color(0xFFFF6B6B)
-val NeonRedLight = Color(0xFFFCA5A5)
-val NeonRedDim = Color(0xFFEF4444)
-val NeonRedContainer = Color(0xFF3B0F0F)
-
-/** Warning */
-val NeonAmber = Color(0xFFFBBF24)
+val NeonRed = ErrorRedColor
+val NeonRedLight = Color(0xFFFF6961)
+val NeonRedDim = ErrorRedColor
+val NeonRedContainer = Color(0xFFFDEDED)
+val NeonAmber = WarningAmber
 val NeonAmberDim = Color(0xFFF59E0B)
 
-// ── AI Glow & Animation Colors ──────────────────────────────────────────────
-
-/** AI glow effect — used for pulsing halos, thinking indicators, shimmer */
-val AiGlow = Color(0xFFA855F7)
-val AiGlowCyan = Color(0xFF22D3EE)
-val AiGlowPink = Color(0xFFEC4899)
-
-/** Shimmer gradient stops for AI-powered loading states */
-val ShimmerStart = Color(0xFF161622)
-val ShimmerMid = Color(0xFF2A1F4E)
-val ShimmerEnd = Color(0xFF161622)
-
-// ── Dark Theme Palette ──────────────────────────────────────────────────────
-
-// Backgrounds — true deep space blacks
-val DarkBackground = Color(0xFF050508)          // True black, the void
-val DarkSurface = Color(0xFF0D0D12)             // Charcoal, main surface
-val DarkSurfaceVariant = Color(0xFF12121A)      // Deep navy, cards & containers
-val DarkSurfaceElevated = Color(0xFF1A1A26)     // Elevated surfaces, modals
-val DarkSurfaceBright = Color(0xFF22222F)       // Highest elevation
-
-// On-colors for dark theme
-val DarkOnBackground = Color(0xFFF0F0F8)        // Near-white with cool tint
-val DarkOnSurface = Color(0xFFE8E8F0)           // Primary text
-val DarkOnSurfaceVariant = Color(0xFF9898AC)    // Secondary text, muted
-val DarkOnSurfaceDim = Color(0xFF7C7D8F)        // Disabled / hint text (WCAG AA)
-
-// Outline / borders
-val DarkOutline = Color(0xFF2A2A3C)             // Subtle borders
-val DarkOutlineVariant = Color(0xFF1E1E2C)      // Very subtle dividers
-
-// Primary in dark theme — brighter violet for contrast
-val DarkPrimary = ElectricVioletLight           // #C084FC
-val DarkOnPrimary = Color(0xFF1A0530)           // Deep violet-black
-val DarkPrimaryContainer = ElectricVioletDim    // #7C3AED
-val DarkOnPrimaryContainer = Color(0xFFEDE9FE)  // Very light violet
-
-// Secondary
-val DarkSecondary = NeonCyan                    // #22D3EE
-val DarkOnSecondary = Color(0xFF052E38)         // Deep cyan-black
-val DarkSecondaryContainer = NeonCyanDim        // #0891B2
-val DarkOnSecondaryContainer = Color(0xFFCFFAFE)
-
-// Tertiary
-val DarkTertiary = HotPink                      // #EC4899
-val DarkOnTertiary = Color(0xFF380D24)
-val DarkTertiaryContainer = HotPinkDim          // #DB2777
-val DarkOnTertiaryContainer = Color(0xFFFCE7F3)
-
-// Error
-val DarkError = NeonRed
-val DarkOnError = Color(0xFF2D0A0A)
-val DarkErrorContainer = NeonRedContainer
-val DarkOnErrorContainer = NeonRedLight
+// Legacy glow aliases (now just neutral/brand)
+val AiGlow = Color(0xFF8E8E93)
+val AiGlowCyan = BrandTeal
+val AiGlowPink = ErrorRedColor
+val ShimmerStart = Color(0xFFF5F5F5)
+val ShimmerMid = Color(0xFFE5E5EA)
+val ShimmerEnd = Color(0xFFF5F5F5)
 
 // ── Light Theme Palette ─────────────────────────────────────────────────────
 
-// Backgrounds — clean white with cool violet undertone
-val LightBackground = Color(0xFFFAFBFF)         // Warm white, violet-kissed
-val LightSurface = Color(0xFFFFFFFF)            // Pure white
-val LightSurfaceVariant = Color(0xFFF3F2FA)     // Soft violet tint
-val LightSurfaceElevated = Color(0xFFF8F7FE)    // Slightly tinted
-val LightSurfaceBright = Color(0xFFEDECF6)      // Visible violet wash
+val LightBackground = Color(0xFFFFFFFF)
+val LightSurface = Color(0xFFFFFFFF)
+val LightSurfaceVariant = Color(0xFFF2F2F7)
+val LightSurfaceElevated = Color(0xFFF9F9F9)
+val LightSurfaceBright = Color(0xFFE5E5EA)
 
-// On-colors for light theme
-val LightOnBackground = Color(0xFF0C0C18)       // Near-black, cool
-val LightOnSurface = Color(0xFF12121F)          // Primary text
-val LightOnSurfaceVariant = Color(0xFF5C5972)   // Secondary text
-val LightOnSurfaceDim = Color(0xFF9895AC)       // Hint text
+val LightOnBackground = Color(0xFF000000)
+val LightOnSurface = Color(0xFF000000)
+val LightOnSurfaceVariant = Color(0xFF8E8E93)
+val LightOnSurfaceDim = Color(0xFFC7C7CC)
 
-// Outline / borders
-val LightOutline = Color(0xFFD6D3E8)            // Soft violet border
-val LightOutlineVariant = Color(0xFFE8E6F2)     // Very subtle
+val LightOutline = Color(0xFFD1D1D6)
+val LightOutlineVariant = Color(0xFFE5E5EA)
 
-// Primary in light theme
-val LightPrimary = ElectricViolet               // #A855F7
+val LightPrimary = Color(0xFF1C1C1E)
 val LightOnPrimary = Color.White
-val LightPrimaryContainer = Color(0xFFF3E8FF)   // Very light violet
-val LightOnPrimaryContainer = Color(0xFF3B0764)
+val LightPrimaryContainer = Color(0xFFF2F2F7)
+val LightOnPrimaryContainer = Color(0xFF1C1C1E)
 
-// Secondary
-val LightSecondary = NeonCyanDim                // #0891B2, darker for readability
+val LightSecondary = Color(0xFF8E8E93)
 val LightOnSecondary = Color.White
-val LightSecondaryContainer = Color(0xFFE0FCFF)
-val LightOnSecondaryContainer = Color(0xFF052E38)
+val LightSecondaryContainer = Color(0xFFF2F2F7)
+val LightOnSecondaryContainer = Color(0xFF3C3C43)
 
-// Tertiary
-val LightTertiary = HotPinkDim                  // #DB2777
+val LightTertiary = BrandTeal
 val LightOnTertiary = Color.White
-val LightTertiaryContainer = Color(0xFFFFF0F7)
-val LightOnTertiaryContainer = Color(0xFF4A0D2B)
+val LightTertiaryContainer = BrandTealSubtle
+val LightOnTertiaryContainer = BrandTealDim
 
-// Error
-val LightError = NeonRedDim
+val LightError = ErrorRedColor
 val LightOnError = Color.White
-val LightErrorContainer = Color(0xFFFEE2E2)
-val LightOnErrorContainer = Color(0xFF7F1D1D)
+val LightErrorContainer = Color(0xFFFDEDED)
+val LightOnErrorContainer = Color(0xFF8B1A10)
+
+// ── Dark Theme Palette ──────────────────────────────────────────────────────
+
+val DarkBackground = Color(0xFF000000)
+val DarkSurface = Color(0xFF1C1C1E)
+val DarkSurfaceVariant = Color(0xFF2C2C2E)
+val DarkSurfaceElevated = Color(0xFF3A3A3C)
+val DarkSurfaceBright = Color(0xFF48484A)
+
+val DarkOnBackground = Color(0xFFFFFFFF)
+val DarkOnSurface = Color(0xFFFFFFFF)
+val DarkOnSurfaceVariant = Color(0xFF8E8E93)
+val DarkOnSurfaceDim = Color(0xFF636366)
+
+val DarkOutline = Color(0xFF48484A)
+val DarkOutlineVariant = Color(0xFF38383A)
+
+val DarkPrimary = Color(0xFFFFFFFF)
+val DarkOnPrimary = Color(0xFF1C1C1E)
+val DarkPrimaryContainer = Color(0xFF2C2C2E)
+val DarkOnPrimaryContainer = Color(0xFFFFFFFF)
+
+val DarkSecondary = Color(0xFF8E8E93)
+val DarkOnSecondary = Color.White
+val DarkSecondaryContainer = Color(0xFF2C2C2E)
+val DarkOnSecondaryContainer = Color(0xFFEBEBF5)
+
+val DarkTertiary = BrandTealLight
+val DarkOnTertiary = Color(0xFF003829)
+val DarkTertiaryContainer = Color(0xFF004D3A)
+val DarkOnTertiaryContainer = BrandTealLight
+
+val DarkError = Color(0xFFFF6961)
+val DarkOnError = Color(0xFF3B0907)
+val DarkErrorContainer = Color(0xFF3B1714)
+val DarkOnErrorContainer = Color(0xFFFFB4AB)
 
 // ── Chat-Specific Colors ────────────────────────────────────────────────────
 
-// User bubble gradient (violet-to-pink)
-val UserBubbleGradientStart = ElectricViolet    // #A855F7
-val UserBubbleGradientEnd = HotPink             // #EC4899
-val UserBubbleOnContent = Color.White
+val UserBubbleGradientStart = Color(0xFFE5E5EA)
+val UserBubbleGradientEnd = Color(0xFFE5E5EA)
+val UserBubbleOnContent = Color(0xFF000000)
 
-// Assistant bubble — dark glass morphism
-val AssistantBubbleDark = Color(0xFF161622)      // Glass-like dark surface
-val AssistantBubbleBorder = Color(0xFF2A2A3C)    // Subtle glass edge
-val AssistantBubbleLight = Color(0xFFF3F2FA)     // Light theme variant
-val AssistantBubbleLightBorder = Color(0xFFD6D3E8)
+val AssistantBubbleDark = Color(0xFF1C1C1E)
+val AssistantBubbleBorder = Color(0xFF38383A)
+val AssistantBubbleLight = Color(0xFFFFFFFF)
+val AssistantBubbleLightBorder = Color(0xFFE5E5EA)
 
-// Tool/function badge
-val ToolBadgeColor = NeonCyan
-val ToolBadgeBackground = NeonCyanSubtle
+val ToolBadgeColor = Color(0xFF8E8E93)
+val ToolBadgeBackground = Color(0xFFF2F2F7)
 
-// Streaming cursor color
-val StreamingCursorColor = ElectricVioletLight
+val StreamingCursorColor = Color(0xFF1C1C1E)
 
 // ── Gradient Presets ────────────────────────────────────────────────────────
 
-/** Premium brand gradient stops */
-val BrandGradientStart = ElectricViolet         // #A855F7
-val BrandGradientMid = HotPink                  // #EC4899
-val BrandGradientEnd = NeonCyan                 // #22D3EE
+val BrandGradientStart = BrandTeal
+val BrandGradientMid = Color(0xFF80E0CC)
+val BrandGradientEnd = Color(0xFFE8FAF5)
 
-/** Subtle surface gradient for dark glass cards */
-val GlassGradientStart = Color(0xFF12121A)
-val GlassGradientEnd = Color(0xFF1A1428)        // Slight violet tint
+val GlassGradientStart = Color(0xFFF2F2F7)
+val GlassGradientEnd = Color(0xFFFFFFFF)
 
-/** Success gradient */
-val SuccessGradientStart = BrightEmerald
-val SuccessGradientEnd = NeonCyan
+val SuccessGradientStart = SuccessGreen
+val SuccessGradientEnd = BrandTeal
+
+val WelcomeGradientStart = Color(0xFFB2F5EA)
+val WelcomeGradientEnd = Color(0xFFE8FAF5)

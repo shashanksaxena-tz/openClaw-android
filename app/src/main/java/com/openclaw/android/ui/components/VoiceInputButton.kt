@@ -14,6 +14,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material3.*
@@ -23,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -33,16 +33,9 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import java.util.Locale
 
-// ── Design-system palette ───────────────────────────────────────────────────────
-private val MutedGlass = Color.White.copy(alpha = 0.04f)
-private val MutedTint = Color.White.copy(alpha = 0.25f)
-
 /**
- * Compact voice input button for the chat input bar.
+ * Voice input button — shows equalizer-style icon like the reference design.
  * Hold to record, release to send the recognised text.
- * Requests RECORD_AUDIO permission before starting recognition.
- *
- * Sized at 40 dp to match sibling action buttons in the input row.
  */
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -90,9 +83,7 @@ fun VoiceInputButton(
             override fun onResults(results: Bundle?) {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val text = matches?.firstOrNull() ?: ""
-                if (text.isNotBlank()) {
-                    onResult(text)
-                }
+                if (text.isNotBlank()) onResult(text)
                 partialResult = ""
                 isListening = false
                 onListeningChanged(false)
@@ -103,14 +94,9 @@ fun VoiceInputButton(
             }
             override fun onEvent(eventType: Int, params: Bundle?) {}
         })
-        onDispose {
-            speechRecognizer?.destroy()
-        }
+        onDispose { speechRecognizer?.destroy() }
     }
 
-    // ── Animations ─────────────────────────────────────────────────────────────
-
-    // Gentle scale bump when recording
     val buttonScale by animateFloatAsState(
         targetValue = if (isListening) 1.1f else 1f,
         animationSpec = spring(
@@ -120,62 +106,21 @@ fun VoiceInputButton(
         label = "buttonScale",
     )
 
-    val infiniteTransition = rememberInfiniteTransition(label = "mic")
-
-    // Button color pulse: violet ↔ hot-pink while listening
-    val pulseColor by infiniteTransition.animateColor(
-        initialValue = ElectricViolet,
-        targetValue = HotPink,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = EaseInOutSine),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "pulseColor",
-    )
-
-    // Outer glow pulse while listening
-    val glowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.0f,
-        targetValue = 0.4f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = EaseInOutSine),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "glowAlpha",
-    )
-
     val canRecord = micPermission.status.isGranted && speechRecognizer != null
-
-    // ── UI ──────────────────────────────────────────────────────────────────────
+    val bgColor = MaterialTheme.colorScheme.onSurface
+    val iconColor = MaterialTheme.colorScheme.surface
 
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
-            .size(48.dp)
+            .size(40.dp)
             .scale(buttonScale)
             .clip(CircleShape)
-            .drawBehind {
-                if (isListening) {
-                    drawCircle(
-                        color = pulseColor.copy(alpha = glowAlpha),
-                        radius = size.minDimension * 0.85f,
-                    )
-                }
-            }
             .background(
-                brush = when {
-                    isListening -> Brush.linearGradient(
-                        colors = listOf(pulseColor, pulseColor.copy(alpha = 0.75f)),
-                    )
-                    !canRecord -> Brush.linearGradient(
-                        colors = listOf(MutedGlass, MutedGlass),
-                    )
-                    else -> Brush.linearGradient(
-                        colors = listOf(
-                            ElectricViolet.copy(alpha = 0.55f),
-                            ElectricViolet.copy(alpha = 0.30f),
-                        ),
-                    )
+                when {
+                    isListening -> MaterialTheme.colorScheme.error
+                    !canRecord -> MaterialTheme.colorScheme.surfaceContainerHigh
+                    else -> bgColor
                 },
             )
             .pointerInput(canRecord) {
@@ -192,9 +137,6 @@ fun VoiceInputButton(
                             partialResult = ""
                             speechRecognizer.startListening(recognizerIntent)
                             tryAwaitRelease()
-                            // Give the recognizer a moment to finish if the
-                            // user released quickly — stopListening() lets the
-                            // recognizer deliver any partial audio it captured.
                             if (isListening) {
                                 speechRecognizer.stopListening()
                             }
@@ -204,12 +146,20 @@ fun VoiceInputButton(
             },
     ) {
         Icon(
-            imageVector = if (canRecord) Icons.Default.Mic else Icons.Default.MicOff,
-            contentDescription = if (canRecord) "Hold to record" else "Microphone permission required",
+            imageVector = when {
+                isListening -> Icons.Default.Mic
+                canRecord -> Icons.Default.GraphicEq  // Equalizer icon like reference
+                else -> Icons.Default.MicOff
+            },
+            contentDescription = when {
+                isListening -> "Recording..."
+                canRecord -> "Hold to record"
+                else -> "Microphone permission required"
+            },
             tint = when {
                 isListening -> Color.White
-                canRecord -> Color.White.copy(alpha = 0.85f)
-                else -> MutedTint
+                canRecord -> iconColor
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
             },
             modifier = Modifier.size(20.dp),
         )

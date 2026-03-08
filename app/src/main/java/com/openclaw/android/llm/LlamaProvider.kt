@@ -168,25 +168,34 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
             val fullText = StringBuilder()
             var cancelled = false
 
-            val result = LlamaBridge.generate(
-                prompt = prompt,
-                maxTokens = minOf(request.maxTokens, 2048), // Cap local model output
-                temperature = request.temperature.toFloat(),
-                stopSequences = listOf("<|im_end|>", "<|im_start|>"),
-                onToken = { token ->
-                    if (!cancelled) {
-                        fullText.append(token)
-                        onChunk(token)
+            val result = try {
+                LlamaBridge.generate(
+                    prompt = prompt,
+                    maxTokens = minOf(request.maxTokens, 2048), // Cap local model output
+                    temperature = request.temperature.toFloat(),
+                    stopSequences = listOf("<|im_end|>", "<|im_start|>"),
+                    onToken = { token ->
+                        if (!cancelled) {
+                            try {
+                                fullText.append(token)
+                                onChunk(token)
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Error in onToken callback", e)
+                            }
 
-                        // Early escalation detection — stop generating once we see the marker
-                        if (fullText.contains(ESCALATION_MARKER)) {
-                            cancelled = true
-                            return@generate false
+                            // Early escalation detection
+                            if (fullText.contains(ESCALATION_MARKER)) {
+                                cancelled = true
+                                return@generate false
+                            }
                         }
-                    }
-                    !cancelled
-                },
-            )
+                        !cancelled && isActive
+                    },
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Native generate call crashed", e)
+                Result.failure(e)
+            }
 
             val responseText = result.getOrThrow()
 

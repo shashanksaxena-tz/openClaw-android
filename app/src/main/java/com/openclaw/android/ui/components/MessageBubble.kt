@@ -36,8 +36,8 @@ private val UserBubbleLight = Color(0xFFE5E5EA)
 private val ErrorRed = Color(0xFFFF3B30)
 private val ErrorBgDark = Color(0xFF2C1B1B)
 private val ErrorBgLight = Color(0xFFFDEDED)
-private val ToolAccent = Color(0xFF8E8E93)   // iOS system gray
-private val Emerald = Color(0xFF34C759)      // iOS system green
+private val ToolAccent = Color(0xFF8E8E93)
+private val Emerald = Color(0xFF34C759)
 private val EscalationAmber = Color(0xFFFF9F0A)
 
 private val UserBubbleShape = RoundedCornerShape(20.dp)
@@ -79,7 +79,6 @@ fun MessageBubble(
 }
 
 // ── 1. User Bubble ─────────────────────────────────────────────────────────────
-// Right-aligned, subtle rounded rectangle. Long-press to copy.
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -137,12 +136,10 @@ private fun UserBubble(event: AgentEvent.UserMessage, modifier: Modifier) {
 }
 
 // ── 2. Assistant Bubble ────────────────────────────────────────────────────────
-// Clean markdown text with a copy button that appears on hover/tap.
 
 @Composable
 private fun AssistantBubble(text: String, modifier: Modifier) {
     val context = LocalContext.current
-    var showActions by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -157,7 +154,6 @@ private fun AssistantBubble(text: String, modifier: Modifier) {
             color = MaterialTheme.colorScheme.onSurface,
         )
 
-        // Copy action row — always visible below assistant messages
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -180,7 +176,6 @@ private fun AssistantBubble(text: String, modifier: Modifier) {
 }
 
 // ── 3. Tool Call Bubble ────────────────────────────────────────────────────────
-// Minimal inline pill, collapsed feel. Muted colors.
 
 @Composable
 private fun ToolCallBubble(event: AgentEvent.ToolCallStart, modifier: Modifier) {
@@ -218,7 +213,6 @@ private fun ToolCallBubble(event: AgentEvent.ToolCallStart, modifier: Modifier) 
 }
 
 // ── 4. Tool Result Bubble ──────────────────────────────────────────────────────
-// Collapsed by default. Minimal presentation with expand toggle.
 
 @Composable
 private fun ToolResultBubble(event: AgentEvent.ToolCallResult, modifier: Modifier) {
@@ -284,7 +278,6 @@ private fun ToolResultBubble(event: AgentEvent.ToolCallResult, modifier: Modifie
 }
 
 // ── 5. Error Bubble ────────────────────────────────────────────────────────────
-// Clean error card with clear message and actions. Matches reference design.
 
 @Composable
 private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modifier) {
@@ -292,11 +285,9 @@ private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modif
     val bgColor = if (isDark) ErrorBgDark else ErrorBgLight
     val textColor = if (isDark) ErrorRed.copy(alpha = 0.85f) else ErrorRed.copy(alpha = 0.9f)
 
-    // Parse message: split main text from action hint (e.g. "Go to Settings to fix this.")
     val parts = message.split("\n\n")
     val mainMessage = parts.firstOrNull() ?: message
-    val actionHint = parts.getOrNull(1)
-    val hasSettingsAction = actionHint?.contains("Settings", ignoreCase = true) == true
+    val hasSettingsAction = parts.getOrNull(1)?.contains("Settings", ignoreCase = true) == true
 
     Row(
         modifier = modifier
@@ -311,7 +302,6 @@ private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modif
                 .background(bgColor)
                 .padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
-            // Warning icon + error message
             Row(verticalAlignment = Alignment.Top) {
                 Icon(
                     Icons.Default.Warning,
@@ -328,19 +318,15 @@ private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modif
                 )
             }
 
-            // Action hint text
             if (hasSettingsAction) {
                 Spacer(Modifier.height(8.dp))
                 Text(
                     text = "Go to Settings to fix this.",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                    ),
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = ErrorRed.copy(alpha = 0.75f),
                 )
             }
 
-            // Retry button
             if (onRetry != null) {
                 Spacer(Modifier.height(12.dp))
                 Row(
@@ -350,21 +336,12 @@ private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modif
                     OutlinedButton(
                         onClick = onRetry,
                         shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = ErrorRed,
-                        ),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed),
                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 6.dp),
                     ) {
-                        Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = "Retry",
-                            modifier = Modifier.size(15.dp),
-                        )
+                        Icon(Icons.Default.Refresh, contentDescription = "Retry", modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "Retry",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                        )
+                        Text("Retry", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold))
                     }
                 }
             }
@@ -373,7 +350,6 @@ private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modif
 }
 
 // ── 6. Stream Chunk Bubble ─────────────────────────────────────────────────────
-// Same as assistant: no bubble, just clean markdown text flowing in.
 
 @Composable
 private fun StreamChunkBubble(fullText: String, modifier: Modifier) {
@@ -418,10 +394,7 @@ private fun ModelBadge(modelName: String, modifier: Modifier) {
             Spacer(Modifier.width(5.dp))
             Text(
                 text = modelName,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 10.sp,
-                    letterSpacing = 0.4.sp,
-                ),
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.4.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             )
         }
@@ -454,10 +427,7 @@ private fun EscalationBadge(from: String, to: String, modifier: Modifier) {
             Spacer(Modifier.width(5.dp))
             Text(
                 text = "Escalating to $to",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 10.sp,
-                    letterSpacing = 0.4.sp,
-                ),
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.4.sp),
                 color = EscalationAmber.copy(alpha = 0.6f),
             )
         }

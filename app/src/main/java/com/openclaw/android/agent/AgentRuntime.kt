@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.util.concurrent.atomic.AtomicLong
 
 class AgentRuntime(
     private val modelRouter: ModelRouter,
@@ -172,6 +173,7 @@ class AgentRuntime(
                     var error: Exception? = null
 
                     val streamBuffer = StringBuilder()
+                    val lastEmitTime = AtomicLong(System.currentTimeMillis())
                     emit(AgentEvent.StreamStart)
 
                     activeSelection.provider.chatCompletion(
@@ -179,7 +181,13 @@ class AgentRuntime(
                         onChunk = { chunk ->
                             if (_isCancelled) return@chatCompletion
                             streamBuffer.append(chunk)
-                            emit(AgentEvent.StreamChunk(chunk))
+                            // Throttle UI updates: emit at most every 50ms to prevent
+                            // OOM from rapid token-by-token emissions (local models)
+                            val now = System.currentTimeMillis()
+                            if (now - lastEmitTime.get() >= 50 || chunk.contains("\n")) {
+                                lastEmitTime.set(now)
+                                emit(AgentEvent.StreamChunk(chunk))
+                            }
                         },
                         onToolCall = { /* collected in onDone */ },
                         onDone = { response ->
