@@ -4,4 +4,5 @@
     <external-files-path name="openclaw_shared" path="shared/" />
     <external-files-path name="openclaw_spaces" path="spaces/" />
     <cache-path name="openclaw_cache" path="cache/" />
+    <cache-path name="apk_updates" path="apk_updates/" />
 </paths>

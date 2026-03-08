@@ -612,6 +612,113 @@ fun SettingsScreen(
                 }
             }
 
+            // ── App Update Section ────────────────────────────────────────
+            Spacer(Modifier.height(18.dp))
+            run {
+                val app = context.applicationContext as? com.openclaw.android.OpenClawApp
+                val currentVersion = try {
+                    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
+                } catch (_: Exception) { "?" }
+                var updateInfo by remember { mutableStateOf<com.openclaw.android.update.UpdateInfo?>(null) }
+                var checking by remember { mutableStateOf(false) }
+                var checkedOnce by remember { mutableStateOf(false) }
+                var downloading by remember { mutableStateOf(false) }
+                var downloadProgress by remember { mutableStateOf(0f) }
+
+                LaunchedEffect(Unit) {
+                    checking = true
+                    try {
+                        val updater = com.openclaw.android.update.AppUpdater(context)
+                        updateInfo = updater.checkForUpdate()
+                    } catch (_: Exception) {}
+                    checking = false
+                    checkedOnce = true
+                }
+
+                GlassSection(
+                    icon = Icons.Outlined.SystemUpdate,
+                    title = "App Update",
+                    description = "Current version: v$currentVersion",
+                ) {
+                    if (checking) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = SecondaryCyan,
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Checking for updates...", style = TextStyle(fontSize = 13.sp, color = TextMuted))
+                        }
+                    } else if (updateInfo != null) {
+                        // Update available (checkForUpdate returns null when up-to-date)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(InnerShape)
+                                .background(SuccessGreen.copy(alpha = 0.08f))
+                                .border(0.5.dp, SuccessGreen.copy(alpha = 0.25f), InnerShape)
+                                .padding(12.dp),
+                        ) {
+                            Column {
+                                Text(
+                                    "${updateInfo!!.versionName} available!",
+                                    style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SuccessGreen),
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                if (downloading) {
+                                    LinearProgressIndicator(
+                                        progress = { downloadProgress },
+                                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(PillShape),
+                                        color = SuccessGreen,
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        "Downloading ${(downloadProgress * 100).toInt()}%...",
+                                        style = TextStyle(fontSize = 11.sp, color = TextMuted),
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(InnerShape)
+                                            .background(SuccessGreen)
+                                            .clickable {
+                                                scope.launch {
+                                                    downloading = true
+                                                    try {
+                                                        val updater = com.openclaw.android.update.AppUpdater(context)
+                                                        updater.downloadAndInstall(updateInfo!!.downloadUrl) { progress ->
+                                                            downloadProgress = progress
+                                                        }
+                                                    } catch (_: Exception) {}
+                                                    downloading = false
+                                                }
+                                            }
+                                            .padding(12.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            "Download & Install",
+                                            style = TextStyle(
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color.White,
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else if (checkedOnce) {
+                        Text(
+                            "You're on the latest version.",
+                            style = TextStyle(fontSize = 13.sp, color = SuccessGreen.copy(alpha = 0.7f)),
+                        )
+                    }
+                }
+            }
+
             Spacer(Modifier.height(36.dp))
 
             // ── Footer ───────────────────────────────────────────────────────
@@ -619,8 +726,11 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                val appVersion = try {
+                    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.0"
+                } catch (_: Exception) { "1.0.0" }
                 Text(
-                    text = "OpenClaw Android v0.5.0",
+                    text = "OpenClaw Android v$appVersion",
                     style = TextStyle(
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
