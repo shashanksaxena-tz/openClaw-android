@@ -149,7 +149,7 @@ fun SettingsScreen(
                         .padding(horizontal = 12.dp, vertical = 5.dp),
                 ) {
                     Text(
-                        "v0.5.0",
+                        "v1.1.0",
                         style = TextStyle(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -1968,9 +1968,25 @@ private fun DownloadProgressCard(
                 trackColor = SurfaceCharcoal,
             )
             Spacer(Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    "${state.progressPercent}% - ${state.downloadedDisplay} / ${state.totalDisplay}",
+                    style = TextStyle(fontSize = 12.sp, color = TextMuted),
+                )
+                if (state.speedDisplay.isNotEmpty()) {
+                    Text(
+                        state.speedDisplay,
+                        style = TextStyle(fontSize = 12.sp, color = SecondaryCyan),
+                    )
+                }
+            }
+            Spacer(Modifier.height(2.dp))
             Text(
-                "${state.progressPercent}% - ${state.downloadedDisplay} / ${state.totalDisplay}",
-                style = TextStyle(fontSize = 12.sp, color = TextMuted),
+                state.etaDisplay,
+                style = TextStyle(fontSize = 11.sp, color = TextSecondary),
             )
         }
     }

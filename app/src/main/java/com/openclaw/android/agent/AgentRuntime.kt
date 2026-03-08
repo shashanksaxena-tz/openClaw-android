@@ -202,6 +202,24 @@ class AgentRuntime(
                     }
 
                     if (error != null) {
+                        // If a cloud model failed due to network, fall back to local model
+                        val isNetworkError = error is java.net.UnknownHostException ||
+                            error is java.net.SocketTimeoutException ||
+                            error is java.net.ConnectException ||
+                            error?.message?.contains("Unable to resolve host", ignoreCase = true) == true ||
+                            error?.message?.contains("timeout", ignoreCase = true) == true
+                        if (isNetworkError && !activeSelection.isLocal) {
+                            val localFallback = modelRouter.selectBestModel(null, hasImages = false, hasAudio = false)
+                            if (localFallback != null && localFallback.isLocal) {
+                                emit(AgentEvent.Escalation(
+                                    from = activeSelection.modelInfo.displayName,
+                                    to = "${localFallback.modelInfo.displayName} (offline)",
+                                ))
+                                activeSelection = localFallback
+                                emit(AgentEvent.ModelSelected(localFallback.modelInfo.displayName))
+                                continue // Retry with local model
+                            }
+                        }
                         val userError = ErrorHandler.mapError(error!!)
                         val errorMsg = ErrorHandler.formatForChat(userError)
                         emit(AgentEvent.Error(errorMsg))
