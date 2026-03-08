@@ -53,10 +53,14 @@ class SettingsRepository(context: Context) {
     fun getLocalModelEnabled(): Boolean = prefs.getBoolean(KEY_LOCAL_MODEL_ENABLED, true)
     fun setLocalModelEnabled(enabled: Boolean) { prefs.edit().putBoolean(KEY_LOCAL_MODEL_ENABLED, enabled).apply() }
 
-    // Check if any provider is configured
+    // Check if any cloud provider is configured
     fun hasAnyApiKey(): Boolean = getGeminiKey().isNotBlank() ||
             getGroqKey().isNotBlank() ||
             getCerebrasKey().isNotBlank()
+
+    /** True when any AI provider is available — cloud API keys OR a local model enabled. */
+    fun hasAnyProvider(): Boolean = hasAnyApiKey() ||
+            (getLocalModelEnabled() && getActiveLocalModelId().isNotBlank())
 
     companion object {
         private const val KEY_GEMINI = "api_key_gemini"

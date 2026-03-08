@@ -1,9 +1,15 @@
 package com.openclaw.android.ui.components
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,6 +43,14 @@ private val EscalationAmber = Color(0xFFFF9F0A)
 private val UserBubbleShape = RoundedCornerShape(20.dp)
 private val ErrorCardShape = RoundedCornerShape(12.dp)
 private val PillShape = RoundedCornerShape(8.dp)
+
+// ── Clipboard helper ─────────────────────────────────────────────────────────
+
+private fun copyToClipboard(context: Context, text: String) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText("OpenClaw", text))
+    Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+}
 
 // ── Public Entry Point ─────────────────────────────────────────────────────────
 
@@ -64,14 +79,15 @@ fun MessageBubble(
 }
 
 // ── 1. User Bubble ─────────────────────────────────────────────────────────────
-// Right-aligned, subtle rounded rectangle. Dark gray in dark mode, light gray in light mode.
-// No gradient, no shadow. Clean text.
+// Right-aligned, subtle rounded rectangle. Long-press to copy.
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun UserBubble(event: AgentEvent.UserMessage, modifier: Modifier) {
     val isDark = isSystemInDarkTheme()
     val bubbleColor = if (isDark) UserBubbleDark else UserBubbleLight
     val textColor = if (isDark) Color.White else Color.Black
+    val context = LocalContext.current
 
     Row(
         modifier = modifier
@@ -84,6 +100,12 @@ private fun UserBubble(event: AgentEvent.UserMessage, modifier: Modifier) {
                 .widthIn(max = 300.dp)
                 .clip(UserBubbleShape)
                 .background(bubbleColor)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = {
+                        if (event.text.isNotBlank()) copyToClipboard(context, event.text)
+                    },
+                )
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         ) {
             if (event.media.isNotEmpty()) {
@@ -115,10 +137,13 @@ private fun UserBubble(event: AgentEvent.UserMessage, modifier: Modifier) {
 }
 
 // ── 2. Assistant Bubble ────────────────────────────────────────────────────────
-// No bubble. Clean markdown text, left-aligned, full width. Like reading a document.
+// Clean markdown text with a copy button that appears on hover/tap.
 
 @Composable
 private fun AssistantBubble(text: String, modifier: Modifier) {
+    val context = LocalContext.current
+    var showActions by remember { mutableStateOf(false) }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -131,6 +156,26 @@ private fun AssistantBubble(text: String, modifier: Modifier) {
             markdown = text,
             color = MaterialTheme.colorScheme.onSurface,
         )
+
+        // Copy action row — always visible below assistant messages
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+            horizontalArrangement = Arrangement.Start,
+        ) {
+            IconButton(
+                onClick = { copyToClipboard(context, text) },
+                modifier = Modifier.size(28.dp),
+            ) {
+                Icon(
+                    Icons.Default.ContentCopy,
+                    contentDescription = "Copy message",
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                )
+            }
+        }
     }
 }
 

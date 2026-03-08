@@ -51,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.isSystemInDarkTheme
 import com.openclaw.android.agent.AgentEvent
 import com.openclaw.android.agent.AgentRuntime
 import com.openclaw.android.agent.AgentState
@@ -63,20 +64,11 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
 
-// ── Design Tokens ──────────────────────────────────────────────────────────────
-private val TrueBlack = Color(0xFF050508)
-private val Charcoal = Color(0xFF0D0D12)
-private val CharcoalLight = Color(0xFF16161D)
+// ── Brand Accent Colors (theme-independent) ────────────────────────────────────
 private val ElectricViolet = Color(0xFFA855F7)
 private val NeonCyan = Color(0xFF22D3EE)
 private val HotPink = Color(0xFFEC4899)
-private val MutedGray = Color(0xFF6B7280)
-private val SubtleGray = Color(0xFF374151)
-private val OffWhite = Color(0xFFE5E7EB)
-private val DimWhite = Color(0xFF9CA3AF)
 private val ErrorRed = Color(0xFFEF4444)
-private val GlassBg = Color(0xFF0D0D12).copy(alpha = 0.65f)
-private val GlassBorder = Color.White.copy(alpha = 0.08f)
 
 private val VioletPinkGradient = Brush.linearGradient(listOf(ElectricViolet, HotPink))
 private val VioletCyanGradient = Brush.linearGradient(listOf(ElectricViolet, NeonCyan))
@@ -215,20 +207,20 @@ fun ChatScreen(
         var exportFilename by remember { mutableStateOf("conversation-${System.currentTimeMillis() / 1000}.md") }
         AlertDialog(
             onDismissRequest = { showExportDialog = false },
-            containerColor = Charcoal,
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(24.dp),
-            tonalElevation = 0.dp,
+            tonalElevation = 2.dp,
             icon = {
                 Box(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(ElectricViolet.copy(alpha = 0.15f)),
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         Icons.Default.FileDownload, null,
-                        tint = NeonCyan,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp),
                     )
                 }
@@ -236,7 +228,7 @@ fun ChatScreen(
             title = {
                 Text(
                     "Export Conversation",
-                    color = OffWhite,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
                 )
             },
@@ -245,22 +237,15 @@ fun ChatScreen(
                     Text(
                         "Save this conversation to your workspace.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = DimWhite,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(16.dp))
                     OutlinedTextField(
                         value = exportFilename,
                         onValueChange = { exportFilename = it },
-                        label = { Text("Filename", color = MutedGray) },
+                        label = { Text("Filename") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        textStyle = TextStyle(color = OffWhite),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = NeonCyan,
-                            unfocusedBorderColor = SubtleGray,
-                            cursorColor = NeonCyan,
-                            focusedLabelColor = NeonCyan,
-                        ),
                         shape = RoundedCornerShape(14.dp),
                     )
                 }
@@ -279,7 +264,6 @@ fun ChatScreen(
                         }
                     },
                     enabled = exportFilename.isNotBlank(),
-                    colors = ButtonDefaults.textButtonColors(contentColor = NeonCyan),
                 ) {
                     Text("Export", fontWeight = FontWeight.Bold)
                 }
@@ -287,7 +271,6 @@ fun ChatScreen(
             dismissButton = {
                 TextButton(
                     onClick = { showExportDialog = false },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MutedGray),
                 ) {
                     Text("Cancel")
                 }
@@ -310,20 +293,20 @@ fun ChatScreen(
             SnackbarHost(snackbarHostState) { data ->
                 Snackbar(
                     snackbarData = data,
-                    containerColor = CharcoalLight,
-                    contentColor = OffWhite,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
                     shape = RoundedCornerShape(16.dp),
                 )
             }
         },
-        containerColor = TrueBlack,
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier.imePadding(),
     ) { scaffoldPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(scaffoldPadding)
-                .background(TrueBlack),
+                .background(MaterialTheme.colorScheme.background),
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // ── Glass Top Bar ─────────────────────────────────────────
@@ -341,13 +324,16 @@ fun ChatScreen(
                     },
                 )
 
-                // ── Offline Banner (Glass + Red Glow) ─────────────────────
+                // ── Offline Banner ─────────────────────────────────────────
+                val hasLocalModel = modelRouter?.let {
+                    it.getAvailableModels().any { (provider, _) -> provider.providerId == "local-llama" }
+                } ?: false
                 AnimatedVisibility(
                     visible = !isOnline,
                     enter = expandVertically() + fadeIn(),
                     exit = shrinkVertically() + fadeOut(),
                 ) {
-                    OfflineBanner()
+                    OfflineBanner(hasLocalModel = hasLocalModel)
                 }
 
                 // ── Messages List ─────────────────────────────────────────
@@ -449,12 +435,12 @@ fun ChatScreen(
         }
     }
 
-    // ── Model Picker Bottom Sheet (Glass Styled) ──────────────────────────────
+    // ── Model Picker Bottom Sheet ──────────────────────────────────────────
     if (showModelPicker && modelRouter != null) {
         ModalBottomSheet(
             onDismissRequest = { showModelPicker = false },
-            containerColor = Charcoal,
-            scrimColor = Color.Black.copy(alpha = 0.6f),
+            containerColor = MaterialTheme.colorScheme.surface,
+            scrimColor = Color.Black.copy(alpha = 0.3f),
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
             dragHandle = {
                 Box(
@@ -462,7 +448,7 @@ fun ChatScreen(
                         .padding(top = 12.dp, bottom = 4.dp)
                         .size(40.dp, 4.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(SubtleGray),
+                        .background(MaterialTheme.colorScheme.outlineVariant),
                 )
             },
         ) {
@@ -470,7 +456,7 @@ fun ChatScreen(
                 Text(
                     "Select Model",
                     style = MaterialTheme.typography.titleMedium,
-                    color = OffWhite,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 16.dp),
                 )
@@ -479,7 +465,7 @@ fun ChatScreen(
                 val isAuto = runtime.preferredModelId.isNullOrBlank()
                 ModelPickerCard(
                     icon = Icons.Default.AutoAwesome,
-                    iconTint = ElectricViolet,
+                    iconTint = MaterialTheme.colorScheme.primary,
                     title = "Auto (best available)",
                     subtitle = "Picks the fastest or most capable model",
                     isSelected = isAuto,
@@ -493,7 +479,7 @@ fun ChatScreen(
                     val isSelected = runtime.preferredModelId == model.id
                     ModelPickerCard(
                         icon = Icons.Default.Memory,
-                        iconTint = if (isSelected) NeonCyan else MutedGray,
+                        iconTint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         title = model.displayName,
                         subtitle = buildString {
                             append(provider.displayName)
@@ -529,95 +515,73 @@ private fun GlassTopBar(
     onClearChat: () -> Unit,
     onModelChipClick: () -> Unit,
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Charcoal.copy(alpha = 0.85f),
-                        Charcoal.copy(alpha = 0.4f),
-                        Color.Transparent,
-                    )
-                )
-            )
-            .drawBehind {
-                // Subtle bottom edge glow line
-                drawLine(
-                    brush = Brush.horizontalGradient(
-                        listOf(Color.Transparent, ElectricViolet.copy(alpha = 0.3f), Color.Transparent)
-                    ),
-                    start = Offset(0f, size.height),
-                    end = Offset(size.width, size.height),
-                    strokeWidth = 1.dp.toPx(),
-                )
-            },
+    val isDark = isSystemInDarkTheme()
+    val topBarBg = MaterialTheme.colorScheme.surface
+    val iconTint = MaterialTheme.colorScheme.onSurfaceVariant
+    val dividerColor = MaterialTheme.colorScheme.outlineVariant
+
+    Surface(
+        color = topBarBg,
+        tonalElevation = 0.dp,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Hamburger menu
-            if (onOpenDrawer != null) {
-                GlowIconButton(onClick = onOpenDrawer) {
-                    Icon(Icons.Default.Menu, contentDescription = "Open drawer", tint = OffWhite)
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Settings gear (left, like Locally.ai)
+                IconButton(onClick = onNavigateToSettings, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Default.Settings, contentDescription = "Settings",
+                        tint = iconTint, modifier = Modifier.size(22.dp))
                 }
-            }
 
-            // "OpenClaw" gradient text
-            Text(
-                "OpenClaw",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    brush = VioletTextGradient,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-0.5).sp,
-                ),
-                modifier = Modifier.padding(start = if (onOpenDrawer != null) 0.dp else 12.dp),
-            )
+                // Conversation history drawer
+                if (onOpenDrawer != null) {
+                    IconButton(onClick = onOpenDrawer, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.ChatBubbleOutline, contentDescription = "Conversations",
+                            tint = iconTint, modifier = Modifier.size(22.dp))
+                    }
+                }
 
-            // Space chip
-            runtime.activeSpaceName?.let { spaceName ->
-                Spacer(Modifier.width(8.dp))
-                GlassChip(label = spaceName)
-            }
-
-            // Model indicator chip
-            Spacer(Modifier.width(8.dp))
-            val currentModelName = runtime.activeModelName ?: "Auto"
-            GlassChip(
-                label = currentModelName,
-                leadingIcon = {
-                    Icon(
-                        Icons.Default.Memory, contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = NeonCyan,
+                // Model name in center (prominent, like Locally.ai "Apple Foundation >")
+                val currentModelName = runtime.activeModelName ?: "Auto"
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(onClick = onModelChipClick),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = currentModelName,
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
-                },
-                onClick = onModelChipClick,
-                accentBorder = true,
-            )
+                    Icon(
+                        Icons.Default.ChevronRight,
+                        contentDescription = "Change model",
+                        modifier = Modifier.size(18.dp),
+                        tint = iconTint,
+                    )
+                }
 
-            Spacer(Modifier.weight(1f))
-
-            // Action icons
-            if (onExportChat != null && events.isNotEmpty()) {
-                GlowIconButton(onClick = onExportChat) {
-                    Icon(Icons.Default.FileDownload, contentDescription = "Export chat",
-                        tint = DimWhite, modifier = Modifier.size(20.dp))
+                // New conversation (right, like Locally.ai compose icon)
+                IconButton(onClick = onNewConversation, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Default.EditNote, contentDescription = "New conversation",
+                        tint = iconTint, modifier = Modifier.size(22.dp))
                 }
             }
 
-            GlowIconButton(onClick = onNewConversation) {
-                Icon(Icons.Default.Add, contentDescription = "New conversation",
-                    tint = DimWhite, modifier = Modifier.size(20.dp))
-            }
-
-            GlowIconButton(onClick = onClearChat) {
-                Icon(Icons.Default.ClearAll, contentDescription = "Clear chat",
-                    tint = DimWhite, modifier = Modifier.size(20.dp))
-            }
+            // Subtle bottom divider
+            HorizontalDivider(
+                thickness = 0.5.dp,
+                color = dividerColor,
+            )
         }
     }
 }
@@ -634,22 +598,17 @@ private fun GlassChip(
     onClick: (() -> Unit)? = null,
     accentBorder: Boolean = false,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val borderColor = if (accentBorder && isPressed) NeonCyan.copy(alpha = 0.6f) else GlassBorder
+    val chipBg = MaterialTheme.colorScheme.surfaceContainerHigh
+    val chipBorder = MaterialTheme.colorScheme.outlineVariant
 
     Row(
         modifier = Modifier
             .height(28.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(GlassBg)
-            .border(1.dp, borderColor, RoundedCornerShape(14.dp))
+            .background(chipBg)
+            .border(1.dp, chipBorder, RoundedCornerShape(14.dp))
             .then(
-                if (onClick != null) Modifier.clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = onClick,
-                ) else Modifier
+                if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
             )
             .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -661,7 +620,7 @@ private fun GlassChip(
         Text(
             label,
             style = MaterialTheme.typography.labelSmall,
-            color = DimWhite,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -677,25 +636,9 @@ private fun GlowIconButton(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val glowAlpha by animateFloatAsState(
-        targetValue = if (isPressed) 0.25f else 0f,
-        animationSpec = tween(150),
-        label = "glow",
-    )
-
     IconButton(
         onClick = onClick,
-        modifier = modifier.drawBehind {
-            if (glowAlpha > 0f) {
-                drawCircle(
-                    color = ElectricViolet.copy(alpha = glowAlpha),
-                    radius = size.minDimension * 0.6f,
-                )
-            }
-        },
-        interactionSource = interactionSource,
+        modifier = modifier,
     ) {
         content()
     }
@@ -707,38 +650,34 @@ private fun GlowIconButton(
 // ════════════════════════════════════════════════════════════════════════════════
 
 @Composable
-private fun OfflineBanner() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .drawBehind {
-                // Red glow along top edge
-                drawRect(
-                    brush = Brush.verticalGradient(
-                        listOf(ErrorRed.copy(alpha = 0.3f), Color.Transparent),
-                        startY = 0f,
-                        endY = size.height,
-                    ),
-                    size = Size(size.width, 4.dp.toPx()),
-                )
-            }
-            .background(GlassBg)
-            .border(width = 0.5.dp, color = ErrorRed.copy(alpha = 0.2f), shape = RoundedCornerShape(0.dp)),
+private fun OfflineBanner(hasLocalModel: Boolean = false) {
+    val bannerBg = MaterialTheme.colorScheme.errorContainer
+    val bannerText = MaterialTheme.colorScheme.onErrorContainer
+
+    Surface(
+        color = bannerBg,
+        tonalElevation = 1.dp,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                Icons.Default.WifiOff, null,
-                Modifier.size(16.dp),
-                tint = ErrorRed.copy(alpha = 0.9f),
+                if (hasLocalModel) Icons.Default.PhoneAndroid else Icons.Default.WifiOff,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = if (hasLocalModel) MaterialTheme.colorScheme.primary else bannerText,
             )
             Spacer(Modifier.width(10.dp))
             Text(
-                "You're offline. Check your connection.",
+                text = if (hasLocalModel)
+                    "Offline — using on-device model"
+                else
+                    "You're offline. Download a local model in Settings for offline use.",
                 style = MaterialTheme.typography.labelMedium,
-                color = ErrorRed.copy(alpha = 0.9f),
+                color = bannerText,
             )
         }
     }
@@ -751,13 +690,17 @@ private fun OfflineBanner() {
 
 @Composable
 private fun EmptyState(onSuggestionClick: (String) -> Unit) {
+    val isDark = isSystemInDarkTheme()
+
     Box(modifier = Modifier.fillMaxWidth()) {
-        // Background floating particles
-        FloatingDots(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(420.dp),
-        )
+        // Background floating particles (only in dark mode for the glass effect)
+        if (isDark) {
+            FloatingDots(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(420.dp),
+            )
+        }
 
         Column(
             modifier = Modifier
@@ -772,13 +715,13 @@ private fun EmptyState(onSuggestionClick: (String) -> Unit) {
 
             Spacer(Modifier.height(24.dp))
 
-            // Gradient headline
+            // Headline
             Text(
                 "What can I help you with?",
                 style = MaterialTheme.typography.headlineSmall.copy(
-                    brush = VioletCyanGradient,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = (-0.3).sp,
+                    color = MaterialTheme.colorScheme.primary,
                 ),
                 textAlign = TextAlign.Center,
             )
@@ -788,7 +731,7 @@ private fun EmptyState(onSuggestionClick: (String) -> Unit) {
             Text(
                 "Your executive assistant for tasks, travel, team,\ncalendar, notes, decisions, and productivity.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MutedGray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 lineHeight = 22.sp,
             )
@@ -1000,12 +943,12 @@ private fun LoadingIndicator(state: AgentState) {
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Glass pill container
+        // Clean pill container
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(20.dp))
-                .background(GlassBg)
-                .border(0.5.dp, GlassBorder, RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(20.dp))
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1017,7 +960,7 @@ private fun LoadingIndicator(state: AgentState) {
                             .offset(y = offset.dp)
                             .size(6.dp)
                             .clip(CircleShape)
-                            .background(ElectricViolet),
+                            .background(MaterialTheme.colorScheme.primary),
                     )
                 }
             }
@@ -1030,10 +973,7 @@ private fun LoadingIndicator(state: AgentState) {
                     else -> "Thinking..."
                 },
                 style = MaterialTheme.typography.labelMedium,
-                color = when (state) {
-                    is AgentState.ExecutingTool -> NeonCyan
-                    else -> DimWhite
-                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -1059,9 +999,8 @@ private fun FloatingInputBar(
     val canSend = !isRunning && (inputText.isNotBlank() || pendingMedia.isNotEmpty())
     var isFocused by remember { mutableStateOf(false) }
 
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-    val inputBg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
-    val inputBorderColor = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.08f)
+    val inputBg = MaterialTheme.colorScheme.surfaceContainerHigh
+    val inputBorderColor = MaterialTheme.colorScheme.outlineVariant
 
     val borderColor by animateColorAsState(
         targetValue = if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else inputBorderColor,
@@ -1097,7 +1036,7 @@ private fun FloatingInputBar(
             ) {
                 Icon(
                     Icons.Default.AttachFile, "Attach",
-                    tint = MutedGray,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -1112,7 +1051,7 @@ private fun FloatingInputBar(
                     Text(
                         "Ask anything",
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MutedGray.copy(alpha = 0.6f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     )
                 }
                 BasicTextField(
@@ -1172,8 +1111,8 @@ private fun SendButton(canSend: Boolean, onClick: () -> Unit) {
             .scale(buttonScale)
             .clip(CircleShape)
             .then(
-                if (canSend) Modifier.background(VioletPinkGradient)
-                else Modifier.background(SubtleGray.copy(alpha = 0.5f))
+                if (canSend) Modifier.background(MaterialTheme.colorScheme.primary)
+                else Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
             )
             .clickable(
                 interactionSource = interactionSource,
@@ -1185,7 +1124,7 @@ private fun SendButton(canSend: Boolean, onClick: () -> Unit) {
     ) {
         Icon(
             Icons.AutoMirrored.Filled.Send, "Send",
-            tint = if (canSend) Color.White else MutedGray,
+            tint = if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(18.dp),
         )
     }
@@ -1256,12 +1195,6 @@ private fun VoiceModeButton(onClick: () -> Unit) {
             .size(36.dp)
             .scale(pressScale)
             .clip(CircleShape)
-            .drawBehind {
-                drawCircle(
-                    color = ElectricViolet.copy(alpha = pulseAlpha),
-                    radius = size.minDimension * 0.6f,
-                )
-            }
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -1271,7 +1204,7 @@ private fun VoiceModeButton(onClick: () -> Unit) {
     ) {
         Icon(
             Icons.Default.PhoneInTalk, "Voice mode",
-            tint = ElectricViolet,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(18.dp),
         )
     }
@@ -1291,29 +1224,14 @@ private fun ModelPickerCard(
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
-    val bgColor = if (isSelected) ElectricViolet.copy(alpha = 0.1f) else CharcoalLight
-    val borderCol = if (isSelected) ElectricViolet.copy(alpha = 0.4f) else GlassBorder
-
-    // Glow when selected
-    val glowAlpha by animateFloatAsState(
-        targetValue = if (isSelected) 0.15f else 0f,
-        animationSpec = tween(300),
-        label = "modelGlow",
-    )
+    val bgColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+    val borderCol = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 3.dp)
             .clip(RoundedCornerShape(14.dp))
-            .drawBehind {
-                if (glowAlpha > 0f) {
-                    drawRoundRect(
-                        color = ElectricViolet.copy(alpha = glowAlpha),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(14.dp.toPx()),
-                    )
-                }
-            }
             .background(bgColor, RoundedCornerShape(14.dp))
             .border(0.5.dp, borderCol, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
@@ -1323,18 +1241,18 @@ private fun ModelPickerCard(
         Icon(icon, null, Modifier.size(20.dp), tint = iconTint)
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium, color = OffWhite)
+            Text(title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = MutedGray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         if (isSelected) {
             Icon(
                 Icons.Default.CheckCircle, null,
                 Modifier.size(20.dp),
-                tint = NeonCyan,
+                tint = MaterialTheme.colorScheme.primary,
             )
         }
     }

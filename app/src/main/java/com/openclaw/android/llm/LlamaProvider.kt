@@ -138,8 +138,9 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
         }
 
     override fun isConfigured(): Boolean {
-        if (!LlamaBridge.isLoaded) return false
-        if (!LlamaBridge.isRealBuild) return false // Stub build: inference not available
+        // Report as configured if models are downloaded — even if native lib
+        // is a stub build. This lets the model appear in the picker and offline
+        // banner. Actual inference failures are handled in chatCompletion().
         val activeId = getActiveModelId()
         if (activeId != null) {
             return downloadManager.isModelDownloaded(activeId)

@@ -3,6 +3,8 @@
     <style name="Theme.OpenClaw" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+        <!-- Extend content into display cutout areas (notch, punch-hole) -->
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 
     <style name="Theme.OpenClaw.Transparent" parent="Theme.OpenClaw">
