@@ -1059,8 +1059,12 @@ private fun FloatingInputBar(
     val canSend = !isRunning && (inputText.isNotBlank() || pendingMedia.isNotEmpty())
     var isFocused by remember { mutableStateOf(false) }
 
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val inputBg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
+    val inputBorderColor = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.08f)
+
     val borderColor by animateColorAsState(
-        targetValue = if (isFocused) NeonCyan.copy(alpha = 0.4f) else GlassBorder,
+        targetValue = if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else inputBorderColor,
         animationSpec = tween(300),
         label = "inputBorder",
     )
@@ -1074,7 +1078,7 @@ private fun FloatingInputBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(28.dp))
-                .background(Charcoal.copy(alpha = 0.9f))
+                .background(inputBg)
                 .border(1.dp, borderColor, RoundedCornerShape(28.dp))
                 .padding(horizontal = 6.dp, vertical = 6.dp),
             verticalAlignment = Alignment.Bottom,
@@ -1106,7 +1110,7 @@ private fun FloatingInputBar(
             ) {
                 if (inputText.isEmpty()) {
                     Text(
-                        "Message OpenClaw...",
+                        "Ask anything",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MutedGray.copy(alpha = 0.6f),
                     )
@@ -1117,9 +1121,11 @@ private fun FloatingInputBar(
                     modifier = Modifier
                         .fillMaxWidth()
                         .onFocusChanged { isFocused = it.isFocused },
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = OffWhite),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface,
+                    ),
                     maxLines = 15,
-                    cursorBrush = SolidColor(NeonCyan),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 )
             }
 

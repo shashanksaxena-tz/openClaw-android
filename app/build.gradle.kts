@@ -6,16 +6,31 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// Load version from properties file
+val versionProps = java.util.Properties().apply {
+    val file = file("version.properties")
+    if (file.exists()) load(file.inputStream())
+}
+
 android {
     namespace = "com.openclaw.android"
     compileSdk = 35
+
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
 
     defaultConfig {
         applicationId = "com.openclaw.android"
         minSdk = 29
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.7.0"
+        versionCode = versionProps.getProperty("VERSION_CODE", "10").toInt()
+        versionName = "${versionProps.getProperty("VERSION_MAJOR", "1")}.${versionProps.getProperty("VERSION_MINOR", "0")}.${versionProps.getProperty("VERSION_PATCH", "0")}"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -26,9 +41,13 @@ android {
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
