@@ -1,6 +1,7 @@
 package com.openclaw.android
 
 import android.app.Application
+import android.util.Log
 import com.openclaw.android.agent.AgentRuntime
 import com.openclaw.android.agent.ConversationManager
 import com.openclaw.android.agent.NotificationHelper
@@ -65,6 +66,10 @@ class OpenClawApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // Install a crash handler so native/OOM crashes get saved for next launch.
+        // This lets us show the user what went wrong instead of silently exiting.
+        installCrashHandler()
 
         // Notification channels
         NotificationHelper.createChannel(this)
@@ -193,8 +198,67 @@ class OpenClawApp : Application() {
         }
     }
 
-    override fun onTerminate() {
-        super.onTerminate()
-        agentRuntime.destroy()
+    // NOTE: Application.onTerminate() is never called on real devices (docs say
+    // "emulated process environments only"). We rely on process death for cleanup,
+    // which is fine — the OS reclaims all resources. If explicit cleanup were needed,
+    // use ProcessLifecycleOwner or ActivityLifecycleCallbacks.
+
+    /**
+     * Saves crash info to a file so the next app launch can show the user what went wrong.
+     *
+     * LIMITATION: This only catches JVM-level exceptions (OutOfMemoryError, etc.).
+     * Native signals (SIGSEGV, SIGABRT from llama.cpp) kill the process directly and
+     * bypass Java's UncaughtExceptionHandler. For native crash capture, a signal handler
+     * like Google Breakpad would be needed.
+     */
+    private fun installCrashHandler() {
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            try {
+                val crashFile = java.io.File(filesDir, "last_crash.txt")
+                val timestamp = java.text.SimpleDateFormat(
+                    "yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()
+                ).format(java.util.Date())
+                val info = buildString {
+                    appendLine("Crash at $timestamp")
+                    appendLine("Thread: ${thread.name}")
+                    appendLine("Error: ${throwable::class.java.simpleName}: ${throwable.message}")
+                    appendLine()
+                    appendLine(throwable.stackTraceToString().take(2000))
+                }
+                crashFile.writeText(info)
+                Log.e("OpenClawApp", "Crash saved to last_crash.txt", throwable)
+            } catch (_: Exception) {
+                // Don't crash in the crash handler
+            }
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
+    }
+
+    /**
+     * Check if the app crashed last time (e.g. native OOM) and return the crash message.
+     * Called from the chat screen to show an inline error on restart.
+     */
+    fun consumeLastCrash(): String? {
+        val crashFile = java.io.File(filesDir, "last_crash.txt")
+        if (!crashFile.exists()) return null
+        return try {
+            val info = crashFile.readText()
+            crashFile.delete()
+            if (info.contains("OutOfMemory", ignoreCase = true) ||
+                info.contains("llama", ignoreCase = true) ||
+                info.contains("native crash", ignoreCase = true) ||
+                info.contains("SIGSEGV", ignoreCase = true) ||
+                info.contains("SIGABRT", ignoreCase = true)
+            ) {
+                "The app crashed last time, likely because the local AI model ran out of memory. " +
+                    "Try using a smaller model, or close other apps before loading the model."
+            } else {
+                "The app crashed unexpectedly last time. If this keeps happening, try clearing app data in Settings."
+            }
+        } catch (_: Exception) {
+            crashFile.delete()
+            null
+        }
     }
 }

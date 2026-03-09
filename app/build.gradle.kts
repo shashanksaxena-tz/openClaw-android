@@ -80,6 +80,14 @@ android {
     }
 
     ndkVersion = "27.0.12077973"
+
+    // Extract native libs to disk so mmap can work on them directly.
+    // Without this, .so files stay compressed inside the APK and mmap fails silently.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
 }
 
 // Auto-initialize llama.cpp submodule before native build so we never get a stub build

@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.MutableState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -19,6 +20,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openclaw.android.data.SettingsRepository
 import com.openclaw.android.ui.screens.*
 import com.openclaw.android.ui.theme.OpenClawTheme
 import kotlinx.coroutines.delay
@@ -39,8 +41,15 @@ class MainActivity : ComponentActivity() {
         app.currentWindow = window
 
         setContent {
-            OpenClawTheme {
-                MainApp(app)
+            // Resolve theme preference: light (default), dark, or follow system
+            val themeMode = remember { mutableStateOf(app.settings.getThemeMode()) }
+            val isDarkTheme = when (themeMode.value) {
+                SettingsRepository.THEME_DARK -> true
+                SettingsRepository.THEME_SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
+                else -> false // THEME_LIGHT is default
+            }
+            OpenClawTheme(darkTheme = isDarkTheme) {
+                MainApp(app, themeMode)
             }
         }
     }
@@ -52,7 +61,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MainApp(app: OpenClawApp) {
+private fun MainApp(app: OpenClawApp, themeMode: MutableState<String> = mutableStateOf(SettingsRepository.THEME_LIGHT)) {
     var currentScreen by remember { mutableStateOf(AppScreen.SPLASH) }
 
     var pendingRequest by remember { mutableStateOf<PermissionManager.PermissionRequest?>(null) }
@@ -104,7 +113,7 @@ private fun MainApp(app: OpenClawApp) {
             }
 
             AppScreen.MAIN -> {
-                MainContent(app)
+                MainContent(app, themeMode)
             }
         }
     }
@@ -163,7 +172,7 @@ private fun SplashScreen(onFinished: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MainContent(app: OpenClawApp) {
+private fun MainContent(app: OpenClawApp, themeMode: MutableState<String> = mutableStateOf(SettingsRepository.THEME_LIGHT)) {
     val scope = rememberCoroutineScope()
 
     // currentTab: 0=Dashboard, 1=Tasks, 2=Notes, 3=Chat, 4=Discover,
@@ -308,6 +317,7 @@ private fun MainContent(app: OpenClawApp) {
                     onBack = { currentTab = 3 },
                     modifier = Modifier,
                     onNavigateToFiles = { currentTab = 11 },
+                    themeMode = themeMode,
                 )
 
                 6 -> CalendarScreen(

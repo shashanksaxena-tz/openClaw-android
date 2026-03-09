@@ -54,6 +54,8 @@ object LlamaBridge {
      * @param nThreads number of CPU threads for inference (0 = auto-detect)
      * @param nGpuLayers number of layers to offload to GPU (0 = CPU only)
      * @param contextSize max context window size in tokens
+     * @param useMmap use memory-mapped I/O (pages model on demand, prevents OOM)
+     * @param flashAttn enable flash attention (reduces context memory usage)
      * @return true if model loaded successfully
      */
     external fun nativeLoadModel(
@@ -61,6 +63,8 @@ object LlamaBridge {
         nThreads: Int,
         nGpuLayers: Int,
         contextSize: Int,
+        useMmap: Boolean,
+        flashAttn: Boolean,
     ): Boolean
 
     /** Unload the currently loaded model and free memory. */
@@ -105,6 +109,9 @@ object LlamaBridge {
     /** Get available system RAM in bytes. */
     external fun nativeGetAvailableMemory(): Long
 
+    /** Get total system RAM in bytes. */
+    external fun nativeGetTotalMemory(): Long
+
     // ── Kotlin API (wraps native calls with safety checks) ───────────────────
 
     fun loadModel(
@@ -112,6 +119,8 @@ object LlamaBridge {
         nThreads: Int = 0,
         nGpuLayers: Int = 0,
         contextSize: Int = 4096,
+        useMmap: Boolean = true,
+        flashAttn: Boolean = true,
     ): Result<Unit> {
         if (!isLoaded) return Result.failure(
             IllegalStateException("Native library not loaded. Ensure llama_bridge.so is included in the APK.")
@@ -121,9 +130,9 @@ object LlamaBridge {
             if (nativeIsModelLoaded()) {
                 nativeUnloadModel()
             }
-            val success = nativeLoadModel(modelPath, nThreads, nGpuLayers, contextSize)
+            val success = nativeLoadModel(modelPath, nThreads, nGpuLayers, contextSize, useMmap, flashAttn)
             if (success) {
-                Log.i(TAG, "Model loaded: $modelPath")
+                Log.i(TAG, "Model loaded: $modelPath (mmap=$useMmap, flash_attn=$flashAttn)")
                 Result.success(Unit)
             } else {
                 Result.failure(RuntimeException("Failed to load model: $modelPath"))
@@ -194,6 +203,13 @@ object LlamaBridge {
         return try {
             if (isLoaded) nativeGetAvailableMemory() / (1024 * 1024)
             else Runtime.getRuntime().let { (it.maxMemory() - it.totalMemory() + it.freeMemory()) / (1024 * 1024) }
+        } catch (e: Exception) { 0L }
+    }
+
+    fun getTotalMemoryMb(): Long {
+        return try {
+            if (isLoaded) nativeGetTotalMemory() / (1024 * 1024)
+            else Runtime.getRuntime().maxMemory() / (1024 * 1024)
         } catch (e: Exception) { 0L }
     }
 

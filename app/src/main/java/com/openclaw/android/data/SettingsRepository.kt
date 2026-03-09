@@ -53,6 +53,10 @@ class SettingsRepository(context: Context) {
     fun getLocalModelEnabled(): Boolean = prefs.getBoolean(KEY_LOCAL_MODEL_ENABLED, true)
     fun setLocalModelEnabled(enabled: Boolean) { prefs.edit().putBoolean(KEY_LOCAL_MODEL_ENABLED, enabled).apply() }
 
+    // Theme preference: "system", "light", or "dark". Default is "light" (white theme).
+    fun getThemeMode(): String = prefs.getString(KEY_THEME_MODE, THEME_LIGHT) ?: THEME_LIGHT
+    fun setThemeMode(mode: String) { prefs.edit().putString(KEY_THEME_MODE, mode).apply() }
+
     // Check if any cloud provider is configured
     fun hasAnyApiKey(): Boolean = getGeminiKey().isNotBlank() ||
             getGroqKey().isNotBlank() ||
@@ -71,5 +75,10 @@ class SettingsRepository(context: Context) {
         private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
         private const val KEY_LOCAL_MODEL_ID = "local_model_id"
         private const val KEY_LOCAL_MODEL_ENABLED = "local_model_enabled"
+        private const val KEY_THEME_MODE = "theme_mode"
+
+        const val THEME_LIGHT = "light"
+        const val THEME_DARK = "dark"
+        const val THEME_SYSTEM = "system"
     }
 }

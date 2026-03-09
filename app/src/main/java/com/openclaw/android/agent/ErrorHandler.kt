@@ -78,11 +78,24 @@ object ErrorHandler {
                 )
 
             msg.contains("not enough RAM", ignoreCase = true) ||
+            msg.contains("Not enough free memory", ignoreCase = true) ||
             msg.contains("Failed to load model", ignoreCase = true) ->
                 UserError(
                     title = "Model load failed",
                     message = msg,
-                    action = ErrorAction.Retry,
+                    action = ErrorAction.OpenSettings,
+                )
+
+            // Native crash / OOM during local inference
+            msg.contains("native crash", ignoreCase = true) ||
+            msg.contains("inference failed", ignoreCase = true) ||
+            msg.contains("Model loading crashed", ignoreCase = true) ||
+            msg.contains("Local model crashed", ignoreCase = true) ->
+                UserError(
+                    title = "Local model crashed",
+                    message = "The on-device AI ran out of memory or crashed. " +
+                        "Try closing other apps, or switch to a smaller model in Settings.",
+                    action = ErrorAction.OpenSettings,
                 )
 
             // Model errors

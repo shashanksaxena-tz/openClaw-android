@@ -34,6 +34,38 @@ class LlamaProvider(
         /** Regex for parsing tool_call blocks from model output. */
         private val TOOL_CALL_PATTERN = Regex("```tool_call\\s*\\n(\\{[^`]+\\})\\s*\\n```", RegexOption.DOT_MATCHES_ALL)
 
+        /**
+         * Returns safe context length based on device total RAM.
+         * Mirrors off-grid's getMaxContextForDevice() — prevents OOM on low-RAM devices.
+         */
+        fun getMaxContextForDevice(totalMemoryMb: Long): Int {
+            val totalGb = totalMemoryMb / 1024.0
+            return when {
+                totalGb <= 6 -> 2048
+                totalGb <= 8 -> 4096
+                else -> 8192
+            }
+        }
+
+        /**
+         * Returns safe GPU layer count based on device RAM.
+         * On low-RAM devices (≤4GB), GPU allocation can call abort() which
+         * bypasses Java try/catch, killing the app instantly.
+         */
+        fun getGpuLayersForDevice(totalMemoryMb: Long): Int {
+            val totalGb = totalMemoryMb / 1024.0
+            return if (totalGb <= 4) 0 else 99
+        }
+
+        /** Quant formats where disabling mmap allows llama.cpp to repack weights for speed. */
+        private val REPACKABLE_QUANTS = listOf("q4_0", "iq4_nl")
+
+        /** For repackable quants on Android, disable mmap so weights get repacked at load time. */
+        fun shouldUseMmap(modelPath: String): Boolean {
+            val lower = modelPath.lowercase()
+            return !REPACKABLE_QUANTS.any { lower.contains(it) }
+        }
+
         /** System prompt addendum that teaches the model about escalation. */
         private const val LOCAL_MODEL_INSTRUCTIONS = """
 
@@ -192,12 +224,18 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
                         !cancelled && isActive
                     },
                 )
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
+                // Catch Throwable (not just Exception) to handle native crashes
+                // that surface as Error (e.g. UnsatisfiedLinkError, OutOfMemoryError)
                 Log.e(TAG, "Native generate call crashed", e)
-                Result.failure(e)
+                Result.failure(RuntimeException("Local model inference failed: ${e.message ?: "native crash"}", e))
             }
 
-            val responseText = result.getOrThrow()
+            val responseText = result.getOrElse { e ->
+                val ex = if (e is Exception) e else RuntimeException(e.message ?: "Inference failed", e)
+                onError(ex)
+                return@withContext
+            }
 
             // Parse tool calls from response
             val toolCalls = parseToolCalls(responseText)
@@ -218,9 +256,11 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
                     },
                 )
             )
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // Catch Throwable to handle OutOfMemoryError and native crash wrappers
             Log.e(TAG, "Local inference error", e)
-            onError(e)
+            val ex = if (e is Exception) e else RuntimeException("Local model crashed: ${e.message ?: "unknown native error"}", e)
+            onError(ex)
         }
     }
 
@@ -252,20 +292,68 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
             return "No local model loaded. Download a model in Settings."
         }
 
-        // Check available memory before attempting load
+        // Validate GGUF magic number to catch corrupted/incomplete downloads
+        // before native code crashes trying to parse them
+        val modelFile = java.io.File(modelPath)
+        if (!modelFile.exists() || modelFile.length() < 8) {
+            return "Model file is missing or empty. Try re-downloading the model in Settings."
+        }
+        try {
+            val magic = java.io.RandomAccessFile(modelFile, "r").use { raf ->
+                val bytes = ByteArray(4)
+                raf.read(bytes)
+                String(bytes)
+            }
+            if (magic != "GGUF") {
+                Log.e(TAG, "Invalid GGUF magic: '$magic' in $modelPath")
+                return "Model file appears corrupted (invalid format). Delete it in Settings and re-download."
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Cannot read model file header", e)
+            return "Cannot read model file. It may be corrupted — try re-downloading."
+        }
+
+        // With mmap enabled, the model is NOT loaded into contiguous RAM — the OS pages
+        // data in/out on demand. We only need enough free RAM for the KV cache + scratch buffers,
+        // NOT the full model size. A rough estimate: ~500MB for a 4K context with f16 KV cache.
+        // Only block loading if the device is critically low on memory.
         val availableMemMb = LlamaBridge.getAvailableMemoryMb()
-        Log.i(TAG, "Available memory: ${availableMemMb}MB, loading model: $modelPath")
+        val modelSizeMb = modelFile.length() / (1024 * 1024)
+        Log.i(TAG, "Available memory: ${availableMemMb}MB, model size: ${modelSizeMb}MB, path: $modelPath")
 
-        // Determine optimal thread count based on device
+        // With mmap, we just need ~500MB for context buffers — NOT the full model size
+        val minRequiredMb = 500L
+        if (availableMemMb < minRequiredMb) {
+            Log.e(TAG, "Critically low RAM: ${availableMemMb}MB available (need at least ${minRequiredMb}MB for context buffers)")
+            return "Not enough free memory (${availableMemMb}MB available). " +
+                "Close other apps and try again, or download a smaller model."
+        }
+
+        // Device-aware configuration — mirrors off-grid's architecture
+        val totalMemMb = LlamaBridge.getTotalMemoryMb()
         val cpuCores = Runtime.getRuntime().availableProcessors()
-        val nThreads = maxOf(1, cpuCores - 2) // Leave 2 cores for UI/system
+        val nThreads = minOf(maxOf(1, cpuCores - 2), 4) // Cap at 4 — over-threading onto efficiency cores slows inference
+        val contextSize = getMaxContextForDevice(totalMemMb)
+        val nGpuLayers = getGpuLayersForDevice(totalMemMb)
+        val useMmap = shouldUseMmap(modelPath)
 
-        val result = LlamaBridge.loadModel(
-            modelPath = modelPath,
-            nThreads = nThreads,
-            nGpuLayers = 0, // CPU-only for now; GPU offload can be added later
-            contextSize = 4096,
-        )
+        Log.i(TAG, "Device config: totalRAM=${totalMemMb}MB, ctx=$contextSize, gpu_layers=$nGpuLayers, mmap=$useMmap, threads=$nThreads")
+
+        val result = try {
+            LlamaBridge.loadModel(
+                modelPath = modelPath,
+                nThreads = nThreads,
+                nGpuLayers = nGpuLayers,
+                contextSize = contextSize,
+                useMmap = useMmap,
+                flashAttn = true,
+            )
+        } catch (e: Throwable) {
+            // Native code can throw Error (OutOfMemoryError, UnsatisfiedLinkError)
+            // which crashes the process. Catch and convert to a Result.
+            Log.e(TAG, "Native model load crashed", e)
+            Result.failure(RuntimeException("Model loading crashed: ${e.message ?: "native error"}"))
+        }
 
         if (result.isFailure) {
             val reason = result.exceptionOrNull()?.message ?: "Unknown error"

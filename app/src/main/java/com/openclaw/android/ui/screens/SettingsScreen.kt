@@ -88,6 +88,7 @@ fun SettingsScreen(
     modelRouter: ModelRouter,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    themeMode: MutableState<String>? = null,
     spaceManager: SpaceManager? = null,
     agentRuntime: AgentRuntime? = null,
     conversationExpiry: ConversationExpiry? = null,
@@ -160,6 +161,59 @@ fun SettingsScreen(
             }
 
             Spacer(Modifier.height(28.dp))
+
+            // ── Theme Section ─────────────────────────────────────────────────
+            if (themeMode != null) {
+                val currentTheme = themeMode.value
+                GlassSection(
+                    icon = Icons.Outlined.Palette,
+                    title = "Appearance",
+                    description = "Choose your preferred theme.",
+                ) {
+                    val options = listOf(
+                        SettingsRepository.THEME_LIGHT to "Light",
+                        SettingsRepository.THEME_DARK to "Dark",
+                        SettingsRepository.THEME_SYSTEM to "System",
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        options.forEach { (value, label) ->
+                            val selected = currentTheme == value
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(InnerShape)
+                                    .background(
+                                        if (selected) PrimaryViolet.copy(alpha = 0.15f) else InputBg,
+                                    )
+                                    .border(
+                                        width = if (selected) 1.dp else 0.5.dp,
+                                        color = if (selected) PrimaryViolet else GlassBorder,
+                                        shape = InnerShape,
+                                    )
+                                    .clickable {
+                                        settings.setThemeMode(value)
+                                        themeMode.value = value
+                                    }
+                                    .padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = TextStyle(
+                                        fontSize = 14.sp,
+                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                        color = if (selected) PrimaryViolet else TextSecondary,
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
 
             // ── API Keys Section ─────────────────────────────────────────────
             GlassSection(

@@ -31,25 +31,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 // ---------------------------------------------------------------------------
-// Clean Design System colors
-// ---------------------------------------------------------------------------
-
-/** Primary accent — mapped to system gray for clean look. */
-val ElectricViolet = Color(0xFF8E8E93)
-
-/** Secondary accent — mapped to brand teal. */
-val NeonCyan = Color(0xFF2AC4A0)
-
-/** Tertiary accent — mapped to error red. */
-val HotPink = Color(0xFFFF3B30)
-
-/** Background. */
-val TrueBlack = Color(0xFF000000)
-
-/** Surface. */
-val Charcoal = Color(0xFF1C1C1E)
-
-// ---------------------------------------------------------------------------
 // CleanCard composable
 // ---------------------------------------------------------------------------
 

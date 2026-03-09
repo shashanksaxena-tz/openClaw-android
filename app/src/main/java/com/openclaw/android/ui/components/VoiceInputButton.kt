@@ -50,10 +50,15 @@ fun VoiceInputButton(
     var isListening by remember { mutableStateOf(false) }
     var partialResult by remember { mutableStateOf("") }
 
-    val speechRecognizer = remember {
-        if (SpeechRecognizer.isRecognitionAvailable(context)) {
-            SpeechRecognizer.createSpeechRecognizer(context)
-        } else null
+    // SpeechRecognizer must be created on the main/Looper thread.
+    // Using mutableStateOf + LaunchedEffect(Dispatchers.Main) ensures this.
+    var speechRecognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+            if (SpeechRecognizer.isRecognitionAvailable(context)) {
+                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
+            }
+        }
     }
 
     val recognizerIntent = remember {

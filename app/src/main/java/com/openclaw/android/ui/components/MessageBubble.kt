@@ -30,13 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.openclaw.android.agent.AgentEvent
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
-
-private val UserBubbleDark = Color(0xFF2C2C2E)
-private val UserBubbleLight = Color(0xFFE5E5EA)
-private val ErrorRed = Color(0xFFFF3B30)
-private val ErrorBgDark = Color(0xFF2C1B1B)
-private val ErrorBgLight = Color(0xFFFDEDED)
-private val ToolAccent = Color(0xFF8E8E93)
+// Semantic colors that don't change with theme
 private val Emerald = Color(0xFF34C759)
 private val EscalationAmber = Color(0xFFFF9F0A)
 
@@ -60,11 +54,7 @@ fun MessageBubble(
     onRetry: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    AnimatedVisibility(
-        visible = true,
-        enter = fadeIn(animationSpec = tween(200)),
-    ) {
-        when (event) {
+    when (event) {
             is AgentEvent.UserMessage -> UserBubble(event, modifier)
             is AgentEvent.AssistantMessage -> AssistantBubble(event.text, modifier)
             is AgentEvent.ToolCallStart -> ToolCallBubble(event, modifier)
@@ -75,7 +65,6 @@ fun MessageBubble(
             is AgentEvent.Escalation -> EscalationBadge(event.from, event.to, modifier)
             else -> {}
         }
-    }
 }
 
 // ── 1. User Bubble ─────────────────────────────────────────────────────────────
@@ -83,9 +72,8 @@ fun MessageBubble(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun UserBubble(event: AgentEvent.UserMessage, modifier: Modifier) {
-    val isDark = isSystemInDarkTheme()
-    val bubbleColor = if (isDark) UserBubbleDark else UserBubbleLight
-    val textColor = if (isDark) Color.White else Color.Black
+    val bubbleColor = MaterialTheme.colorScheme.surfaceVariant
+    val textColor = MaterialTheme.colorScheme.onSurface
     val context = LocalContext.current
 
     Row(
@@ -267,9 +255,9 @@ private fun ToolResultBubble(event: AgentEvent.ToolCallResult, modifier: Modifie
 
 @Composable
 private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modifier) {
-    val isDark = isSystemInDarkTheme()
-    val bgColor = if (isDark) ErrorBgDark else ErrorBgLight
-    val textColor = if (isDark) ErrorRed.copy(alpha = 0.85f) else ErrorRed.copy(alpha = 0.9f)
+    val errorColor = MaterialTheme.colorScheme.error
+    val bgColor = MaterialTheme.colorScheme.errorContainer
+    val textColor = MaterialTheme.colorScheme.onErrorContainer
 
     val parts = message.split("\n\n")
     val mainMessage = parts.firstOrNull() ?: message
@@ -293,7 +281,7 @@ private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modif
                     Icons.Default.Warning,
                     contentDescription = "Error",
                     modifier = Modifier.size(16.dp),
-                    tint = ErrorRed,
+                    tint = errorColor,
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
@@ -309,7 +297,7 @@ private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modif
                 Text(
                     text = "Go to Settings to fix this.",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = ErrorRed.copy(alpha = 0.75f),
+                    color = errorColor.copy(alpha = 0.75f),
                 )
             }
 
@@ -322,7 +310,7 @@ private fun ErrorBubble(message: String, onRetry: (() -> Unit)?, modifier: Modif
                     OutlinedButton(
                         onClick = onRetry,
                         shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = errorColor),
                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 6.dp),
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = "Retry", modifier = Modifier.size(15.dp))

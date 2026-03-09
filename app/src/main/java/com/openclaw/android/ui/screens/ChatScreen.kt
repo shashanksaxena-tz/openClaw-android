@@ -17,7 +17,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -119,6 +118,13 @@ fun ChatScreen(
     var showModelPicker by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
     var justSent by remember { mutableStateOf(false) }
+    var crashMessage by remember { mutableStateOf<String?>(null) }
+
+    // Check for crash from previous session (e.g. native LLM OOM)
+    LaunchedEffect(Unit) {
+        val app = context.applicationContext as? com.openclaw.android.OpenClawApp
+        crashMessage = app?.consumeLastCrash()
+    }
 
     // Network connectivity
     var isOnline by remember { mutableStateOf(true) }
@@ -175,7 +181,8 @@ fun ChatScreen(
         pendingMedia = pendingMedia + newMedia
     }
 
-    // Consolidate stream chunks into single events
+    // Consolidate stream chunks into a single accumulated chunk per stream.
+    // Uses remember(events) — only recalculates when events list reference changes.
     val displayEvents = remember(events) {
         val filtered = mutableListOf<AgentEvent>()
         val streamAccumulator = StringBuilder()
@@ -205,14 +212,13 @@ fun ChatScreen(
 
     val isRunning = state is AgentState.Running || state is AgentState.ExecutingTool || justSent
 
-    // Snackbar on errors
+    // Errors show inline in the chat as ErrorBubble (with retry button).
+    // Auto-scroll to make the error visible when it appears.
     LaunchedEffect(events) {
         val lastEvent = events.lastOrNull()
         if (lastEvent is AgentEvent.Error) {
-            snackbarHostState.showSnackbar(
-                message = lastEvent.message ?: "Something went wrong. Please try again.",
-                duration = SnackbarDuration.Short,
-            )
+            val lastIndex = maxOf(0, listState.layoutInfo.totalItemsCount - 1)
+            if (lastIndex > 0) listState.animateScrollToItem(lastIndex)
         }
     }
 
@@ -335,6 +341,15 @@ fun ChatScreen(
                         state = listState,
                         contentPadding = PaddingValues(vertical = 12.dp),
                     ) {
+                        // Show crash recovery message from previous session
+                        if (crashMessage != null) {
+                            item(key = "crash-recovery") {
+                                MessageBubble(
+                                    event = AgentEvent.Error(crashMessage!!),
+                                    onRetry = { crashMessage = null },
+                                )
+                            }
+                        }
                         if (isEmpty) {
                             item {
                                 WelcomeHero(
@@ -544,7 +559,6 @@ private fun CleanTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -667,7 +681,7 @@ private fun WelcomeHero(
                 style = MaterialTheme.typography.headlineMedium.copy(
                     fontWeight = FontWeight.Bold,
                 ),
-                color = Color(0xFF1C1C1E),
+                color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
             )
 
@@ -676,7 +690,7 @@ private fun WelcomeHero(
             Text(
                 text = "Your personal AI assistant running on-device and in the cloud. Ask anything.",
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color(0xFF3C3C43),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 8.dp),
                 textAlign = TextAlign.Center,
             )
@@ -785,7 +799,6 @@ private fun CleanInputBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
