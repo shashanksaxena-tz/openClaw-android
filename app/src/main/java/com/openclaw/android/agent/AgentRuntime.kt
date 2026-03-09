@@ -317,8 +317,11 @@ class AgentRuntime(
                 }
             } catch (e: CancellationException) {
                 // Job was cancelled
-            } catch (e: Exception) {
-                val userError = ErrorHandler.mapError(e)
+            } catch (e: Throwable) {
+                // Catch Throwable to handle native crashes (OutOfMemoryError, etc.)
+                // that can propagate from local LLM inference
+                val ex = if (e is Exception) e else RuntimeException("Native crash: ${e.message ?: "unknown"}", e)
+                val userError = ErrorHandler.mapError(ex)
                 emit(AgentEvent.Error(ErrorHandler.formatForChat(userError)))
             } finally {
                 _state.value = AgentState.Idle

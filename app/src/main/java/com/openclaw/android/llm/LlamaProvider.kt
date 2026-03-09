@@ -192,12 +192,18 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
                         !cancelled && isActive
                     },
                 )
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
+                // Catch Throwable (not just Exception) to handle native crashes
+                // that surface as Error (e.g. UnsatisfiedLinkError, OutOfMemoryError)
                 Log.e(TAG, "Native generate call crashed", e)
-                Result.failure(e)
+                Result.failure(RuntimeException("Local model inference failed: ${e.message ?: "native crash"}", e))
             }
 
-            val responseText = result.getOrThrow()
+            val responseText = result.getOrElse { e ->
+                val ex = if (e is Exception) e else RuntimeException(e.message ?: "Inference failed", e)
+                onError(ex)
+                return@withContext
+            }
 
             // Parse tool calls from response
             val toolCalls = parseToolCalls(responseText)
@@ -218,9 +224,11 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
                     },
                 )
             )
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // Catch Throwable to handle OutOfMemoryError and native crash wrappers
             Log.e(TAG, "Local inference error", e)
-            onError(e)
+            val ex = if (e is Exception) e else RuntimeException("Local model crashed: ${e.message ?: "unknown native error"}", e)
+            onError(ex)
         }
     }
 
@@ -252,20 +260,39 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
             return "No local model loaded. Download a model in Settings."
         }
 
-        // Check available memory before attempting load
+        // Check available memory before attempting load — prevent native OOM crash
         val availableMemMb = LlamaBridge.getAvailableMemoryMb()
-        Log.i(TAG, "Available memory: ${availableMemMb}MB, loading model: $modelPath")
+        val modelFile = java.io.File(modelPath)
+        val modelSizeMb = if (modelFile.exists()) modelFile.length() / (1024 * 1024) else 0L
+        Log.i(TAG, "Available memory: ${availableMemMb}MB, model size: ${modelSizeMb}MB, path: $modelPath")
+
+        // Model loading typically requires ~1.2x the file size in RAM (model weights + context buffers).
+        // Refuse to load if we don't have enough headroom to avoid a native OOM crash.
+        val requiredMemMb = (modelSizeMb * 1.3).toLong() // model + context overhead
+        if (availableMemMb < requiredMemMb) {
+            Log.e(TAG, "Insufficient RAM: need ~${requiredMemMb}MB, have ${availableMemMb}MB")
+            return "Not enough free memory to load this model. " +
+                "Need ~${requiredMemMb}MB but only ${availableMemMb}MB is available. " +
+                "Close other apps and try again, or download a smaller model."
+        }
 
         // Determine optimal thread count based on device
         val cpuCores = Runtime.getRuntime().availableProcessors()
         val nThreads = maxOf(1, cpuCores - 2) // Leave 2 cores for UI/system
 
-        val result = LlamaBridge.loadModel(
-            modelPath = modelPath,
-            nThreads = nThreads,
-            nGpuLayers = 0, // CPU-only for now; GPU offload can be added later
-            contextSize = 4096,
-        )
+        val result = try {
+            LlamaBridge.loadModel(
+                modelPath = modelPath,
+                nThreads = nThreads,
+                nGpuLayers = 0, // CPU-only for now; GPU offload can be added later
+                contextSize = 4096,
+            )
+        } catch (e: Throwable) {
+            // Native code can throw Error (OutOfMemoryError, UnsatisfiedLinkError)
+            // which crashes the process. Catch and convert to a Result.
+            Log.e(TAG, "Native model load crashed", e)
+            Result.failure(RuntimeException("Model loading crashed: ${e.message ?: "native error"}"))
+        }
 
         if (result.isFailure) {
             val reason = result.exceptionOrNull()?.message ?: "Unknown error"
