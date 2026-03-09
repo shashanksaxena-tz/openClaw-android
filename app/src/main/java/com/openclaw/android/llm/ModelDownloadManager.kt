@@ -135,7 +135,7 @@ class ModelDownloadManager(private val context: Context) {
                     model = model,
                     filePath = file.absolutePath,
                     fileSizeBytes = file.length(),
-                    isComplete = file.length() >= model.sizeBytes * 0.95, // allow 5% variance from estimate
+                    isComplete = file.length() >= model.sizeBytes * 0.99, // allow 1% variance from estimate
                 )
             } else null
         }
@@ -145,7 +145,7 @@ class ModelDownloadManager(private val context: Context) {
     fun isModelDownloaded(modelId: String): Boolean {
         val model = availableModels.find { it.id == modelId } ?: return false
         val file = File(modelsDir, model.fileName)
-        return file.exists() && file.length() >= model.sizeBytes * 0.95
+        return file.exists() && file.length() >= model.sizeBytes * 0.99
     }
 
     /** Get the file path of a downloaded model (only returns complete downloads). */
@@ -153,7 +153,7 @@ class ModelDownloadManager(private val context: Context) {
         val model = availableModels.find { it.id == modelId } ?: return null
         val file = File(modelsDir, model.fileName)
         // Only return path for complete downloads — loading a partial GGUF crashes native code
-        return if (file.exists() && file.length() >= model.sizeBytes * 0.95) file.absolutePath else null
+        return if (file.exists() && file.length() >= model.sizeBytes * 0.99) file.absolutePath else null
     }
 
     /** Download a model with progress updates. Supports resume. */

@@ -198,15 +198,18 @@ class OpenClawApp : Application() {
         }
     }
 
-    override fun onTerminate() {
-        super.onTerminate()
-        agentRuntime.destroy()
-    }
+    // NOTE: Application.onTerminate() is never called on real devices (docs say
+    // "emulated process environments only"). We rely on process death for cleanup,
+    // which is fine — the OS reclaims all resources. If explicit cleanup were needed,
+    // use ProcessLifecycleOwner or ActivityLifecycleCallbacks.
 
     /**
      * Saves crash info to a file so the next app launch can show the user what went wrong.
-     * This is critical for native crashes (llama.cpp OOM, SIGSEGV) where the process dies
-     * without any visible error.
+     *
+     * LIMITATION: This only catches JVM-level exceptions (OutOfMemoryError, etc.).
+     * Native signals (SIGSEGV, SIGABRT from llama.cpp) kill the process directly and
+     * bypass Java's UncaughtExceptionHandler. For native crash capture, a signal handler
+     * like Google Breakpad would be needed.
      */
     private fun installCrashHandler() {
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
@@ -244,7 +247,9 @@ class OpenClawApp : Application() {
             crashFile.delete()
             if (info.contains("OutOfMemory", ignoreCase = true) ||
                 info.contains("llama", ignoreCase = true) ||
-                info.contains("native", ignoreCase = true)
+                info.contains("native crash", ignoreCase = true) ||
+                info.contains("SIGSEGV", ignoreCase = true) ||
+                info.contains("SIGABRT", ignoreCase = true)
             ) {
                 "The app crashed last time, likely because the local AI model ran out of memory. " +
                     "Try using a smaller model, or close other apps before loading the model."

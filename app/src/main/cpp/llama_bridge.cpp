@@ -8,6 +8,11 @@
  *
  * When compiled with LLAMA_STUB=1 (llama.cpp source not present),
  * all methods return error states gracefully.
+ *
+ * NOTE: The crash handler in OpenClawApp.kt only catches JVM-level exceptions.
+ * Native signals (SIGSEGV, SIGABRT from llama.cpp OOM) kill the process directly
+ * and bypass Java's UncaughtExceptionHandler. To capture those, a native signal
+ * handler (e.g. Google Breakpad) would be needed.
  */
 
 #include <jni.h>
@@ -28,7 +33,13 @@
 
 // ── Global state ────────────────────────────────────────────────────────────
 
-static std::mutex g_mutex;
+// g_model_mutex: protects model load/unload and pointer reads.
+//   Held briefly to copy pointers or swap model state.
+// g_gen_mutex:   serialises generation calls (held for the duration of generate).
+//   Prevents concurrent generation but does NOT block isModelLoaded/tokenCount/etc.
+// Rule: never hold both simultaneously.
+static std::mutex g_model_mutex;
+static std::mutex g_gen_mutex;
 static llama_model *g_model = nullptr;
 static llama_context *g_ctx = nullptr;
 static const llama_vocab *g_vocab = nullptr;
@@ -60,7 +71,7 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeLoadModel(
     jstring modelPath, jint nThreads, jint nGpuLayers, jint contextSize,
     jboolean useMmap, jboolean flashAttn
 ) {
-    std::lock_guard<std::mutex> lock(g_mutex);
+    std::lock_guard<std::mutex> lock(g_model_mutex);
 
     // Unload existing model
     if (g_ctx) { llama_free(g_ctx); g_ctx = nullptr; }
@@ -143,7 +154,7 @@ JNIEXPORT void JNICALL
 Java_com_openclaw_android_llm_LlamaBridge_nativeUnloadModel(
     JNIEnv *env, jobject /* this */
 ) {
-    std::lock_guard<std::mutex> lock(g_mutex);
+    std::lock_guard<std::mutex> lock(g_model_mutex);
     if (g_ctx) { llama_free(g_ctx); g_ctx = nullptr; }
     if (g_model) { llama_model_free(g_model); g_model = nullptr; }
     g_vocab = nullptr;
@@ -154,7 +165,8 @@ JNIEXPORT jboolean JNICALL
 Java_com_openclaw_android_llm_LlamaBridge_nativeIsModelLoaded(
     JNIEnv *env, jobject /* this */
 ) {
-    std::lock_guard<std::mutex> lock(g_mutex);
+    // Brief lock — does not contend with generation
+    std::lock_guard<std::mutex> lock(g_model_mutex);
     return (g_model != nullptr && g_ctx != nullptr) ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -165,11 +177,25 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeGenerate(
     jfloat topP, jint topK, jfloat repeatPenalty,
     jobjectArray jStopSequences, jobject callback
 ) {
-    std::lock_guard<std::mutex> lock(g_mutex);
+    // Snapshot model pointers under model_mutex (brief hold), then release.
+    // Generation itself is serialised by g_gen_mutex but does NOT block
+    // isModelLoaded / getModelInfo / tokenCount etc.
+    llama_model *model;
+    llama_context *ctx;
+    const llama_vocab *vocab;
+    {
+        std::lock_guard<std::mutex> lock(g_model_mutex);
+        model = g_model;
+        ctx = g_ctx;
+        vocab = g_vocab;
+    }
 
-    if (!g_model || !g_ctx || !g_vocab) {
+    if (!model || !ctx || !vocab) {
         return env->NewStringUTF("Error: No model loaded");
     }
+
+    // Only one generation at a time
+    std::lock_guard<std::mutex> gen_lock(g_gen_mutex);
 
     std::string prompt = jstring_to_string(env, jPrompt);
 
@@ -191,11 +217,11 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeGenerate(
 
     // Tokenize prompt
     std::vector<llama_token> tokens(prompt.size() + 128);
-    int n_tokens = llama_tokenize(g_vocab, prompt.c_str(), prompt.size(),
+    int n_tokens = llama_tokenize(vocab, prompt.c_str(), prompt.size(),
                                    tokens.data(), tokens.size(), true, true);
     if (n_tokens < 0) {
         tokens.resize(-n_tokens);
-        n_tokens = llama_tokenize(g_vocab, prompt.c_str(), prompt.size(),
+        n_tokens = llama_tokenize(vocab, prompt.c_str(), prompt.size(),
                                    tokens.data(), tokens.size(), true, true);
     }
     tokens.resize(n_tokens);
@@ -203,7 +229,7 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeGenerate(
     LOGI("Prompt tokens: %d, generating up to %d tokens", n_tokens, maxTokens);
 
     // Clear memory (KV cache) and decode prompt
-    llama_memory_clear(llama_get_memory(g_ctx), true);
+    llama_memory_clear(llama_get_memory(ctx), true);
 
     // Process prompt in batch
     llama_batch batch = llama_batch_init(n_tokens, 0, 1);
@@ -212,7 +238,7 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeGenerate(
     }
     batch.logits[batch.n_tokens - 1] = true;
 
-    if (llama_decode(g_ctx, batch) != 0) {
+    if (llama_decode(ctx, batch) != 0) {
         llama_batch_free(batch);
         return env->NewStringUTF("Error: Failed to process prompt");
     }
@@ -239,20 +265,20 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeGenerate(
     int n_cur = n_tokens;
 
     for (int i = 0; i < maxTokens; i++) {
-        llama_token new_token = llama_sampler_sample(sampler, g_ctx, -1);
+        llama_token new_token = llama_sampler_sample(sampler, ctx, -1);
 
         // Check EOS
-        if (llama_vocab_is_eog(g_vocab, new_token)) {
+        if (llama_vocab_is_eog(vocab, new_token)) {
             break;
         }
 
         // Decode token to text
         char buf[256];
-        int n = llama_token_to_piece(g_vocab, new_token, buf, sizeof(buf), 0, true);
+        int n = llama_token_to_piece(vocab, new_token, buf, sizeof(buf), 0, true);
         std::string piece;
         if (n < 0) {
             std::vector<char> big_buf(-n);
-            llama_token_to_piece(g_vocab, new_token, big_buf.data(), big_buf.size(), 0, true);
+            llama_token_to_piece(vocab, new_token, big_buf.data(), big_buf.size(), 0, true);
             piece.assign(big_buf.data(), big_buf.size());
         } else {
             piece.assign(buf, n);
@@ -288,7 +314,7 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeGenerate(
         common_batch_add(next_batch, new_token, n_cur, {0}, true);
         n_cur++;
 
-        if (llama_decode(g_ctx, next_batch) != 0) {
+        if (llama_decode(ctx, next_batch) != 0) {
             LOGE("Decode failed at position %d", n_cur);
             break;
         }
@@ -305,7 +331,7 @@ JNIEXPORT jstring JNICALL
 Java_com_openclaw_android_llm_LlamaBridge_nativeGetModelInfo(
     JNIEnv *env, jobject /* this */
 ) {
-    std::lock_guard<std::mutex> lock(g_mutex);
+    std::lock_guard<std::mutex> lock(g_model_mutex);
     if (!g_model) return env->NewStringUTF("No model loaded");
 
     std::string info = "Model loaded";
@@ -317,7 +343,7 @@ JNIEXPORT jint JNICALL
 Java_com_openclaw_android_llm_LlamaBridge_nativeGetContextLength(
     JNIEnv *env, jobject /* this */
 ) {
-    std::lock_guard<std::mutex> lock(g_mutex);
+    std::lock_guard<std::mutex> lock(g_model_mutex);
     if (!g_ctx) return 0;
     return (jint)llama_n_ctx(g_ctx);
 }
@@ -327,7 +353,7 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeTokenCount(
     JNIEnv *env, jobject /* this */,
     jstring jText
 ) {
-    std::lock_guard<std::mutex> lock(g_mutex);
+    std::lock_guard<std::mutex> lock(g_model_mutex);
     if (!g_vocab) return 0;
     std::string text = jstring_to_string(env, jText);
 

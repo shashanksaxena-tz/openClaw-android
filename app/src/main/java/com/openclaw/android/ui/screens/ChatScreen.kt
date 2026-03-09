@@ -181,7 +181,8 @@ fun ChatScreen(
         pendingMedia = pendingMedia + newMedia
     }
 
-    // Consolidate stream chunks into single events
+    // Consolidate stream chunks into a single accumulated chunk per stream.
+    // Uses remember(events) — only recalculates when events list reference changes.
     val displayEvents = remember(events) {
         val filtered = mutableListOf<AgentEvent>()
         val streamAccumulator = StringBuilder()
@@ -680,7 +681,7 @@ private fun WelcomeHero(
                 style = MaterialTheme.typography.headlineMedium.copy(
                     fontWeight = FontWeight.Bold,
                 ),
-                color = Color(0xFF1C1C1E),
+                color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
             )
 
@@ -689,7 +690,7 @@ private fun WelcomeHero(
             Text(
                 text = "Your personal AI assistant running on-device and in the cloud. Ask anything.",
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color(0xFF3C3C43),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 8.dp),
                 textAlign = TextAlign.Center,
             )

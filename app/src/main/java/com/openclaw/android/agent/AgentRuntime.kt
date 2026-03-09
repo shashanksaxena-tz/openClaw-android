@@ -173,6 +173,7 @@ class AgentRuntime(
                     var error: Exception? = null
 
                     val streamBuffer = StringBuilder()
+                    val chunkBatch = StringBuilder()
                     val lastEmitTime = AtomicLong(System.currentTimeMillis())
                     emit(AgentEvent.StreamStart)
 
@@ -181,12 +182,15 @@ class AgentRuntime(
                         onChunk = { chunk ->
                             if (_isCancelled) return@chatCompletion
                             streamBuffer.append(chunk)
-                            // Throttle UI updates: emit at most every 50ms to prevent
-                            // OOM from rapid token-by-token emissions (local models)
+                            chunkBatch.append(chunk)
+                            // Throttle UI updates: batch chunks and emit at most every 50ms
+                            // to prevent OOM from rapid token-by-token emissions (local models).
+                            // Emits the accumulated batch so no tokens are lost from streaming display.
                             val now = System.currentTimeMillis()
                             if (now - lastEmitTime.get() >= 50 || chunk.contains("\n")) {
                                 lastEmitTime.set(now)
-                                emit(AgentEvent.StreamChunk(chunk))
+                                emit(AgentEvent.StreamChunk(chunkBatch.toString()))
+                                chunkBatch.setLength(0)
                             }
                         },
                         onToolCall = { /* collected in onDone */ },
@@ -198,6 +202,11 @@ class AgentRuntime(
                         onError = { e -> error = e },
                     )
 
+                    // Flush any remaining batched chunks
+                    if (chunkBatch.isNotEmpty()) {
+                        emit(AgentEvent.StreamChunk(chunkBatch.toString()))
+                        chunkBatch.setLength(0)
+                    }
                     emit(AgentEvent.StreamEnd)
 
                     if (_isCancelled) {

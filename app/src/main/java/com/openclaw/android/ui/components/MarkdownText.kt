@@ -242,6 +242,15 @@ private fun MermaidDiagram(
                 settings.javaScriptEnabled = true
                 settings.loadWithOverviewMode = true
                 settings.useWideViewPort = true
+                // Security: restrict WebView to prevent XSS from crafted mermaid blocks
+                settings.allowFileAccess = false
+                settings.allowContentAccess = false
+                settings.domStorageEnabled = false
+                settings.databaseEnabled = false
+                @Suppress("DEPRECATION")
+                settings.allowFileAccessFromFileURLs = false
+                @Suppress("DEPRECATION")
+                settings.allowUniversalAccessFromFileURLs = false
                 setBackgroundColor(bgColor.toArgb())
                 webViewClient = WebViewClient()
                 loadDataWithBaseURL("https://cdn.jsdelivr.net", html, "text/html", "UTF-8", null)
@@ -338,6 +347,12 @@ private fun parseMarkdownBlocks(text: String): List<MdBlock> {
     return blocks
 }
 
+private val LINK_REGEX = Regex("\\[([^\\]]+)]\\(([^)]+)\\)")
+private val BARE_URL_REGEX = Regex("(https?://[^\\s)]+)")
+private val BOLD_REGEX = Regex("\\*\\*(.+?)\\*\\*")
+private val ITALIC_REGEX = Regex("\\*(.+?)\\*")
+private val INLINE_CODE_REGEX = Regex("`([^`]+)`")
+
 private fun parseInlineMarkdown(
     text: String,
     baseColor: Color = Color.Unspecified,
@@ -345,11 +360,11 @@ private fun parseInlineMarkdown(
     inlineCodeBg: Color = Color(0xFFF2F2F7),
 ): AnnotatedString {
     return buildAnnotatedString {
-        var remaining = text
-        while (remaining.isNotEmpty()) {
+        var pos = 0
+        while (pos < text.length) {
             // Link: [text](url)
-            val linkMatch = Regex("^\\[([^\\]]+)]\\(([^)]+)\\)").find(remaining)
-            if (linkMatch != null) {
+            val linkMatch = LINK_REGEX.find(text, pos)
+            if (linkMatch != null && linkMatch.range.first == pos) {
                 val linkText = linkMatch.groupValues[1]
                 val url = linkMatch.groupValues[2]
                 pushStringAnnotation(tag = "URL", annotation = url)
@@ -357,46 +372,46 @@ private fun parseInlineMarkdown(
                     append(linkText)
                 }
                 pop()
-                remaining = remaining.substring(linkMatch.range.last + 1)
+                pos = linkMatch.range.last + 1
                 continue
             }
 
             // Bare URL: https://... or http://...
-            val bareUrlMatch = Regex("^(https?://[^\\s)]+)").find(remaining)
-            if (bareUrlMatch != null) {
+            val bareUrlMatch = BARE_URL_REGEX.find(text, pos)
+            if (bareUrlMatch != null && bareUrlMatch.range.first == pos) {
                 val url = bareUrlMatch.groupValues[1]
                 pushStringAnnotation(tag = "URL", annotation = url)
                 withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) {
                     append(url)
                 }
                 pop()
-                remaining = remaining.substring(bareUrlMatch.range.last + 1)
+                pos = bareUrlMatch.range.last + 1
                 continue
             }
 
             // Bold
-            val boldMatch = Regex("^\\*\\*(.+?)\\*\\*").find(remaining)
-            if (boldMatch != null) {
+            val boldMatch = BOLD_REGEX.find(text, pos)
+            if (boldMatch != null && boldMatch.range.first == pos) {
                 withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
                     append(boldMatch.groupValues[1])
                 }
-                remaining = remaining.substring(boldMatch.range.last + 1)
+                pos = boldMatch.range.last + 1
                 continue
             }
 
             // Italic
-            val italicMatch = Regex("^\\*(.+?)\\*").find(remaining)
-            if (italicMatch != null) {
+            val italicMatch = ITALIC_REGEX.find(text, pos)
+            if (italicMatch != null && italicMatch.range.first == pos) {
                 withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
                     append(italicMatch.groupValues[1])
                 }
-                remaining = remaining.substring(italicMatch.range.last + 1)
+                pos = italicMatch.range.last + 1
                 continue
             }
 
             // Inline code
-            val codeMatch = Regex("^`([^`]+)`").find(remaining)
-            if (codeMatch != null) {
+            val codeMatch = INLINE_CODE_REGEX.find(text, pos)
+            if (codeMatch != null && codeMatch.range.first == pos) {
                 withStyle(
                     SpanStyle(
                         fontFamily = FontFamily.Monospace,
@@ -406,13 +421,13 @@ private fun parseInlineMarkdown(
                 ) {
                     append("\u2009${codeMatch.groupValues[1]}\u2009")
                 }
-                remaining = remaining.substring(codeMatch.range.last + 1)
+                pos = codeMatch.range.last + 1
                 continue
             }
 
-            // Regular character
-            append(remaining[0])
-            remaining = remaining.substring(1)
+            // Regular character — advance by index, no substring allocation
+            append(text[pos])
+            pos++
         }
     }
 }
