@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 
 data class PromptSuggestion(
     val text: String,
+    val subtitle: String,
     val icon: ImageVector,
     val prompt: String,
 )
@@ -35,31 +36,37 @@ data class PromptSuggestion(
 val defaultSuggestions = listOf(
     PromptSuggestion(
         text = "Plan",
+        subtitle = "a trip to Paris",
         icon = Icons.Default.WbSunny,
-        prompt = "Give me my daily briefing",
+        prompt = "Help me plan a trip to Paris",
     ),
     PromptSuggestion(
         text = "Explain",
+        subtitle = "a complex topic simply",
         icon = Icons.Default.AutoAwesome,
         prompt = "Explain a complex topic simply: ",
     ),
     PromptSuggestion(
         text = "Design",
+        subtitle = "a workout routine",
         icon = Icons.Default.Palette,
-        prompt = "Help me design ",
+        prompt = "Help me design a workout routine",
     ),
     PromptSuggestion(
         text = "Write",
+        subtitle = "a professional email",
         icon = Icons.Default.EditNote,
-        prompt = "Help me write ",
+        prompt = "Help me write a professional email",
     ),
     PromptSuggestion(
         text = "Organize",
+        subtitle = "my tasks for today",
         icon = Icons.Default.CheckCircle,
         prompt = "Help me organize my tasks for today",
     ),
     PromptSuggestion(
         text = "Research",
+        subtitle = "the latest news on",
         icon = Icons.Default.TravelExplore,
         prompt = "Search the web for ",
     ),
@@ -130,7 +137,7 @@ private fun SuggestionChipCard(
         )
         Spacer(Modifier.height(2.dp))
         Text(
-            text = suggestion.prompt.take(30).trimEnd(),
+            text = suggestion.subtitle,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,

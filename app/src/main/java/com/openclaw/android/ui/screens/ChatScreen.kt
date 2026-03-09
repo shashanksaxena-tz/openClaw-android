@@ -38,7 +38,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openclaw.android.agent.AgentEvent
@@ -268,6 +271,16 @@ fun ChatScreen(
         return
     }
 
+    // Scroll state for scroll-to-bottom indicator
+    val showScrollToBottom by remember {
+        derivedStateOf {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val totalItems = listState.layoutInfo.totalItemsCount
+            totalItems > 0 && lastVisible < totalItems - 2
+        }
+    }
+    val isEmpty = displayEvents.isEmpty()
+
     // ── Main Layout ─────────────────────────────────────────────────────────
     Scaffold(
         snackbarHost = {
@@ -316,46 +329,91 @@ fun ChatScreen(
                 }
 
                 // ── Messages List ─────────────────────────────────────────
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    state = listState,
-                    contentPadding = PaddingValues(vertical = 12.dp),
-                ) {
-                    if (displayEvents.isEmpty()) {
-                        item {
-                            WelcomeEmptyState(
-                                modelName = runtime.activeModelName ?: "OpenClaw",
-                                onSuggestionClick = { prompt -> inputText = prompt },
+                Box(modifier = Modifier.weight(1f)) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        state = listState,
+                        contentPadding = PaddingValues(vertical = 12.dp),
+                    ) {
+                        if (isEmpty) {
+                            item {
+                                WelcomeHero(
+                                    modelName = runtime.activeModelName ?: "OpenClaw",
+                                )
+                            }
+                        }
+                        itemsIndexed(
+                            items = displayEvents,
+                            key = { index, event ->
+                                when (event) {
+                                    is AgentEvent.UserMessage -> "user-$index"
+                                    is AgentEvent.AssistantMessage -> "assistant-$index"
+                                    is AgentEvent.ToolCallStart -> "tool-start-$index"
+                                    is AgentEvent.ToolCallResult -> "tool-result-$index"
+                                    is AgentEvent.StreamChunk -> "stream-$index"
+                                    is AgentEvent.ModelSelected -> "model-$index"
+                                    is AgentEvent.Escalation -> "escalation-$index"
+                                    is AgentEvent.Error -> "error-$index"
+                                    else -> "event-$index"
+                                }
+                            },
+                        ) { _, event ->
+                            MessageBubble(
+                                event = event,
+                                onRetry = if (event is AgentEvent.Error) {
+                                    { scope.launch { runtime.retryLastMessage() } }
+                                } else null,
+                            )
+                        }
+
+                        if (isRunning) {
+                            item { ThinkingIndicator() }
+                        }
+                    }
+
+                    // ── Scroll-to-bottom indicator ────────────────────────
+                    AnimatedVisibility(
+                        visible = showScrollToBottom,
+                        enter = fadeIn() + scaleIn(initialScale = 0.8f),
+                        exit = fadeOut() + scaleOut(targetScale = 0.8f),
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 8.dp),
+                    ) {
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+                                    val lastIndex = maxOf(0, listState.layoutInfo.totalItemsCount - 1)
+                                    listState.animateScrollToItem(lastIndex)
+                                }
+                            },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                ),
+                        ) {
+                            Icon(
+                                Icons.Default.KeyboardArrowDown,
+                                contentDescription = "Scroll to bottom",
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.onSurface,
                             )
                         }
                     }
-                    itemsIndexed(
-                        items = displayEvents,
-                        key = { index, event ->
-                            when (event) {
-                                is AgentEvent.UserMessage -> "user-$index"
-                                is AgentEvent.AssistantMessage -> "assistant-$index"
-                                is AgentEvent.ToolCallStart -> "tool-start-$index"
-                                is AgentEvent.ToolCallResult -> "tool-result-$index"
-                                is AgentEvent.StreamChunk -> "stream-$index"
-                                is AgentEvent.ModelSelected -> "model-$index"
-                                is AgentEvent.Escalation -> "escalation-$index"
-                                is AgentEvent.Error -> "error-$index"
-                                else -> "event-$index"
-                            }
-                        },
-                    ) { _, event ->
-                        MessageBubble(
-                            event = event,
-                            onRetry = if (event is AgentEvent.Error) {
-                                { scope.launch { runtime.retryLastMessage() } }
-                            } else null,
-                        )
-                    }
+                }
 
-                    if (isRunning) {
-                        item { ThinkingIndicator() }
-                    }
+                // ── Suggested Prompts (bottom, only when empty) ───────────
+                AnimatedVisibility(
+                    visible = isEmpty,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
+                    SuggestedPrompts(
+                        onSuggestionClick = { prompt -> inputText = prompt },
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
                 }
 
                 // ── Pending Media Preview ─────────────────────────────────
@@ -521,8 +579,15 @@ private fun CleanTopBar(
                 }
             }
 
-            // Center: Model name + chevron
-            val currentModelName = runtime.activeModelName ?: "Auto"
+            // Center: Model name + size badge + chevron
+            val fullModelName = runtime.activeModelName ?: "Auto"
+            val sizePattern = Regex("\\b(\\d+\\.?\\d*[BbMm]|E\\d+[BbMm])\\b")
+            val sizeMatch = sizePattern.find(fullModelName)
+            val displayName = if (sizeMatch != null) {
+                fullModelName.substring(0, sizeMatch.range.first).trimEnd()
+            } else fullModelName
+            val sizeBadge = sizeMatch?.value
+
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -535,7 +600,18 @@ private fun CleanTopBar(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = currentModelName,
+                    text = buildAnnotatedString {
+                        append(displayName)
+                        if (sizeBadge != null) {
+                            append(" ")
+                            withStyle(SpanStyle(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Normal,
+                            )) {
+                                append(sizeBadge)
+                            }
+                        }
+                    },
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontWeight = FontWeight.SemiBold,
                     ),
@@ -551,12 +627,12 @@ private fun CleanTopBar(
                 )
             }
 
-            // Right: New conversation
+            // Right: New conversation (compose icon)
             IconButton(onClick = onNewConversation, modifier = Modifier.size(40.dp)) {
                 Icon(
-                    Icons.Default.EditNote, contentDescription = "New conversation",
+                    Icons.Default.Edit, contentDescription = "New conversation",
                     tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
@@ -565,41 +641,51 @@ private fun CleanTopBar(
 
 
 // ════════════════════════════════════════════════════════════════════════════════
-// ── Welcome Empty State ──────────────────────────────────────────────────────
+// ── Welcome Hero (gradient background + model name) ─────────────────────────
 // ════════════════════════════════════════════════════════════════════════════════
 
 @Composable
-private fun WelcomeEmptyState(
+private fun WelcomeHero(
     modelName: String,
-    onSuggestionClick: (String) -> Unit,
 ) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 80.dp, start = 32.dp, end = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .padding(horizontal = 24.dp, vertical = 40.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                    colors = listOf(
+                        com.openclaw.android.ui.theme.WelcomeGradientStart,
+                        com.openclaw.android.ui.theme.WelcomeGradientEnd,
+                    ),
+                ),
+            )
+            .padding(horizontal = 32.dp, vertical = 48.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = "Meet OpenClaw",
-            style = MaterialTheme.typography.displayMedium.copy(
-                fontWeight = FontWeight.Bold,
-            ),
-            color = MaterialTheme.colorScheme.onBackground,
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "Meet $modelName",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                ),
+                color = Color(0xFF1C1C1E),
+                textAlign = TextAlign.Center,
+            )
 
-        Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(12.dp))
 
-        Text(
-            text = "Your personal AI assistant running on-device and in the cloud. Ask anything.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp),
-            textAlign = TextAlign.Center,
-        )
-
-        Spacer(Modifier.height(32.dp))
-
-        SuggestedPrompts(onSuggestionClick = onSuggestionClick)
+            Text(
+                text = "Your personal AI assistant running on-device and in the cloud. Ask anything.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color(0xFF3C3C43),
+                modifier = Modifier.padding(horizontal = 8.dp),
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 

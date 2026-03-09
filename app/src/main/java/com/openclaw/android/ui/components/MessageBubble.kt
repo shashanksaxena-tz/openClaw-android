@@ -137,6 +137,7 @@ private fun UserBubble(event: AgentEvent.UserMessage, modifier: Modifier) {
 
 // ── 2. Assistant Bubble ────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AssistantBubble(text: String, modifier: Modifier) {
     val context = LocalContext.current
@@ -145,6 +146,10 @@ private fun AssistantBubble(text: String, modifier: Modifier) {
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
+            .combinedClickable(
+                onClick = {},
+                onLongClick = { if (text.isNotBlank()) copyToClipboard(context, text) },
+            )
             .animateContentSize(
                 animationSpec = spring(dampingRatio = 0.9f, stiffness = 380f),
             ),
@@ -153,25 +158,6 @@ private fun AssistantBubble(text: String, modifier: Modifier) {
             markdown = text,
             color = MaterialTheme.colorScheme.onSurface,
         )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
-            horizontalArrangement = Arrangement.Start,
-        ) {
-            IconButton(
-                onClick = { copyToClipboard(context, text) },
-                modifier = Modifier.size(28.dp),
-            ) {
-                Icon(
-                    Icons.Default.ContentCopy,
-                    contentDescription = "Copy message",
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                )
-            }
-        }
     }
 }
 
