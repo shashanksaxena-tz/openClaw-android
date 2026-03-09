@@ -104,7 +104,7 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeLoadModel(
     ctx_params.n_ctx = contextSize;
     ctx_params.n_threads = nThreads > 0 ? nThreads : 4;
     ctx_params.n_threads_batch = ctx_params.n_threads;
-    ctx_params.flash_attn = flashAttn;
+    ctx_params.flash_attn_type = flashAttn ? LLAMA_FLASH_ATTN_TYPE_ENABLED : LLAMA_FLASH_ATTN_TYPE_DISABLED;
     ctx_params.type_k = GGML_TYPE_F16;
     ctx_params.type_v = GGML_TYPE_F16;
 
