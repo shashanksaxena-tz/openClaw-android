@@ -30,7 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 
-// Design system colors (ElectricViolet, NeonCyan from ClayCard.kt)
+private val ElectricViolet = Color(0xFFA855F7)
+private val NeonCyan = Color(0xFF22D3EE)
 private val RemoveGradientStart = Color(0xFFEF4444)
 private val RemoveGradientEnd = Color(0xFFDC2626)
 private val GlassBorder = Color.White.copy(alpha = 0.08f)
