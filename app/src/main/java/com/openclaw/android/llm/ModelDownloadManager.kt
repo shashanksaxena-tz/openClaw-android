@@ -148,11 +148,12 @@ class ModelDownloadManager(private val context: Context) {
         return file.exists() && file.length() >= model.sizeBytes * 0.95
     }
 
-    /** Get the file path of a downloaded model. */
+    /** Get the file path of a downloaded model (only returns complete downloads). */
     fun getModelPath(modelId: String): String? {
         val model = availableModels.find { it.id == modelId } ?: return null
         val file = File(modelsDir, model.fileName)
-        return if (file.exists() && file.length() > 0) file.absolutePath else null
+        // Only return path for complete downloads — loading a partial GGUF crashes native code
+        return if (file.exists() && file.length() >= model.sizeBytes * 0.95) file.absolutePath else null
     }
 
     /** Download a model with progress updates. Supports resume. */

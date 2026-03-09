@@ -260,10 +260,30 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
             return "No local model loaded. Download a model in Settings."
         }
 
+        // Validate GGUF magic number to catch corrupted/incomplete downloads
+        // before native code crashes trying to parse them
+        val modelFile = java.io.File(modelPath)
+        if (!modelFile.exists() || modelFile.length() < 8) {
+            return "Model file is missing or empty. Try re-downloading the model in Settings."
+        }
+        try {
+            val magic = java.io.RandomAccessFile(modelFile, "r").use { raf ->
+                val bytes = ByteArray(4)
+                raf.read(bytes)
+                String(bytes)
+            }
+            if (magic != "GGUF") {
+                Log.e(TAG, "Invalid GGUF magic: '$magic' in $modelPath")
+                return "Model file appears corrupted (invalid format). Delete it in Settings and re-download."
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Cannot read model file header", e)
+            return "Cannot read model file. It may be corrupted — try re-downloading."
+        }
+
         // Check available memory before attempting load — prevent native OOM crash
         val availableMemMb = LlamaBridge.getAvailableMemoryMb()
-        val modelFile = java.io.File(modelPath)
-        val modelSizeMb = if (modelFile.exists()) modelFile.length() / (1024 * 1024) else 0L
+        val modelSizeMb = modelFile.length() / (1024 * 1024)
         Log.i(TAG, "Available memory: ${availableMemMb}MB, model size: ${modelSizeMb}MB, path: $modelPath")
 
         // Model loading typically requires ~1.2x the file size in RAM (model weights + context buffers).
