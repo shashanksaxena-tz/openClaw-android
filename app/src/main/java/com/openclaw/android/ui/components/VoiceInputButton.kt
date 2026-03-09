@@ -136,14 +136,15 @@ fun VoiceInputButton(
                             micPermission.launchPermissionRequest()
                             return@detectTapGestures
                         }
-                        if (speechRecognizer != null) {
+                        val recognizer = speechRecognizer
+                        if (recognizer != null) {
                             isListening = true
                             onListeningChanged(true)
                             partialResult = ""
-                            speechRecognizer.startListening(recognizerIntent)
+                            recognizer.startListening(recognizerIntent)
                             tryAwaitRelease()
                             if (isListening) {
-                                speechRecognizer.stopListening()
+                                recognizer.stopListening()
                             }
                         }
                     },

@@ -32,6 +32,7 @@ import com.openclaw.android.agent.AgentEvent
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 // Semantic colors that don't change with theme
 private val Emerald = Color(0xFF34C759)
+private val ErrorRed = Color(0xFFEF4444)
 private val EscalationAmber = Color(0xFFFF9F0A)
 
 private val UserBubbleShape = RoundedCornerShape(20.dp)
