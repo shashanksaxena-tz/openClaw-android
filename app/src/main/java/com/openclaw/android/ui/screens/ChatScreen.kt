@@ -372,14 +372,7 @@ fun ChatScreen(
                     }
 
                     // ── Scroll-to-bottom indicator ────────────────────────
-                    AnimatedVisibility(
-                        visible = showScrollToBottom,
-                        enter = fadeIn() + scaleIn(initialScale = 0.8f),
-                        exit = fadeOut() + scaleOut(targetScale = 0.8f),
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 8.dp),
-                    ) {
+                    if (showScrollToBottom) {
                         IconButton(
                             onClick = {
                                 scope.launch {
@@ -388,6 +381,8 @@ fun ChatScreen(
                                 }
                             },
                             modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 8.dp)
                                 .size(36.dp)
                                 .clip(CircleShape)
                                 .background(
