@@ -9,29 +9,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.rounded.Apps
-import androidx.compose.material.icons.rounded.Chat
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.EditNote
-import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,27 +24,8 @@ import com.openclaw.android.ui.theme.OpenClawTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-// ── Design tokens ──────────────────────────────────────────────────────────────
-private val TrueBlack = Color(0xFF050508)
-private val ElectricViolet = Color(0xFFA855F7)
-private val NeonCyan = Color(0xFF22D3EE)
-
 // ── State machine ──────────────────────────────────────────────────────────────
 private enum class AppScreen { SPLASH, ONBOARDING, MAIN }
-
-// ── Tab definition ─────────────────────────────────────────────────────────────
-private data class TabItem(val label: String, val icon: ImageVector)
-
-private val tabs = listOf(
-    TabItem("Home", Icons.Rounded.Home),
-    TabItem("Tasks", Icons.Rounded.CheckCircle),
-    TabItem("Notes", Icons.Rounded.EditNote),
-    TabItem("Chat", Icons.Rounded.Chat),
-    TabItem("More", Icons.Rounded.Apps),
-)
-
-// Tabs where the bottom nav should be hidden (chat is immersive like the reference design)
-private val immersiveTabs = setOf(3) // Chat tab
 
 // ════════════════════════════════════════════════════════════════════════════════
 //  Activity
@@ -90,10 +55,6 @@ class MainActivity : ComponentActivity() {
 private fun MainApp(app: OpenClawApp) {
     var currentScreen by remember { mutableStateOf(AppScreen.SPLASH) }
 
-    // ── Runtime permission bridge ────────────────────────────────────────────
-    // Observes permission requests from tools (via PermissionManager) and shows
-    // the system permission dialog. The result is sent back so the suspended
-    // tool coroutine can continue.
     var pendingRequest by remember { mutableStateOf<PermissionManager.PermissionRequest?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -116,8 +77,8 @@ private fun MainApp(app: OpenClawApp) {
         targetState = currentScreen,
         label = "screen-transition",
         transitionSpec = {
-            fadeIn(animationSpec = tween(500)) togetherWith
-                    fadeOut(animationSpec = tween(400))
+            fadeIn(animationSpec = tween(400)) togetherWith
+                    fadeOut(animationSpec = tween(300))
         },
     ) { screen ->
         when (screen) {
@@ -150,114 +111,54 @@ private fun MainApp(app: OpenClawApp) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
-//  Splash screen
+//  Splash screen — clean, minimal
 // ════════════════════════════════════════════════════════════════════════════════
 
 @Composable
 private fun SplashScreen(onFinished: () -> Unit) {
-    // Animate logo entrance
-    val infiniteTransition = rememberInfiniteTransition(label = "splash-glow")
-    val glowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 0.8f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = EaseInOutCubic),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "glow-alpha",
-    )
-
     val logoAlpha by animateFloatAsState(
         targetValue = 1f,
-        animationSpec = tween(800, easing = EaseOutCubic),
+        animationSpec = tween(600, easing = EaseOutCubic),
         label = "logo-alpha",
     )
 
-    val logoScale by animateFloatAsState(
-        targetValue = 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "logo-scale",
-    )
-
     LaunchedEffect(Unit) {
-        delay(2000)
+        delay(1500)
         onFinished()
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(TrueBlack),
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center,
     ) {
-        // Radial glow behind logo
-        Box(
-            modifier = Modifier
-                .size(220.dp)
-                .graphicsLayer { alpha = glowAlpha }
-                .background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            ElectricViolet.copy(alpha = 0.35f),
-                            NeonCyan.copy(alpha = 0.10f),
-                            Color.Transparent,
-                        ),
-                    ),
-                    shape = RoundedCornerShape(50),
-                ),
-        )
-
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.graphicsLayer {
-                alpha = logoAlpha
-                scaleX = logoScale
-                scaleY = logoScale
-            },
+            modifier = Modifier.graphicsLayer { alpha = logoAlpha },
         ) {
-            // App icon placeholder — electric violet claw mark
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(ElectricViolet, NeonCyan),
-                        ),
-                        shape = RoundedCornerShape(20.dp),
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "{ }",
-                    color = TrueBlack,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Black,
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
             Text(
                 text = "OpenClaw",
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
+                letterSpacing = (-0.5).sp,
             )
 
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
                 text = "AI on your terms",
-                color = NeonCyan.copy(alpha = 0.7f),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Normal,
             )
         }
     }
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
-//  Main content — drawer + scaffold + glass bottom nav
+//  Main content — chat-first, fullscreen with drawer
 // ════════════════════════════════════════════════════════════════════════════════
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -265,7 +166,10 @@ private fun SplashScreen(onFinished: () -> Unit) {
 private fun MainContent(app: OpenClawApp) {
     val scope = rememberCoroutineScope()
 
-    var currentTab by remember { mutableIntStateOf(0) }
+    // currentTab: 0=Dashboard, 1=Tasks, 2=Notes, 3=Chat, 4=Discover,
+    // 5=Settings, 6=Calendar, 7=Travel, 8=Insights, 9=Briefing,
+    // 10=Team, 11=Files, 12=Voice, 13=Habits, 14=Decisions, 15=Memory, 16=Reminders
+    var currentTab by remember { mutableIntStateOf(3) } // Start on Chat
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val conversations by app.conversationManager.allConversations.collectAsState(initial = emptyList())
 
@@ -274,8 +178,7 @@ private fun MainContent(app: OpenClawApp) {
         drawerContent = {
             ModalDrawerSheet(
                 drawerContainerColor = MaterialTheme.colorScheme.surface,
-                drawerTonalElevation = 1.dp,
-                drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp),
+                drawerTonalElevation = 0.dp,
             ) {
                 ConversationHistoryPanel(
                     conversations = conversations,
@@ -309,326 +212,168 @@ private fun MainContent(app: OpenClawApp) {
             }
         },
     ) {
-        Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
-            bottomBar = {
-                // Hide bottom nav in immersive tabs (Chat) to match reference design
-                AnimatedVisibility(
-                    visible = currentTab !in immersiveTabs,
-                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(tween(200)),
-                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(tween(200)),
-                ) {
-                    GlassNavigationBar(
-                        currentTab = currentTab,
-                        onTabSelected = { currentTab = it },
-                    )
-                }
+        // No bottom bar — fullscreen content
+        AnimatedContent(
+            targetState = currentTab,
+            label = "tab-content",
+            transitionSpec = {
+                fadeIn(tween(250)) togetherWith fadeOut(tween(200))
             },
-        ) { padding ->
-            AnimatedContent(
-                targetState = currentTab,
-                label = "tab-content",
-                transitionSpec = {
-                    val direction = if (targetState > initialState) {
-                        AnimatedContentTransitionScope.SlideDirection.Start
-                    } else {
-                        AnimatedContentTransitionScope.SlideDirection.End
-                    }
-                    slideIntoContainer(direction, tween(350, easing = EaseOutCubic)) + fadeIn(tween(250)) togetherWith
-                            slideOutOfContainer(direction, tween(350, easing = EaseInCubic)) + fadeOut(tween(200))
-                },
-            ) { tab ->
-                when (tab) {
-                    0 -> DashboardScreen(
-                        modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 3 },
-                        onNavigateToTasks = { currentTab = 1 },
-                        onNavigateToNotes = { currentTab = 2 },
-                        onNavigateToTeam = { currentTab = 10 },
-                        onNavigateToSettings = { currentTab = 5 },
-                        onNavigateToCalendar = { currentTab = 6 },
-                        onNavigateToTravel = { currentTab = 7 },
-                        onNavigateToInsights = { currentTab = 8 },
-                        onNavigateToBriefing = { currentTab = 9 },
-                        onNavigateToHabits = { currentTab = 13 },
-                        onNavigateToReminders = { currentTab = 16 },
-                        onNavigateToMemory = { currentTab = 15 },
-                        onNavigateToVoice = { currentTab = 12 },
-                        onNavigateToFiles = { currentTab = 11 },
-                    )
+        ) { tab ->
+            when (tab) {
+                0 -> DashboardScreen(
+                    modifier = Modifier,
+                    onNavigateToChat = { currentTab = 3 },
+                    onNavigateToTasks = { currentTab = 1 },
+                    onNavigateToNotes = { currentTab = 2 },
+                    onNavigateToTeam = { currentTab = 10 },
+                    onNavigateToSettings = { currentTab = 5 },
+                    onNavigateToCalendar = { currentTab = 6 },
+                    onNavigateToTravel = { currentTab = 7 },
+                    onNavigateToInsights = { currentTab = 8 },
+                    onNavigateToBriefing = { currentTab = 9 },
+                    onNavigateToHabits = { currentTab = 13 },
+                    onNavigateToReminders = { currentTab = 16 },
+                    onNavigateToMemory = { currentTab = 15 },
+                    onNavigateToVoice = { currentTab = 12 },
+                    onNavigateToFiles = { currentTab = 11 },
+                )
 
-                    1 -> TasksScreen(
-                        modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 3 },
-                    )
+                1 -> TasksScreen(
+                    modifier = Modifier,
+                    onNavigateToChat = { currentTab = 3 },
+                )
 
-                    2 -> NotesScreen(
-                        modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 3 },
-                    )
+                2 -> NotesScreen(
+                    modifier = Modifier,
+                    onNavigateToChat = { currentTab = 3 },
+                )
 
-                    3 -> ChatScreen(
-                        runtime = app.agentRuntime,
-                        onNavigateToSettings = { currentTab = 5 },
-                        modifier = Modifier.padding(padding),
-                        onOpenDrawer = { scope.launch { drawerState.open() } },
-                        modelRouter = app.modelRouter,
-                        onExportChat = { filename ->
-                            try {
-                                val text = app.conversationManager.getConversationAsText()
-                                if (text.isNotBlank()) {
-                                    val file = app.sandboxedFileSystem.resolve(filename).getOrNull()
-                                    if (file != null) {
-                                        file.parentFile?.mkdirs()
-                                        val content = buildString {
-                                            appendLine("# Conversation Export")
-                                            appendLine("_Exported on ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}_")
-                                            appendLine()
-                                            appendLine("---")
-                                            appendLine()
-                                            append(text)
-                                        }
-                                        file.writeText(content)
-                                        true
-                                    } else false
+                3 -> ChatScreen(
+                    runtime = app.agentRuntime,
+                    onNavigateToSettings = { currentTab = 5 },
+                    modifier = Modifier,
+                    onOpenDrawer = { scope.launch { drawerState.open() } },
+                    modelRouter = app.modelRouter,
+                    onNavigateToDashboard = { currentTab = 0 },
+                    onExportChat = { filename ->
+                        try {
+                            val text = app.conversationManager.getConversationAsText()
+                            if (text.isNotBlank()) {
+                                val file = app.sandboxedFileSystem.resolve(filename).getOrNull()
+                                if (file != null) {
+                                    file.parentFile?.mkdirs()
+                                    val content = buildString {
+                                        appendLine("# Conversation Export")
+                                        appendLine("_Exported on ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}_")
+                                        appendLine()
+                                        appendLine("---")
+                                        appendLine()
+                                        append(text)
+                                    }
+                                    file.writeText(content)
+                                    true
                                 } else false
-                            } catch (_: Exception) { false }
-                        },
-                    )
-
-                    4 -> DiscoverScreen(
-                        modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 3 },
-                        onNavigateToTasks = { currentTab = 1 },
-                        onNavigateToNotes = { currentTab = 2 },
-                        onNavigateToTeam = { currentTab = 10 },
-                        onNavigateToCalendar = { currentTab = 6 },
-                        onNavigateToTravel = { currentTab = 7 },
-                        onNavigateToInsights = { currentTab = 8 },
-                        onNavigateToBriefing = { currentTab = 9 },
-                        onNavigateToSettings = { currentTab = 5 },
-                        onNavigateToFiles = { currentTab = 11 },
-                        onNavigateToVoice = { currentTab = 12 },
-                        onNavigateToHabits = { currentTab = 13 },
-                        onNavigateToDecisions = { currentTab = 14 },
-                        onNavigateToMemory = { currentTab = 15 },
-                        onNavigateToReminders = { currentTab = 16 },
-                    )
-
-                    5 -> SettingsScreen(
-                        settings = app.settings,
-                        modelRouter = app.modelRouter,
-                        spaceManager = app.spaceManager,
-                        agentRuntime = app.agentRuntime,
-                        conversationExpiry = app.conversationExpiry,
-                        privacyAudit = app.privacyAudit,
-                        onBack = { currentTab = 0 },
-                        modifier = Modifier.padding(padding),
-                        onNavigateToFiles = { currentTab = 11 },
-                    )
-
-                    6 -> CalendarScreen(
-                        modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 3 },
-                    )
-
-                    7 -> TravelScreen(
-                        modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 3 },
-                    )
-
-                    8 -> InsightsScreen(
-                        modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 3 },
-                    )
-
-                    9 -> BriefingScreen(
-                        modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 3 },
-                        onNavigateToTasks = { currentTab = 1 },
-                        onNavigateToCalendar = { currentTab = 6 },
-                        onBack = { currentTab = 0 },
-                    )
-
-                    10 -> TeamScreen(
-                        modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 3 },
-                    )
-
-                    11 -> FileBrowserScreen(
-                        fs = app.sandboxedFileSystem,
-                        modifier = Modifier.padding(padding),
-                        activeSpaceName = app.agentRuntime.activeSpaceName,
-                    )
-
-                    12 -> VoiceConversationScreen(
-                        runtime = app.agentRuntime,
-                        onDismiss = { currentTab = 3 },
-                        modifier = Modifier.padding(padding),
-                    )
-
-                    13 -> HabitsScreen(
-                        modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 3 },
-                        onBack = { currentTab = 0 },
-                    )
-
-                    14 -> DecisionScreen(
-                        modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 3 },
-                        onBack = { currentTab = 0 },
-                    )
-
-                    15 -> MemoryScreen(
-                        memorySystem = app.memorySystem,
-                        modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 3 },
-                    )
-
-                    16 -> RemindersScreen(
-                        modifier = Modifier.padding(padding),
-                        onNavigateToChat = { currentTab = 3 },
-                        onBack = { currentTab = 0 },
-                    )
-                }
-            }
-        }
-    }
-}
-
-// ════════════════════════════════════════════════════════════════════════════════
-//  Glass-morphism bottom navigation bar
-// ════════════════════════════════════════════════════════════════════════════════
-
-@Composable
-private fun GlassNavigationBar(
-    currentTab: Int,
-    onTabSelected: (Int) -> Unit,
-) {
-    val indicatorOffset by animateFloatAsState(
-        targetValue = currentTab.toFloat(),
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessMediumLow,
-        ),
-        label = "indicator-offset",
-    )
-
-    val navBarBg = MaterialTheme.colorScheme.surface
-    val navBarBorder = MaterialTheme.colorScheme.outlineVariant
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .drawBehind {
-                // Top divider
-                drawRect(
-                    color = navBarBorder,
-                    topLeft = Offset.Zero,
-                    size = Size(size.width, 0.5.dp.toPx()),
+                            } else false
+                        } catch (_: Exception) { false }
+                    },
                 )
-            }
-            .background(navBarBg)
-            .navigationBarsPadding(),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(72.dp)
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            tabs.forEachIndexed { index, tab ->
-                GlassNavItem(
-                    tab = tab,
-                    isSelected = currentTab == index,
-                    indicatorProgress = (1f - (indicatorOffset - index).coerceIn(-1f, 1f).let { kotlin.math.abs(it) }),
-                    onClick = { onTabSelected(index) },
-                    modifier = Modifier.weight(1f),
+
+                4 -> DiscoverScreen(
+                    modifier = Modifier,
+                    onNavigateToChat = { currentTab = 3 },
+                    onNavigateToTasks = { currentTab = 1 },
+                    onNavigateToNotes = { currentTab = 2 },
+                    onNavigateToTeam = { currentTab = 10 },
+                    onNavigateToCalendar = { currentTab = 6 },
+                    onNavigateToTravel = { currentTab = 7 },
+                    onNavigateToInsights = { currentTab = 8 },
+                    onNavigateToBriefing = { currentTab = 9 },
+                    onNavigateToSettings = { currentTab = 5 },
+                    onNavigateToFiles = { currentTab = 11 },
+                    onNavigateToVoice = { currentTab = 12 },
+                    onNavigateToHabits = { currentTab = 13 },
+                    onNavigateToDecisions = { currentTab = 14 },
+                    onNavigateToMemory = { currentTab = 15 },
+                    onNavigateToReminders = { currentTab = 16 },
+                )
+
+                5 -> SettingsScreen(
+                    settings = app.settings,
+                    modelRouter = app.modelRouter,
+                    spaceManager = app.spaceManager,
+                    agentRuntime = app.agentRuntime,
+                    conversationExpiry = app.conversationExpiry,
+                    privacyAudit = app.privacyAudit,
+                    onBack = { currentTab = 3 },
+                    modifier = Modifier,
+                    onNavigateToFiles = { currentTab = 11 },
+                )
+
+                6 -> CalendarScreen(
+                    modifier = Modifier,
+                    onNavigateToChat = { currentTab = 3 },
+                )
+
+                7 -> TravelScreen(
+                    modifier = Modifier,
+                    onNavigateToChat = { currentTab = 3 },
+                )
+
+                8 -> InsightsScreen(
+                    modifier = Modifier,
+                    onNavigateToChat = { currentTab = 3 },
+                )
+
+                9 -> BriefingScreen(
+                    modifier = Modifier,
+                    onNavigateToChat = { currentTab = 3 },
+                    onNavigateToTasks = { currentTab = 1 },
+                    onNavigateToCalendar = { currentTab = 6 },
+                    onBack = { currentTab = 3 },
+                )
+
+                10 -> TeamScreen(
+                    modifier = Modifier,
+                    onNavigateToChat = { currentTab = 3 },
+                )
+
+                11 -> FileBrowserScreen(
+                    fs = app.sandboxedFileSystem,
+                    modifier = Modifier,
+                    activeSpaceName = app.agentRuntime.activeSpaceName,
+                )
+
+                12 -> VoiceConversationScreen(
+                    runtime = app.agentRuntime,
+                    onDismiss = { currentTab = 3 },
+                    modifier = Modifier,
+                )
+
+                13 -> HabitsScreen(
+                    modifier = Modifier,
+                    onNavigateToChat = { currentTab = 3 },
+                    onBack = { currentTab = 3 },
+                )
+
+                14 -> DecisionScreen(
+                    modifier = Modifier,
+                    onNavigateToChat = { currentTab = 3 },
+                    onBack = { currentTab = 3 },
+                )
+
+                15 -> MemoryScreen(
+                    memorySystem = app.memorySystem,
+                    modifier = Modifier,
+                    onNavigateToChat = { currentTab = 3 },
+                )
+
+                16 -> RemindersScreen(
+                    modifier = Modifier,
+                    onNavigateToChat = { currentTab = 3 },
+                    onBack = { currentTab = 3 },
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun GlassNavItem(
-    tab: TabItem,
-    isSelected: Boolean,
-    indicatorProgress: Float, // 0 = fully away, 1 = fully here
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val iconAlpha by animateFloatAsState(
-        targetValue = if (isSelected) 1f else 0.45f,
-        animationSpec = tween(300),
-        label = "icon-alpha",
-    )
-
-    val labelAlpha by animateFloatAsState(
-        targetValue = if (isSelected) 1f else 0f,
-        animationSpec = tween(250),
-        label = "label-alpha",
-    )
-
-    val pillScale by animateFloatAsState(
-        targetValue = if (isSelected) 1f else 0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium,
-        ),
-        label = "pill-scale",
-    )
-
-    Column(
-        modifier = modifier
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            )
-            .padding(vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            // Pill background
-            if (pillScale > 0.01f) {
-                Box(
-                    modifier = Modifier
-                        .width(56.dp)
-                        .height(32.dp)
-                        .graphicsLayer {
-                            scaleX = pillScale
-                            scaleY = pillScale
-                            alpha = indicatorProgress
-                        }
-                        .background(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(16.dp),
-                        ),
-                )
-            }
-
-            Icon(
-                imageVector = tab.icon,
-                contentDescription = tab.label,
-                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .size(22.dp)
-                    .graphicsLayer { alpha = iconAlpha },
-            )
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = tab.label,
-            fontSize = 11.sp,
-            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.graphicsLayer { alpha = labelAlpha },
-        )
     }
 }

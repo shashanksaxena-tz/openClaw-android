@@ -15,7 +15,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalUriHandler
@@ -28,21 +27,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 
-// ── Design tokens ────────────────────────────────────────────────────────────
-private val Violet = Color(0xFFA855F7)
-private val Cyan = Color(0xFF22D3EE)
-private val CodeBlockBg = Color(0xFF0A0A12)
-private val InlineCodeBg = Color(0xFF1A1A28)
-private val InlineCodeBorder = Color(0xFF2A2A3C)
-
 /**
  * Markdown renderer for chat messages.
  * Supports: **bold**, *italic*, `code`, ```code blocks```, # headers, - lists,
  * and ```mermaid diagrams via WebView.
  *
- * Styled with a dark-first, glass-morphism aesthetic:
- *   primary  = electric violet (#A855F7)
- *   secondary = neon cyan (#22D3EE)
+ * Theme-aware: adapts colors to light/dark mode automatically.
  */
 @Composable
 fun MarkdownText(
@@ -54,6 +44,16 @@ fun MarkdownText(
     val bgColor = MaterialTheme.colorScheme.surface
     val textColor = MaterialTheme.colorScheme.onSurface
     val uriHandler = LocalUriHandler.current
+
+    // Theme-adaptive tokens
+    val headingColor = MaterialTheme.colorScheme.onSurface
+    val bulletColor = MaterialTheme.colorScheme.onSurface
+    val linkColor = MaterialTheme.colorScheme.tertiary
+    val codeBlockBg = MaterialTheme.colorScheme.surfaceVariant
+    val codeBlockBorder = MaterialTheme.colorScheme.outlineVariant
+    val codeLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val codeTextColor = MaterialTheme.colorScheme.onSurface
+    val inlineCodeBg = MaterialTheme.colorScheme.surfaceVariant
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         for (block in blocks) {
@@ -73,10 +73,10 @@ fun MarkdownText(
                             .clip(RoundedCornerShape(12.dp))
                             .border(
                                 width = 0.5.dp,
-                                color = Violet.copy(alpha = 0.20f),
+                                color = codeBlockBorder,
                                 shape = RoundedCornerShape(12.dp),
                             )
-                            .background(CodeBlockBg)
+                            .background(codeBlockBg)
                             .padding(12.dp),
                     ) {
                         // Language label (top-end corner)
@@ -88,7 +88,7 @@ fun MarkdownText(
                                     fontFamily = FontFamily.Monospace,
                                     letterSpacing = 0.5.sp,
                                 ),
-                                color = Violet.copy(alpha = 0.55f),
+                                color = codeLabelColor,
                                 modifier = Modifier.align(Alignment.TopEnd),
                             )
                         }
@@ -100,7 +100,7 @@ fun MarkdownText(
                                 fontSize = 13.sp,
                                 lineHeight = 18.sp,
                             ),
-                            color = Cyan.copy(alpha = 0.85f),
+                            color = codeTextColor,
                             modifier = if (block.language.isNotBlank()) {
                                 Modifier.padding(top = 14.dp)
                             } else {
@@ -117,17 +117,15 @@ fun MarkdownText(
                                 text = block.text,
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.Bold,
-                                    brush = Brush.linearGradient(
-                                        colors = listOf(Violet, Cyan),
-                                    ),
                                 ),
+                                color = headingColor,
                             )
                         }
                         2 -> {
                             Text(
                                 text = block.text,
                                 style = MaterialTheme.typography.titleMedium,
-                                color = Violet,
+                                color = headingColor,
                                 fontWeight = FontWeight.SemiBold,
                             )
                         }
@@ -135,7 +133,7 @@ fun MarkdownText(
                             Text(
                                 text = block.text,
                                 style = MaterialTheme.typography.labelLarge,
-                                color = Violet.copy(alpha = 0.80f),
+                                color = headingColor,
                                 fontWeight = FontWeight.Medium,
                             )
                         }
@@ -143,7 +141,7 @@ fun MarkdownText(
                 }
 
                 is MdBlock.Paragraph -> {
-                    val annotated = parseInlineMarkdown(block.text, color)
+                    val annotated = parseInlineMarkdown(block.text, color, linkColor, inlineCodeBg)
                     ClickableText(
                         text = annotated,
                         style = MaterialTheme.typography.bodyMedium.copy(
@@ -167,9 +165,9 @@ fun MarkdownText(
                                 .padding(top = 8.dp, end = 8.dp)
                                 .size(6.dp)
                                 .clip(CircleShape)
-                                .background(Violet),
+                                .background(bulletColor),
                         )
-                        val annotated = parseInlineMarkdown(block.text, color)
+                        val annotated = parseInlineMarkdown(block.text, color, linkColor, inlineCodeBg)
                         ClickableText(
                             text = annotated,
                             style = MaterialTheme.typography.bodyMedium.copy(
@@ -204,7 +202,7 @@ private fun MermaidDiagram(
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
             <style>
-                body { margin: 0; padding: 8px; background: #000000; overflow: hidden; }
+                body { margin: 0; padding: 8px; background: $bgHex; overflow: hidden; }
                 .mermaid { color: $textHex; }
                 .mermaid svg { max-width: 100%; height: auto; }
             </style>
@@ -216,21 +214,21 @@ private fun MermaidDiagram(
             <script>
                 mermaid.initialize({
                     startOnLoad: true,
-                    theme: 'dark',
+                    theme: 'neutral',
                     themeVariables: {
-                        primaryColor: '#A855F7',
+                        primaryColor: '#E5E5EA',
                         primaryTextColor: '$textHex',
-                        primaryBorderColor: '#A855F7',
-                        lineColor: '#22D3EE',
-                        secondaryColor: '#1A1A28',
-                        tertiaryColor: '#0A0A12',
-                        background: '#000000',
-                        mainBkg: '#0A0A12',
-                        nodeBorder: '#A855F7',
-                        clusterBkg: '#0A0A12',
-                        clusterBorder: '#A855F7',
-                        titleColor: '#22D3EE',
-                        edgeLabelBackground: '#0A0A12',
+                        primaryBorderColor: '#C7C7CC',
+                        lineColor: '#8E8E93',
+                        secondaryColor: '#F2F2F7',
+                        tertiaryColor: '#FAFAFA',
+                        background: '$bgHex',
+                        mainBkg: '#F2F2F7',
+                        nodeBorder: '#C7C7CC',
+                        clusterBkg: '#F2F2F7',
+                        clusterBorder: '#C7C7CC',
+                        titleColor: '$textHex',
+                        edgeLabelBackground: '$bgHex',
                     }
                 });
             </script>
@@ -244,7 +242,7 @@ private fun MermaidDiagram(
                 settings.javaScriptEnabled = true
                 settings.loadWithOverviewMode = true
                 settings.useWideViewPort = true
-                setBackgroundColor(android.graphics.Color.BLACK)
+                setBackgroundColor(bgColor.toArgb())
                 webViewClient = WebViewClient()
                 loadDataWithBaseURL("https://cdn.jsdelivr.net", html, "text/html", "UTF-8", null)
             }
@@ -255,7 +253,7 @@ private fun MermaidDiagram(
             .clip(RoundedCornerShape(12.dp))
             .border(
                 width = 0.5.dp,
-                color = Violet.copy(alpha = 0.20f),
+                color = Color(0xFFE5E5EA),
                 shape = RoundedCornerShape(12.dp),
             ),
     )
@@ -343,6 +341,8 @@ private fun parseMarkdownBlocks(text: String): List<MdBlock> {
 private fun parseInlineMarkdown(
     text: String,
     baseColor: Color = Color.Unspecified,
+    linkColor: Color = Color(0xFF007AFF),
+    inlineCodeBg: Color = Color(0xFFF2F2F7),
 ): AnnotatedString {
     return buildAnnotatedString {
         var remaining = text
@@ -353,7 +353,7 @@ private fun parseInlineMarkdown(
                 val linkText = linkMatch.groupValues[1]
                 val url = linkMatch.groupValues[2]
                 pushStringAnnotation(tag = "URL", annotation = url)
-                withStyle(SpanStyle(color = Cyan, textDecoration = TextDecoration.Underline)) {
+                withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) {
                     append(linkText)
                 }
                 pop()
@@ -366,7 +366,7 @@ private fun parseInlineMarkdown(
             if (bareUrlMatch != null) {
                 val url = bareUrlMatch.groupValues[1]
                 pushStringAnnotation(tag = "URL", annotation = url)
-                withStyle(SpanStyle(color = Cyan, textDecoration = TextDecoration.Underline)) {
+                withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) {
                     append(url)
                 }
                 pop()
@@ -401,8 +401,7 @@ private fun parseInlineMarkdown(
                     SpanStyle(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 13.sp,
-                        color = Cyan.copy(alpha = 0.85f),
-                        background = InlineCodeBg,
+                        background = inlineCodeBg,
                     ),
                 ) {
                     append("\u2009${codeMatch.groupValues[1]}\u2009")
