@@ -23,6 +23,7 @@
 #ifndef LLAMA_STUB
 
 #include "llama.h"
+#include "ggml.h"
 #include "common.h"
 
 // ── Global state ────────────────────────────────────────────────────────────
@@ -56,7 +57,8 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeIsRealBuild(
 JNIEXPORT jboolean JNICALL
 Java_com_openclaw_android_llm_LlamaBridge_nativeLoadModel(
     JNIEnv *env, jobject /* this */,
-    jstring modelPath, jint nThreads, jint nGpuLayers, jint contextSize
+    jstring modelPath, jint nThreads, jint nGpuLayers, jint contextSize,
+    jboolean useMmap, jboolean flashAttn
 ) {
     std::lock_guard<std::mutex> lock(g_mutex);
 
@@ -66,12 +68,16 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeLoadModel(
     g_vocab = nullptr;
 
     std::string path = jstring_to_string(env, modelPath);
-    LOGI("Loading model: %s (threads=%d, gpu_layers=%d, ctx=%d)",
-         path.c_str(), nThreads, nGpuLayers, contextSize);
+    LOGI("Loading model: %s (threads=%d, gpu_layers=%d, ctx=%d, mmap=%d, flash_attn=%d)",
+         path.c_str(), nThreads, nGpuLayers, contextSize, useMmap, flashAttn);
 
-    // Model params
+    // Model params — use_mmap is the critical setting that prevents OOM.
+    // With mmap, the OS pages model data in/out on demand instead of loading
+    // the entire model into contiguous RAM. This is why off-grid doesn't crash.
     auto model_params = llama_model_default_params();
     model_params.n_gpu_layers = nGpuLayers;
+    model_params.use_mmap = useMmap;
+    model_params.use_mlock = false;  // Never lock pages — let OS manage memory pressure
 
     g_model = llama_model_load_from_file(path.c_str(), model_params);
     if (!g_model) {
@@ -81,23 +87,56 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeLoadModel(
 
     g_vocab = llama_model_get_vocab(g_model);
 
-    // Context params
+    // Context params — flash attention reduces memory usage significantly.
+    // Use f16 KV cache (safest on Android; quantized cache on Android GPU causes SIGABRT).
     auto ctx_params = llama_context_default_params();
     ctx_params.n_ctx = contextSize;
     ctx_params.n_threads = nThreads > 0 ? nThreads : 4;
     ctx_params.n_threads_batch = ctx_params.n_threads;
+    ctx_params.flash_attn = flashAttn;
+    ctx_params.type_k = GGML_TYPE_F16;
+    ctx_params.type_v = GGML_TYPE_F16;
 
-    g_ctx = llama_init_from_model(g_model, ctx_params);
-    if (!g_ctx) {
-        LOGE("Failed to create context");
-        llama_model_free(g_model);
-        g_model = nullptr;
-        g_vocab = nullptr;
-        return JNI_FALSE;
+    // Progressive context fallback: try requested size, then 2048, then 1024.
+    // This mirrors off-grid's initContextWithFallback() approach.
+    int ctx_sizes[] = { contextSize, 2048, 1024 };
+    int n_attempts = (contextSize <= 1024) ? 1 : (contextSize <= 2048) ? 2 : 3;
+
+    for (int attempt = 0; attempt < n_attempts; attempt++) {
+        int try_ctx = ctx_sizes[attempt];
+        ctx_params.n_ctx = try_ctx;
+
+        LOGI("Context init attempt %d/%d with ctx=%d", attempt + 1, n_attempts, try_ctx);
+        g_ctx = llama_init_from_model(g_model, ctx_params);
+        if (g_ctx) {
+            if (attempt > 0) {
+                LOGI("Context init succeeded with reduced size: %d (requested: %d)", try_ctx, contextSize);
+            }
+            LOGI("Model loaded successfully. Context: %d tokens, mmap: %s, flash_attn: %s",
+                 try_ctx, useMmap ? "on" : "off", flashAttn ? "on" : "off");
+            return JNI_TRUE;
+        }
+        LOGE("Context init failed with ctx=%d, %s", try_ctx,
+             (attempt < n_attempts - 1) ? "retrying with smaller context..." : "giving up");
     }
 
-    LOGI("Model loaded successfully. Context: %d tokens", contextSize);
-    return JNI_TRUE;
+    // All attempts failed — clean up
+    LOGE("Failed to create context after %d attempts", n_attempts);
+    llama_model_free(g_model);
+    g_model = nullptr;
+    g_vocab = nullptr;
+    return JNI_FALSE;
+}
+
+JNIEXPORT jlong JNICALL
+Java_com_openclaw_android_llm_LlamaBridge_nativeGetTotalMemory(
+    JNIEnv *env, jobject /* this */
+) {
+    struct sysinfo info;
+    if (sysinfo(&info) == 0) {
+        return (jlong)(info.totalram * info.mem_unit);
+    }
+    return 0;
 }
 
 JNIEXPORT void JNICALL
@@ -326,10 +365,17 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeIsRealBuild(
 
 JNIEXPORT jboolean JNICALL
 Java_com_openclaw_android_llm_LlamaBridge_nativeLoadModel(
-    JNIEnv *env, jobject, jstring, jint, jint, jint
+    JNIEnv *env, jobject, jstring, jint, jint, jint, jboolean, jboolean
 ) {
     LOGE("llama.cpp not compiled in this build");
     return JNI_FALSE;
+}
+
+JNIEXPORT jlong JNICALL
+Java_com_openclaw_android_llm_LlamaBridge_nativeGetTotalMemory(JNIEnv *, jobject) {
+    struct sysinfo info;
+    if (sysinfo(&info) == 0) return (jlong)(info.totalram * info.mem_unit);
+    return 0;
 }
 
 JNIEXPORT void JNICALL
