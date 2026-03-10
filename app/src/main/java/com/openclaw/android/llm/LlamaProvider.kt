@@ -196,14 +196,71 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
                 return@withContext
             }
 
-            val prompt = buildPrompt(request)
+            // Get the model's actual context size to prevent prompt overflow
+            val contextSize = LlamaBridge.getContextLength().let { if (it > 0) it else 4096 }
+
+            // Build prompt, progressively stripping content if it exceeds context
+            var prompt = buildPrompt(request)
+            var promptTokens = LlamaBridge.tokenCount(prompt)
+
+            // Reserve at least 256 tokens for generation
+            val maxPromptTokens = contextSize - 256
+
+            if (promptTokens > maxPromptTokens) {
+                // First: strip tool definitions (a 1.5B model barely uses them anyway)
+                Log.w(TAG, "Prompt too large ($promptTokens tokens > $maxPromptTokens max). Stripping tools.")
+                val strippedRequest = request.copy(tools = null)
+                prompt = buildPrompt(strippedRequest)
+                promptTokens = LlamaBridge.tokenCount(prompt)
+            }
+
+            if (promptTokens > maxPromptTokens) {
+                // Second: use a minimal system prompt
+                Log.w(TAG, "Still too large ($promptTokens tokens). Using minimal system prompt.")
+                val minimalRequest = request.copy(
+                    tools = null,
+                    systemPrompt = "You are a helpful AI assistant running locally on an Android phone. Be concise.",
+                )
+                prompt = buildPrompt(minimalRequest)
+                promptTokens = LlamaBridge.tokenCount(prompt)
+            }
+
+            if (promptTokens > maxPromptTokens) {
+                // Third: truncate old messages — keep only last 2
+                Log.w(TAG, "Still too large ($promptTokens tokens). Truncating conversation.")
+                val recentMessages = request.messages.takeLast(2)
+                val truncatedRequest = ChatRequest(
+                    model = request.model,
+                    messages = recentMessages,
+                    tools = null,
+                    systemPrompt = "You are a helpful AI assistant. Be concise.",
+                    maxTokens = request.maxTokens,
+                    temperature = request.temperature,
+                )
+                prompt = buildPrompt(truncatedRequest)
+                promptTokens = LlamaBridge.tokenCount(prompt)
+            }
+
+            if (promptTokens > maxPromptTokens) {
+                // Give up — prompt is still too large even after all truncation
+                onError(IllegalStateException(
+                    "Message is too long for the local model (${promptTokens} tokens, max ${maxPromptTokens}). " +
+                    "Try a shorter message or switch to a cloud model."
+                ))
+                return@withContext
+            }
+
+            // Cap generation tokens to what's left in the context
+            val maxGenTokens = minOf(request.maxTokens, 2048, contextSize - promptTokens)
+            Log.i(TAG, "Prompt: $promptTokens tokens, generating up to $maxGenTokens tokens (context: $contextSize)")
+
             val fullText = StringBuilder()
             var cancelled = false
 
             val result = try {
                 LlamaBridge.generate(
                     prompt = prompt,
-                    maxTokens = minOf(request.maxTokens, 2048), // Cap local model output
+                    maxTokens = maxGenTokens,
                     temperature = request.temperature.toFloat(),
                     stopSequences = listOf("<|im_end|>", "<|im_start|>"),
                     onToken = { token ->
@@ -240,8 +297,7 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
             // Parse tool calls from response
             val toolCalls = parseToolCalls(responseText)
 
-            // Estimate token usage
-            val promptTokens = LlamaBridge.tokenCount(prompt)
+            // Estimate token usage (promptTokens already calculated above)
             val completionTokens = LlamaBridge.tokenCount(responseText)
 
             onDone(
@@ -334,7 +390,10 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
         val cpuCores = Runtime.getRuntime().availableProcessors()
         val nThreads = minOf(maxOf(1, cpuCores - 2), 4) // Cap at 4 — over-threading onto efficiency cores slows inference
         val contextSize = getMaxContextForDevice(totalMemMb)
-        val nGpuLayers = getGpuLayersForDevice(totalMemMb)
+        // Use CPU-only by default — GPU offloading on Android can call abort()
+        // which kills the process instantly, bypassing all Java error handling.
+        // The off-grid reference app also defaults to CPU-only for stability.
+        val nGpuLayers = 0
         val useMmap = shouldUseMmap(modelPath)
 
         Log.i(TAG, "Device config: totalRAM=${totalMemMb}MB, ctx=$contextSize, gpu_layers=$nGpuLayers, mmap=$useMmap, threads=$nThreads")
@@ -346,7 +405,7 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
                 nGpuLayers = nGpuLayers,
                 contextSize = contextSize,
                 useMmap = useMmap,
-                flashAttn = true,
+                flashAttn = false, // Disabled: flash attention can cause native SIGABRT on some devices
             )
         } catch (e: Throwable) {
             // Native code can throw Error (OutOfMemoryError, UnsatisfiedLinkError)

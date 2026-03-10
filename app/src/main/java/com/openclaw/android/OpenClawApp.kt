@@ -119,10 +119,12 @@ class OpenClawApp : Application() {
             "groq" to GroqProvider(apiKeyProvider = { settings.getGroqKey() }),
             "cerebras" to CerebrasProvider(apiKeyProvider = { settings.getCerebrasKey() }),
         )
-        // Always register the local provider if enabled OR if models are downloaded.
-        // This ensures offline mode works even if the user toggled the setting off and
-        // back on, or if the app was restarted after downloading a model.
-        if (settings.getLocalModelEnabled() || modelDownloadManager.getDownloadedModels().isNotEmpty()) {
+        // Only register the local provider when the user has explicitly enabled it.
+        // The old OR condition caused crashes: even with local model disabled,
+        // having a downloaded model would register the provider, and the local-first
+        // strategy would route requests to it — crashing if the model couldn't handle
+        // the prompt (context overflow, native abort).
+        if (settings.getLocalModelEnabled() && modelDownloadManager.getDownloadedModels().isNotEmpty()) {
             providers["local-llama"] = llamaProvider
         }
         modelRouter = ModelRouter(providers)
@@ -223,8 +225,14 @@ class OpenClawApp : Application() {
                     appendLine("Crash at $timestamp")
                     appendLine("Thread: ${thread.name}")
                     appendLine("Error: ${throwable::class.java.simpleName}: ${throwable.message}")
+                    // Include cause chain for better debugging
+                    var cause = throwable.cause
+                    while (cause != null) {
+                        appendLine("Caused by: ${cause::class.java.simpleName}: ${cause.message}")
+                        cause = cause.cause
+                    }
                     appendLine()
-                    appendLine(throwable.stackTraceToString().take(2000))
+                    appendLine(throwable.stackTraceToString().take(4000))
                 }
                 crashFile.writeText(info)
                 Log.e("OpenClawApp", "Crash saved to last_crash.txt", throwable)
@@ -236,29 +244,48 @@ class OpenClawApp : Application() {
     }
 
     /**
-     * Check if the app crashed last time (e.g. native OOM) and return the crash message.
-     * Called from the chat screen to show an inline error on restart.
+     * Check if the app crashed last time and return the FULL crash info.
+     * Does NOT delete the file — keeps it for user to view/share from Settings.
+     * Renames to last_crash_seen.txt so we only show the dialog once.
      */
     fun consumeLastCrash(): String? {
         val crashFile = java.io.File(filesDir, "last_crash.txt")
         if (!crashFile.exists()) return null
         return try {
             val info = crashFile.readText()
-            crashFile.delete()
-            if (info.contains("OutOfMemory", ignoreCase = true) ||
-                info.contains("llama", ignoreCase = true) ||
-                info.contains("native crash", ignoreCase = true) ||
-                info.contains("SIGSEGV", ignoreCase = true) ||
-                info.contains("SIGABRT", ignoreCase = true)
-            ) {
-                "The app crashed last time, likely because the local AI model ran out of memory. " +
-                    "Try using a smaller model, or close other apps before loading the model."
-            } else {
-                "The app crashed unexpectedly last time. If this keeps happening, try clearing app data in Settings."
-            }
+            // Rename instead of delete — user can still view it from Settings
+            val seenFile = java.io.File(filesDir, "last_crash_seen.txt")
+            crashFile.renameTo(seenFile)
+
+            // Return the FULL crash info so the user can actually see what happened
+            info
         } catch (_: Exception) {
-            crashFile.delete()
             null
+        }
+    }
+
+    /**
+     * Get the last crash log (whether consumed or not) for viewing in Settings.
+     */
+    fun getLastCrashLog(): String? {
+        val files = listOf(
+            java.io.File(filesDir, "last_crash.txt"),
+            java.io.File(filesDir, "last_crash_seen.txt"),
+        )
+        for (file in files) {
+            if (file.exists()) {
+                return try { file.readText() } catch (_: Exception) { null }
+            }
+        }
+        return null
+    }
+
+    /**
+     * Clear crash logs.
+     */
+    fun clearCrashLogs() {
+        listOf("last_crash.txt", "last_crash_seen.txt").forEach { name ->
+            try { java.io.File(filesDir, name).delete() } catch (_: Exception) {}
         }
     }
 }

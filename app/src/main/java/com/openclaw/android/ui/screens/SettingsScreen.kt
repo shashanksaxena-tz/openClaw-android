@@ -773,6 +773,98 @@ fun SettingsScreen(
                 }
             }
 
+            // ── Crash Logs Section ─────────────────────────────────────────
+            run {
+                val app = context.applicationContext as? com.openclaw.android.OpenClawApp
+                val crashLog = remember { app?.getLastCrashLog() }
+                var showCrashLog by remember { mutableStateOf(false) }
+
+                if (crashLog != null) {
+                    Spacer(Modifier.height(18.dp))
+                    GlassSection(
+                        icon = Icons.Outlined.BugReport,
+                        title = "Crash Log",
+                        description = "Last crash info — share this when reporting issues.",
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(InnerShape)
+                                    .background(ErrorRed.copy(alpha = 0.08f))
+                                    .border(0.5.dp, ErrorRed.copy(alpha = 0.25f), InnerShape)
+                                    .clickable { showCrashLog = true }
+                                    .padding(12.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("View Log", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = ErrorRed))
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(InnerShape)
+                                    .background(InputBg)
+                                    .border(0.5.dp, GlassBorder, InnerShape)
+                                    .clickable {
+                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                        clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Crash Log", crashLog))
+                                    }
+                                    .padding(12.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("Copy to Clipboard", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary))
+                            }
+                        }
+                    }
+
+                    if (showCrashLog) {
+                        Dialog(
+                            onDismissRequest = { showCrashLog = false },
+                            properties = DialogProperties(usePlatformDefaultWidth = false),
+                        ) {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.95f)
+                                    .fillMaxHeight(0.7f),
+                                shape = RoundedCornerShape(16.dp),
+                                color = SurfaceCharcoal,
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        "Crash Log",
+                                        style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary),
+                                    )
+                                    Spacer(Modifier.height(12.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxWidth()
+                                            .clip(InnerShape)
+                                            .background(InputBg)
+                                            .padding(12.dp)
+                                            .verticalScroll(rememberScrollState()),
+                                    ) {
+                                        Text(
+                                            crashLog,
+                                            style = TextStyle(fontSize = 11.sp, color = TextPrimary, lineHeight = 16.sp),
+                                        )
+                                    }
+                                    Spacer(Modifier.height(12.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End,
+                                    ) {
+                                        TextButton(onClick = { showCrashLog = false }) {
+                                            Text("Close", color = TextMuted)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Spacer(Modifier.height(36.dp))
 
             // ── Footer ───────────────────────────────────────────────────────

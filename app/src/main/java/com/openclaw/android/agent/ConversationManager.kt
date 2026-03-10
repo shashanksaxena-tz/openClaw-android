@@ -147,7 +147,17 @@ class ConversationManager(
         dao.updateTitle(conversationId, newTitle)
     }
 
-    fun getMessagesForRequest(): List<ChatMessage> = synchronized(_messages) { _messages.toList() }
+    fun getMessagesForRequest(): List<ChatMessage> {
+        // Return a defensive copy to avoid ConcurrentModificationException.
+        // Using a snapshot avoids needing the suspend mutex here.
+        return try {
+            _messages.toList()
+        } catch (_: ConcurrentModificationException) {
+            // Rare race: another thread is modifying _messages.
+            // Return whatever we can safely copy.
+            ArrayList(_messages)
+        }
+    }
 
     /**
      * Export the conversation as human-readable text for the export_chat tool.
@@ -190,18 +200,22 @@ class ConversationManager(
     }
 
     fun estimateTokens(): Int {
-        val snapshot = synchronized(_messages) { _messages.toList() }
-        var tokens = 0
-        for (msg in snapshot) {
-            for (part in msg.content) {
-                when (part.type) {
-                    "text" -> tokens += (part.text?.length ?: 0) / 4
-                    "image_base64" -> tokens += 1000
-                    "audio_base64" -> tokens += 500
+        return try {
+            val snapshot = _messages.toList()
+            var tokens = 0
+            for (msg in snapshot) {
+                for (part in msg.content) {
+                    when (part.type) {
+                        "text" -> tokens += (part.text?.length ?: 0) / 4
+                        "image_base64" -> tokens += 1000
+                        "audio_base64" -> tokens += 500
+                    }
                 }
             }
+            tokens
+        } catch (_: Exception) {
+            0
         }
-        return tokens
     }
 
     private suspend fun persistMessage(conversationId: String, msg: ChatMessage) {

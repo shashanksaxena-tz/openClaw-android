@@ -7,6 +7,7 @@ import com.openclaw.android.llm.LlamaProvider
 import com.openclaw.android.sandbox.SandboxedFileSystem
 import com.openclaw.android.tools.ToolRegistry
 import com.openclaw.android.tools.ToolResult
+import android.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -56,7 +57,14 @@ class AgentRuntime(
     // Cancel support
     private var currentJob: Job? = null
     private var _isCancelled = false
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        Log.e("AgentRuntime", "Uncaught coroutine exception", throwable)
+        val ex = if (throwable is Exception) throwable else RuntimeException("Internal error: ${throwable.message}", throwable)
+        val userError = ErrorHandler.mapError(ex)
+        emit(AgentEvent.Error(ErrorHandler.formatForChat(userError)))
+        _state.value = AgentState.Idle
+    }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + exceptionHandler)
 
     fun setActiveSpace(spaceId: String?) {
         _activeSpaceId = spaceId
@@ -128,15 +136,30 @@ class AgentRuntime(
         lastUserText = text
         lastUserMedia = media
 
-        if (!isRetry) {
-            conversationManager.addUserMessage(text, media)
-            emit(AgentEvent.UserMessage(text, media))
+        try {
+            if (!isRetry) {
+                conversationManager.addUserMessage(text, media)
+                emit(AgentEvent.UserMessage(text, media))
+            }
+        } catch (e: Exception) {
+            Log.e("AgentRuntime", "Failed to save user message", e)
+            // Still show the message in UI even if DB save failed
+            if (!isRetry) emit(AgentEvent.UserMessage(text, media))
         }
 
         val hasImages = media.any { it.type == "image_base64" }
         val hasAudio = media.any { it.type == "audio_base64" }
 
-        val selection = modelRouter.selectBestModel(preferredModelId, hasImages, hasAudio)
+        val selection: ModelRouter.ModelSelection?
+        try {
+            selection = modelRouter.selectBestModel(preferredModelId, hasImages, hasAudio)
+        } catch (e: Exception) {
+            Log.e("AgentRuntime", "Model selection failed", e)
+            emit(AgentEvent.Error("Something went wrong: ${e.message ?: "model selection failed"}"))
+            _state.value = AgentState.Idle
+            return
+        }
+
         if (selection == null) {
             val error = ErrorHandler.UserError(
                 title = "No AI available",
@@ -144,7 +167,7 @@ class AgentRuntime(
                 action = ErrorHandler.ErrorAction.OpenSettings,
             )
             emit(AgentEvent.Error(ErrorHandler.formatForChat(error)))
-            conversationManager.addAssistantMessage(ErrorHandler.formatForChat(error))
+            try { conversationManager.addAssistantMessage(ErrorHandler.formatForChat(error)) } catch (_: Exception) {}
             _state.value = AgentState.Idle
             return
         }
@@ -266,19 +289,19 @@ class AgentRuntime(
                             .replace(LlamaProvider.ESCALATION_MARKER, "")
                             .trim()
                             .ifBlank { "I need a cloud model for this task, but none is configured. Add an API key in Settings." }
-                        conversationManager.addAssistantMessage(cleaned)
+                        try { conversationManager.addAssistantMessage(cleaned) } catch (e: Exception) { Log.e("AgentRuntime", "DB save failed", e) }
                         emit(AgentEvent.AssistantMessage(cleaned))
                         break
                     }
 
                     if (responseToolCalls.isEmpty()) {
-                        conversationManager.addAssistantMessage(responseText)
+                        try { conversationManager.addAssistantMessage(responseText) } catch (e: Exception) { Log.e("AgentRuntime", "DB save failed", e) }
                         emit(AgentEvent.AssistantMessage(responseText))
                         onBackgroundResponse?.invoke(responseText)
                         break
                     }
 
-                    conversationManager.addAssistantMessage(responseText, responseToolCalls)
+                    try { conversationManager.addAssistantMessage(responseText, responseToolCalls) } catch (e: Exception) { Log.e("AgentRuntime", "DB save failed", e) }
                     if (responseText.isNotBlank()) emit(AgentEvent.AssistantMessage(responseText))
 
                     for (toolCall in responseToolCalls) {
@@ -314,7 +337,7 @@ class AgentRuntime(
                             }
                         }
 
-                        conversationManager.addToolResult(toolCall.id, toolCall.name, result.output)
+                        try { conversationManager.addToolResult(toolCall.id, toolCall.name, result.output) } catch (e: Exception) { Log.e("AgentRuntime", "DB save failed", e) }
                         emit(AgentEvent.ToolCallResult(toolCall.name, result.output, result.isError))
                     }
                 }
@@ -322,7 +345,7 @@ class AgentRuntime(
                 if (iterations >= MAX_TOOL_ITERATIONS && !_isCancelled) {
                     val msg = "Reached maximum tool iterations ($MAX_TOOL_ITERATIONS). Stopping."
                     emit(AgentEvent.Error(msg))
-                    conversationManager.addAssistantMessage(msg)
+                    try { conversationManager.addAssistantMessage(msg) } catch (_: Exception) {}
                 }
             } catch (e: CancellationException) {
                 // Job was cancelled

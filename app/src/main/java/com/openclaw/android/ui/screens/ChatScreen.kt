@@ -16,6 +16,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -121,9 +123,14 @@ fun ChatScreen(
     var crashMessage by remember { mutableStateOf<String?>(null) }
 
     // Check for crash from previous session (e.g. native LLM OOM)
+    var showCrashDialog by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         val app = context.applicationContext as? com.openclaw.android.OpenClawApp
-        crashMessage = app?.consumeLastCrash()
+        val crash = app?.consumeLastCrash()
+        if (crash != null) {
+            crashMessage = crash
+            showCrashDialog = true // Show as a dialog so user can't miss it
+        }
     }
 
     // Network connectivity
@@ -153,7 +160,11 @@ fun ChatScreen(
             val media = initialMedia?.mapNotNull { (mimeType, uri) ->
                 withContext(Dispatchers.IO) { uriToContentPart(context, mimeType, uri) }
             } ?: emptyList()
-            runtime.sendMessage(text, media)
+            try {
+                runtime.sendMessage(text, media)
+            } catch (e: Exception) {
+                android.util.Log.e("ChatScreen", "sendMessage failed for shared content", e)
+            }
         }
     }
 
@@ -268,6 +279,70 @@ fun ChatScreen(
         )
     }
 
+    // Crash recovery dialog — shown prominently so user can see and share crash info
+    if (showCrashDialog && crashMessage != null) {
+        AlertDialog(
+            onDismissRequest = { showCrashDialog = false },
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            shape = RoundedCornerShape(16.dp),
+            title = {
+                Text(
+                    "App Crashed",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        "The app crashed during the last session. Here's the error info:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        val scrollState = rememberScrollState()
+                        Text(
+                            text = crashMessage!!.take(2000),
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                            modifier = Modifier
+                                .padding(8.dp)
+                                .heightIn(max = 300.dp)
+                                .verticalScroll(scrollState),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "You can also view this log from Settings.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    // Copy crash log to clipboard
+                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                    clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Crash Log", crashMessage))
+                    scope.launch { snackbarHostState.showSnackbar("Crash log copied to clipboard") }
+                    showCrashDialog = false
+                }) {
+                    Text("Copy & Dismiss", fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCrashDialog = false }) {
+                    Text("Dismiss")
+                }
+            },
+        )
+    }
+
     // Voice conversation mode
     if (showVoiceMode) {
         VoiceConversationScreen(
@@ -323,9 +398,9 @@ fun ChatScreen(
                 )
 
                 // ── Offline Banner ────────────────────────────────────────
-                val hasLocalModel = modelRouter?.let {
-                    it.getAvailableModels().any { (provider, _) -> provider.providerId == "local-llama" }
-                } ?: false
+                val hasLocalModel = try {
+                    modelRouter?.getAvailableModels()?.any { (provider, _) -> provider.providerId == "local-llama" } ?: false
+                } catch (_: Exception) { false }
                 AnimatedVisibility(
                     visible = !isOnline,
                     enter = expandVertically() + fadeIn(),
@@ -341,15 +416,7 @@ fun ChatScreen(
                         state = listState,
                         contentPadding = PaddingValues(vertical = 12.dp),
                     ) {
-                        // Show crash recovery message from previous session
-                        if (crashMessage != null) {
-                            item(key = "crash-recovery") {
-                                MessageBubble(
-                                    event = AgentEvent.Error(crashMessage!!),
-                                    onRetry = { crashMessage = null },
-                                )
-                            }
-                        }
+                        // Crash recovery is now shown as a dialog (see showCrashDialog above)
                         if (isEmpty) {
                             item {
                                 WelcomeHero(
@@ -376,7 +443,7 @@ fun ChatScreen(
                             MessageBubble(
                                 event = event,
                                 onRetry = if (event is AgentEvent.Error) {
-                                    { scope.launch { runtime.retryLastMessage() } }
+                                    { scope.launch { try { runtime.retryLastMessage() } catch (e: Exception) { android.util.Log.e("ChatScreen", "retry failed", e) } } }
                                 } else null,
                             )
                         }
@@ -448,12 +515,16 @@ fun ChatScreen(
                     onVoiceResult = { spokenText ->
                         if (spokenText.isNotBlank()) {
                             scope.launch {
-                                val media = pendingMedia.mapNotNull { item ->
-                                    withContext(Dispatchers.IO) { mediaItemToContentPart(context, item) }
+                                try {
+                                    val media = pendingMedia.mapNotNull { item ->
+                                        withContext(Dispatchers.IO) { mediaItemToContentPart(context, item) }
+                                    }
+                                    pendingMedia = emptyList()
+                                    justSent = true
+                                    runtime.sendMessage(spokenText, media)
+                                } catch (e: Exception) {
+                                    android.util.Log.e("ChatScreen", "sendMessage failed for voice input", e)
                                 }
-                                pendingMedia = emptyList()
-                                justSent = true
-                                runtime.sendMessage(spokenText, media)
                             }
                         }
                     },
@@ -466,10 +537,14 @@ fun ChatScreen(
                             pendingMedia = emptyList()
                             justSent = true
                             scope.launch {
-                                val media = withContext(Dispatchers.IO) {
-                                    mediaItems.mapNotNull { mediaItemToContentPart(context, it) }
+                                try {
+                                    val media = withContext(Dispatchers.IO) {
+                                        mediaItems.mapNotNull { mediaItemToContentPart(context, it) }
+                                    }
+                                    runtime.sendMessage(text, media)
+                                } catch (e: Exception) {
+                                    android.util.Log.e("ChatScreen", "sendMessage failed", e)
                                 }
-                                runtime.sendMessage(text, media)
                             }
                         }
                     },
@@ -515,7 +590,8 @@ fun ChatScreen(
                     },
                 )
 
-                for ((provider, model) in modelRouter.getAvailableModels()) {
+                val availableModels = try { modelRouter.getAvailableModels() } catch (_: Exception) { emptyList() }
+                for ((provider, model) in availableModels) {
                     val isSelected = runtime.preferredModelId == model.id
                     ModelPickerCard(
                         title = model.displayName,

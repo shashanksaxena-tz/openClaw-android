@@ -50,7 +50,7 @@ class SettingsRepository(context: Context) {
     fun getActiveLocalModelId(): String = prefs.getString(KEY_LOCAL_MODEL_ID, "") ?: ""
     fun setActiveLocalModelId(modelId: String) { prefs.edit().putString(KEY_LOCAL_MODEL_ID, modelId).apply() }
 
-    fun getLocalModelEnabled(): Boolean = prefs.getBoolean(KEY_LOCAL_MODEL_ENABLED, true)
+    fun getLocalModelEnabled(): Boolean = prefs.getBoolean(KEY_LOCAL_MODEL_ENABLED, false)
     fun setLocalModelEnabled(enabled: Boolean) { prefs.edit().putBoolean(KEY_LOCAL_MODEL_ENABLED, enabled).apply() }
 
     // Theme preference: "system", "light", or "dark". Default is "light" (white theme).
