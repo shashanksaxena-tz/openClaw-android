@@ -1014,11 +1014,12 @@ private fun DebouncedApiKeyField(
                 // Validation icon with glow
                 if (value.isNotBlank()) {
                     Spacer(Modifier.width(8.dp))
+                    val errorColor = MaterialTheme.colorScheme.error
                     Box(
                         modifier = Modifier
                             .size(24.dp)
                             .drawBehind {
-                                val glowColor = if (isValid) SuccessGreen else MaterialTheme.colorScheme.error
+                                val glowColor = if (isValid) SuccessGreen else errorColor
                                 drawCircle(
                                     color = glowColor.copy(alpha = 0.25f),
                                     radius = size.minDimension * 0.7f,
@@ -1279,7 +1280,8 @@ private fun ModelOptionCard(
     onClick: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    val borderBrush = if (isSelected) Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary))
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val borderBrush = if (isSelected) Brush.linearGradient(listOf(primaryColor, MaterialTheme.colorScheme.tertiary))
     else Brush.linearGradient(listOf(MaterialTheme.colorScheme.outlineVariant, MaterialTheme.colorScheme.outlineVariant))
 
     Box(
@@ -1289,12 +1291,12 @@ private fun ModelOptionCard(
             .then(
                 if (isSelected) Modifier.drawBehind {
                     drawRoundRect(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.06f),
+                        color = primaryColor.copy(alpha = 0.06f),
                         size = size,
                     )
                 } else Modifier
             )
-            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.05f) else MaterialTheme.colorScheme.surfaceContainerLowest)
+            .background(if (isSelected) primaryColor.copy(alpha = 0.05f) else MaterialTheme.colorScheme.surfaceContainerLowest)
             .border(width = if (isSelected) 1.dp else 0.5.dp, brush = borderBrush, shape = InnerShape)
             .clickable(onClick = onClick)
             .padding(14.dp),
@@ -1312,7 +1314,8 @@ private fun SpaceCard(
     onClick: () -> Unit,
     onDelete: (() -> Unit)?,
 ) {
-    val borderBrush = if (isActive) Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary))
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val borderBrush = if (isActive) Brush.linearGradient(listOf(primaryColor, MaterialTheme.colorScheme.tertiary))
     else Brush.linearGradient(listOf(MaterialTheme.colorScheme.outlineVariant, MaterialTheme.colorScheme.outlineVariant))
 
     Box(
@@ -1323,12 +1326,12 @@ private fun SpaceCard(
                 if (isActive) Modifier.drawBehind {
                     // Glow effect behind the card
                     drawRoundRect(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        color = primaryColor.copy(alpha = 0.08f),
                         size = size,
                     )
                 } else Modifier
             )
-            .background(if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.06f) else MaterialTheme.colorScheme.surfaceContainerLowest)
+            .background(if (isActive) primaryColor.copy(alpha = 0.06f) else MaterialTheme.colorScheme.surfaceContainerLowest)
             .border(
                 width = if (isActive) 1.dp else 0.5.dp,
                 brush = borderBrush,
@@ -1382,7 +1385,7 @@ private fun SpaceCard(
                         .size(22.dp)
                         .drawBehind {
                             drawCircle(
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                                color = primaryColor.copy(alpha = 0.3f),
                                 radius = size.minDimension * 0.7f,
                             )
                         },
@@ -1391,7 +1394,7 @@ private fun SpaceCard(
                     Icon(
                         Icons.Default.CheckCircle,
                         contentDescription = "Active",
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = primaryColor,
                         modifier = Modifier.size(20.dp),
                     )
                 }

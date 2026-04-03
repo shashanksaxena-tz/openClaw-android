@@ -48,28 +48,9 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
-// ── Design tokens (theme-aware) ─────────────────────────────────────────────
-// Accent colors are shared across themes
-private val AccentViolet = Color(0xFFA855F7)
-private val AccentCyan = Color(0xFF22D3EE)
-private val AccentPink = Color(0xFFF472B6)
-private val DangerRed = Color(0xFFEF4444)
+// ── Design tokens ────────────────────────────────────────────────────────────
 private val GlassShape = RoundedCornerShape(16.dp)
 private val ChipShape = RoundedCornerShape(12.dp)
-
-/** Theme-aware color provider — reads from MaterialTheme inside @Composable scope. */
-private object FileBrowserColors {
-    val background: Color @Composable get() = MaterialTheme.colorScheme.background
-    val surface: Color @Composable get() = MaterialTheme.colorScheme.surface
-    val surfaceVariant: Color @Composable get() = MaterialTheme.colorScheme.surfaceVariant
-    val surfaceContainer: Color @Composable get() = MaterialTheme.colorScheme.surfaceContainerHigh
-    val border: Color @Composable get() = MaterialTheme.colorScheme.outlineVariant
-    val borderSubtle: Color @Composable get() = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-    val textMuted: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
-    val textSubtle: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-    val primary: Color @Composable get() = MaterialTheme.colorScheme.primary
-    val onSurface: Color @Composable get() = MaterialTheme.colorScheme.onSurface
-}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -191,7 +172,7 @@ fun FileBrowserScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(FileBrowserColors.background),
+            .background(MaterialTheme.colorScheme.background),
     ) {
         // ── Header ───────────────────────────────────────────────────────────
         Box(
