@@ -94,8 +94,76 @@ Do NOT escalate for:
 When you CAN handle the task, respond normally. Be concise — you're on a phone.
 """
 
+        /** Detect if a model uses Gemma-style chat template based on filename. */
+        private fun isGemmaModel(modelPath: String?): Boolean {
+            val lower = modelPath?.lowercase() ?: return false
+            return lower.contains("gemma")
+        }
+
         /** Build a chat-style prompt from ChatRequest for llama.cpp. */
-        fun buildPrompt(request: ChatRequest): String = buildString {
+        fun buildPrompt(request: ChatRequest, modelPath: String? = null): String {
+            return if (isGemmaModel(modelPath)) {
+                buildGemmaPrompt(request)
+            } else {
+                buildChatMlPrompt(request)
+            }
+        }
+
+        /** Gemma models use <start_of_turn> / <end_of_turn> tags. */
+        private fun buildGemmaPrompt(request: ChatRequest): String = buildString {
+            // System prompt as a user turn (Gemma has no native system role)
+            val sysPrompt = (request.systemPrompt ?: "") + LOCAL_MODEL_INSTRUCTIONS
+            append("<start_of_turn>user\n")
+            append("[System instructions]\n")
+            append(sysPrompt.trim())
+
+            if (!request.tools.isNullOrEmpty()) {
+                append("\n\nYou have access to the following tools. To call a tool, respond with a JSON block:\n")
+                append("```tool_call\n{\"name\": \"tool_name\", \"arguments\": {\"arg1\": \"value1\"}}\n```\n\n")
+                append("Available tools:\n")
+                for (tool in request.tools) {
+                    append("- ${tool.name}: ${tool.description}\n")
+                    append("  Parameters: ${tool.parameters}\n\n")
+                }
+            }
+            append("\n<end_of_turn>\n")
+            append("<start_of_turn>model\nUnderstood. I'll follow these instructions.\n<end_of_turn>\n")
+
+            for (msg in request.messages) {
+                when (msg.role) {
+                    "user" -> {
+                        append("<start_of_turn>user\n")
+                        val text = msg.content.firstOrNull { it.type == "text" }?.text ?: ""
+                        append(text)
+                        if (msg.content.any { it.type == "image_base64" }) {
+                            append("\n[An image was attached but you cannot see images. Consider escalating.]")
+                        }
+                        append("\n<end_of_turn>\n")
+                    }
+                    "assistant" -> {
+                        append("<start_of_turn>model\n")
+                        val text = msg.content.firstOrNull { it.type == "text" }?.text ?: ""
+                        append(text)
+                        msg.toolCalls?.forEach { tc ->
+                            append("\n```tool_call\n")
+                            append("""{"name": "${tc.name}", "arguments": ${tc.arguments}}""")
+                            append("\n```")
+                        }
+                        append("\n<end_of_turn>\n")
+                    }
+                    "tool" -> {
+                        append("<start_of_turn>user\n")
+                        append("Tool result for ${msg.toolCallId}:\n")
+                        append(msg.content.firstOrNull()?.text ?: "")
+                        append("\n<end_of_turn>\n")
+                    }
+                }
+            }
+            append("<start_of_turn>model\n")
+        }
+
+        /** ChatML format (Qwen, Phi, Llama, etc.) */
+        private fun buildChatMlPrompt(request: ChatRequest): String = buildString {
             // System prompt
             val sysPrompt = (request.systemPrompt ?: "") + LOCAL_MODEL_INSTRUCTIONS
             append("<|im_start|>system\n")
@@ -199,8 +267,14 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
             // Get the model's actual context size to prevent prompt overflow
             val contextSize = LlamaBridge.getContextLength().let { if (it > 0) it else 4096 }
 
+            // Resolve model path for chat template selection
+            val activeId = getActiveModelId()
+            val modelPath = if (activeId != null) downloadManager.getModelPath(activeId)
+                else downloadManager.getDownloadedModels().firstOrNull()?.filePath
+            val isGemma = isGemmaModel(modelPath)
+
             // Build prompt, progressively stripping content if it exceeds context
-            var prompt = buildPrompt(request)
+            var prompt = buildPrompt(request, modelPath)
             var promptTokens = LlamaBridge.tokenCount(prompt)
 
             // Reserve at least 256 tokens for generation
@@ -210,7 +284,7 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
                 // First: strip tool definitions (a 1.5B model barely uses them anyway)
                 Log.w(TAG, "Prompt too large ($promptTokens tokens > $maxPromptTokens max). Stripping tools.")
                 val strippedRequest = request.copy(tools = null)
-                prompt = buildPrompt(strippedRequest)
+                prompt = buildPrompt(strippedRequest, modelPath)
                 promptTokens = LlamaBridge.tokenCount(prompt)
             }
 
@@ -221,7 +295,7 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
                     tools = null,
                     systemPrompt = "You are a helpful AI assistant running locally on an Android phone. Be concise.",
                 )
-                prompt = buildPrompt(minimalRequest)
+                prompt = buildPrompt(minimalRequest, modelPath)
                 promptTokens = LlamaBridge.tokenCount(prompt)
             }
 
@@ -237,7 +311,7 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
                     maxTokens = request.maxTokens,
                     temperature = request.temperature,
                 )
-                prompt = buildPrompt(truncatedRequest)
+                prompt = buildPrompt(truncatedRequest, modelPath)
                 promptTokens = LlamaBridge.tokenCount(prompt)
             }
 
@@ -262,7 +336,8 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
                     prompt = prompt,
                     maxTokens = maxGenTokens,
                     temperature = request.temperature.toFloat(),
-                    stopSequences = listOf("<|im_end|>", "<|im_start|>"),
+                    stopSequences = if (isGemma) listOf("<end_of_turn>", "<start_of_turn>")
+                        else listOf("<|im_end|>", "<|im_start|>"),
                     onToken = { token ->
                         if (!cancelled) {
                             try {

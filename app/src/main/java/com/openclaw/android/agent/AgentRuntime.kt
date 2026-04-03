@@ -84,7 +84,12 @@ class AgentRuntime(
     }
 
     private fun emit(event: AgentEvent) {
-        _events.update { it + event }
+        _events.update { events ->
+            // Cap event list to prevent OOM in long sessions.
+            // Keep the last 500 events — enough for ~50 tool-call rounds.
+            val list = events + event
+            if (list.size > 500) list.drop(list.size - 500) else list
+        }
     }
 
     private fun buildSystemPrompt(): String {
