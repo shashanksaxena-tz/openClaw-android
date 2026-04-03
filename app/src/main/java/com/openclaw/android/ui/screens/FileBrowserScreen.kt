@@ -48,22 +48,28 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
-// ── Design tokens ────────────────────────────────────────────────────────────
-private val TrueBlack = Color(0xFF050508)
-private val Charcoal = Color(0xFF0D0D12)
-private val ElectricViolet = Color(0xFFA855F7)
-private val NeonCyan = Color(0xFF22D3EE)
-private val SoftPink = Color(0xFFF472B6)
+// ── Design tokens (theme-aware) ─────────────────────────────────────────────
+// Accent colors are shared across themes
+private val AccentViolet = Color(0xFFA855F7)
+private val AccentCyan = Color(0xFF22D3EE)
+private val AccentPink = Color(0xFFF472B6)
 private val DangerRed = Color(0xFFEF4444)
-private val GlassBorder = Color.White.copy(alpha = 0.05f)
-private val GlassBorderLight = Color.White.copy(alpha = 0.08f)
-private val GlassSurface = Charcoal.copy(alpha = 0.65f)
-private val GlassSurfaceElevated = Charcoal.copy(alpha = 0.80f)
-private val MutedText = Color.White.copy(alpha = 0.45f)
-private val SubtleText = Color.White.copy(alpha = 0.60f)
-private val PrimaryGradient = Brush.horizontalGradient(listOf(ElectricViolet, NeonCyan))
 private val GlassShape = RoundedCornerShape(16.dp)
 private val ChipShape = RoundedCornerShape(12.dp)
+
+/** Theme-aware color provider — reads from MaterialTheme inside @Composable scope. */
+private object FileBrowserColors {
+    val background: Color @Composable get() = MaterialTheme.colorScheme.background
+    val surface: Color @Composable get() = MaterialTheme.colorScheme.surface
+    val surfaceVariant: Color @Composable get() = MaterialTheme.colorScheme.surfaceVariant
+    val surfaceContainer: Color @Composable get() = MaterialTheme.colorScheme.surfaceContainerHigh
+    val border: Color @Composable get() = MaterialTheme.colorScheme.outlineVariant
+    val borderSubtle: Color @Composable get() = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    val textMuted: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+    val textSubtle: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+    val primary: Color @Composable get() = MaterialTheme.colorScheme.primary
+    val onSurface: Color @Composable get() = MaterialTheme.colorScheme.onSurface
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -116,7 +122,7 @@ fun FileBrowserScreen(
         AlertDialog(
             onDismissRequest = { fileToDelete = null },
             shape = GlassShape,
-            containerColor = Charcoal,
+            containerColor = FileBrowserColors.surface,
             tonalElevation = 0.dp,
             modifier = Modifier
                 .border(
@@ -150,7 +156,7 @@ fun FileBrowserScreen(
             title = {
                 Text(
                     "Delete ${file.name}?",
-                    color = Color.White,
+                    color = FileBrowserColors.onSurface,
                     fontWeight = FontWeight.SemiBold,
                 )
             },
@@ -158,7 +164,7 @@ fun FileBrowserScreen(
                 Text(
                     if (file.isDirectory) "This will delete the folder and all its contents."
                     else "This file will be permanently deleted.",
-                    color = SubtleText,
+                    color = FileBrowserColors.textSubtle,
                 )
             },
             confirmButton = {
@@ -175,7 +181,7 @@ fun FileBrowserScreen(
             },
             dismissButton = {
                 TextButton(onClick = { fileToDelete = null }) {
-                    Text("Cancel", color = SubtleText)
+                    Text("Cancel", color = FileBrowserColors.textSubtle)
                 }
             },
         )
@@ -185,20 +191,20 @@ fun FileBrowserScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(TrueBlack),
+            .background(FileBrowserColors.background),
     ) {
         // ── Header ───────────────────────────────────────────────────────────
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(GlassSurfaceElevated)
+                .background(FileBrowserColors.surfaceContainer)
                 .drawBehind {
                     // Subtle gradient line at bottom
                     drawLine(
                         brush = Brush.horizontalGradient(
                             listOf(
-                                ElectricViolet.copy(alpha = 0.5f),
-                                NeonCyan.copy(alpha = 0.3f),
+                                AccentViolet.copy(alpha = 0.5f),
+                                AccentCyan.copy(alpha = 0.3f),
                                 Color.Transparent,
                             )
                         ),
@@ -225,7 +231,7 @@ fun FileBrowserScreen(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack, "Back",
-                            tint = Color.White,
+                            tint = FileBrowserColors.onSurface,
                             modifier = Modifier.size(18.dp),
                         )
                     }
@@ -243,7 +249,7 @@ fun FileBrowserScreen(
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         style = LocalTextStyle.current.copy(
-                            brush = PrimaryGradient,
+                            brush = Brush.horizontalGradient(listOf(AccentViolet, AccentCyan)),
                         ),
                     )
 
@@ -260,14 +266,14 @@ fun FileBrowserScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     Icons.Default.Folder, null,
-                                    tint = ElectricViolet.copy(alpha = 0.5f),
+                                    tint = AccentViolet.copy(alpha = 0.5f),
                                     modifier = Modifier.size(12.dp),
                                 )
                                 Spacer(Modifier.width(4.dp))
                                 Text(
                                     text = path.replace("/", " / "),
                                     fontSize = 12.sp,
-                                    color = MutedText,
+                                    color = FileBrowserColors.textMuted,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
@@ -276,7 +282,7 @@ fun FileBrowserScreen(
                             Text(
                                 "Files in active space",
                                 fontSize = 12.sp,
-                                color = MutedText,
+                                color = FileBrowserColors.textMuted,
                             )
                         } else {
                             Spacer(Modifier.height(0.dp))
@@ -289,15 +295,15 @@ fun FileBrowserScreen(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(ElectricViolet.copy(alpha = 0.10f))
-                            .border(0.5.dp, ElectricViolet.copy(alpha = 0.20f), RoundedCornerShape(8.dp))
+                            .background(AccentViolet.copy(alpha = 0.10f))
+                            .border(0.5.dp, AccentViolet.copy(alpha = 0.20f), RoundedCornerShape(8.dp))
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                     ) {
                         Text(
                             activeSpaceName,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium,
-                            color = ElectricViolet.copy(alpha = 0.8f),
+                            color = AccentViolet.copy(alpha = 0.8f),
                         )
                     }
                     Spacer(Modifier.width(8.dp))
@@ -307,7 +313,7 @@ fun FileBrowserScreen(
                 GlassCircleButton(onClick = { refreshTrigger++ }) {
                     Icon(
                         Icons.Default.Refresh, "Refresh",
-                        tint = Color.White.copy(alpha = 0.7f),
+                        tint = FileBrowserColors.onSurface.copy(alpha = 0.7f),
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -338,7 +344,7 @@ fun FileBrowserScreen(
             Text(
                 "${usage.fileCount} files, ${usage.displaySize}",
                 fontSize = 11.sp,
-                color = MutedText,
+                color = FileBrowserColors.textMuted,
             )
         }
 
@@ -351,8 +357,8 @@ fun FileBrowserScreen(
                 .background(
                     Brush.horizontalGradient(
                         listOf(
-                            ElectricViolet.copy(alpha = 0.4f),
-                            NeonCyan.copy(alpha = 0.15f),
+                            AccentViolet.copy(alpha = 0.4f),
+                            AccentCyan.copy(alpha = 0.15f),
                             Color.Transparent,
                         )
                     )
@@ -390,8 +396,8 @@ fun FileBrowserScreen(
                     modifier = Modifier
                         .widthIn(max = 300.dp)
                         .clip(GlassShape)
-                        .background(GlassSurface)
-                        .border(0.5.dp, GlassBorderLight, GlassShape)
+                        .background(FileBrowserColors.surfaceVariant)
+                        .border(0.5.dp, FileBrowserColors.borderSubtle, GlassShape)
                         .padding(32.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -406,7 +412,7 @@ fun FileBrowserScreen(
                                     scaleX = pulseScale
                                     scaleY = pulseScale
                                 },
-                            tint = if (isShowingShared) NeonCyan.copy(alpha = 0.6f) else ElectricViolet.copy(alpha = 0.6f),
+                            tint = if (isShowingShared) AccentCyan.copy(alpha = 0.6f) else AccentViolet.copy(alpha = 0.6f),
                         )
                         Spacer(Modifier.height(20.dp))
                         Text(
@@ -414,7 +420,7 @@ fun FileBrowserScreen(
                             else "Workspace is empty",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color.White.copy(alpha = 0.8f),
+                            color = FileBrowserColors.onSurface.copy(alpha = 0.8f),
                             textAlign = TextAlign.Center,
                         )
                         Spacer(Modifier.height(8.dp))
@@ -422,7 +428,7 @@ fun FileBrowserScreen(
                             text = if (isShowingShared) "Share images, audio, or files\nfrom other apps."
                             else "The AI assistant will\ncreate files here.",
                             fontSize = 13.sp,
-                            color = MutedText,
+                            color = FileBrowserColors.textMuted,
                             textAlign = TextAlign.Center,
                             lineHeight = 18.sp,
                         )
@@ -493,8 +499,8 @@ private fun GlassCircleButton(
         modifier = modifier
             .size(36.dp)
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.06f))
-            .border(0.5.dp, GlassBorder, CircleShape)
+            .background(FileBrowserColors.surfaceVariant.copy(alpha = 0.6f))
+            .border(0.5.dp, FileBrowserColors.border, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -525,8 +531,8 @@ private fun GlassFilterChip(
                         .background(
                             Brush.horizontalGradient(
                                 listOf(
-                                    ElectricViolet.copy(alpha = 0.25f),
-                                    NeonCyan.copy(alpha = 0.15f),
+                                    AccentViolet.copy(alpha = 0.25f),
+                                    AccentCyan.copy(alpha = 0.15f),
                                 )
                             )
                         )
@@ -534,8 +540,8 @@ private fun GlassFilterChip(
                             0.5.dp,
                             Brush.horizontalGradient(
                                 listOf(
-                                    ElectricViolet.copy(alpha = 0.5f),
-                                    NeonCyan.copy(alpha = 0.3f),
+                                    AccentViolet.copy(alpha = 0.5f),
+                                    AccentCyan.copy(alpha = 0.3f),
                                 )
                             ),
                             ChipShape,
@@ -543,13 +549,13 @@ private fun GlassFilterChip(
                         .shadow(
                             elevation = 8.dp,
                             shape = ChipShape,
-                            ambientColor = ElectricViolet.copy(alpha = 0.3f),
-                            spotColor = ElectricViolet.copy(alpha = 0.3f),
+                            ambientColor = AccentViolet.copy(alpha = 0.3f),
+                            spotColor = AccentViolet.copy(alpha = 0.3f),
                         )
                 } else {
                     Modifier
-                        .background(Color.White.copy(alpha = 0.04f))
-                        .border(0.5.dp, GlassBorder, ChipShape)
+                        .background(FileBrowserColors.surfaceVariant.copy(alpha = 0.4f))
+                        .border(0.5.dp, FileBrowserColors.border, ChipShape)
                 }
             )
             .clickable(onClick = onClick)
@@ -559,14 +565,14 @@ private fun GlassFilterChip(
             Icon(
                 icon, null,
                 modifier = Modifier.size(16.dp),
-                tint = if (isSelected) ElectricViolet else MutedText,
+                tint = if (isSelected) AccentViolet else FileBrowserColors.textMuted,
             )
             Spacer(Modifier.width(6.dp))
             Text(
                 label,
                 fontSize = 13.sp,
                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (isSelected) Color.White else SubtleText,
+                color = if (isSelected) FileBrowserColors.onSurface else FileBrowserColors.textSubtle,
             )
         }
     }
@@ -599,8 +605,8 @@ private fun GlassFileRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(GlassShape)
-                .background(GlassSurface)
-                .border(0.5.dp, GlassBorder, GlassShape)
+                .background(FileBrowserColors.surfaceVariant)
+                .border(0.5.dp, FileBrowserColors.border, GlassShape)
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = onDelete,
@@ -633,7 +639,7 @@ private fun GlassFileRow(
                         file.name,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Color.White.copy(alpha = 0.9f),
+                        color = FileBrowserColors.onSurface.copy(alpha = 0.9f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -644,7 +650,7 @@ private fun GlassFileRow(
                             append(dateFormat.format(Date(file.lastModified)))
                         },
                         fontSize = 11.sp,
-                        color = MutedText,
+                        color = FileBrowserColors.textMuted,
                     )
                 }
 
@@ -654,7 +660,7 @@ private fun GlassFileRow(
                         Icon(
                             Icons.Default.Download, "Save to Downloads",
                             modifier = Modifier.size(15.dp),
-                            tint = NeonCyan.copy(alpha = 0.8f),
+                            tint = AccentCyan.copy(alpha = 0.8f),
                         )
                     }
                     Spacer(Modifier.width(6.dp))
@@ -662,7 +668,7 @@ private fun GlassFileRow(
                         Icon(
                             Icons.Default.Share, "Share",
                             modifier = Modifier.size(15.dp),
-                            tint = SubtleText,
+                            tint = FileBrowserColors.textSubtle,
                         )
                     }
                     Spacer(Modifier.width(6.dp))
@@ -681,13 +687,13 @@ private fun GlassFileRow(
 
 // ── Icon color coding ────────────────────────────────────────────────────────
 private fun fileIconColor(file: SandboxedFileSystem.FileInfo): Color {
-    if (file.isDirectory) return ElectricViolet
+    if (file.isDirectory) return AccentViolet
     return when (file.name.substringAfterLast('.').lowercase()) {
-        "jpg", "jpeg", "png", "gif", "webp", "heic" -> NeonCyan
-        "mp4", "mkv", "avi", "mov" -> SoftPink
-        "mp3", "wav", "ogg", "m4a" -> SoftPink
-        "pdf", "txt", "md", "json", "csv", "html", "htm" -> Color.White.copy(alpha = 0.75f)
-        else -> Color.White.copy(alpha = 0.55f)
+        "jpg", "jpeg", "png", "gif", "webp", "heic" -> AccentCyan
+        "mp4", "mkv", "avi", "mov" -> AccentPink
+        "mp3", "wav", "ogg", "m4a" -> AccentPink
+        "pdf", "txt", "md", "json", "csv", "html", "htm" -> FileBrowserColors.onSurface.copy(alpha = 0.75f)
+        else -> FileBrowserColors.onSurface.copy(alpha = 0.55f)
     }
 }
 
