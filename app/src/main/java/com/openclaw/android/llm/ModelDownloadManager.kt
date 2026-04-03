@@ -80,6 +80,31 @@ class ModelDownloadManager(private val context: Context) {
             supportsToolUse = true,
             tier = ModelTier.MEDIUM,
         ),
+        // ── Gemma 4 (Google's latest open model family, April 2026) ──────
+        DownloadableModel(
+            id = "gemma-4-e2b-q4",
+            name = "Gemma 4 E2B",
+            description = "Google's latest small model. Strong reasoning, 128K context.",
+            sizeBytes = 3_460_000_000L,
+            ramRequired = "4 GB",
+            downloadUrl = "https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf",
+            fileName = "google_gemma-4-E2B-it-Q4_K_M.gguf",
+            contextWindow = 131072,
+            supportsToolUse = true,
+            tier = ModelTier.MEDIUM,
+        ),
+        DownloadableModel(
+            id = "gemma-4-e4b-q4",
+            name = "Gemma 4 E4B",
+            description = "Google's best phone-sized model. Excellent quality, 128K context.",
+            sizeBytes = 4_980_000_000L,
+            ramRequired = "6 GB",
+            downloadUrl = "https://huggingface.co/bartowski/google_gemma-4-E4B-it-GGUF/resolve/main/google_gemma-4-E4B-it-Q4_K_M.gguf",
+            fileName = "google_gemma-4-E4B-it-Q4_K_M.gguf",
+            contextWindow = 131072,
+            supportsToolUse = true,
+            tier = ModelTier.LARGE,
+        ),
         // ── Large (5-8GB RAM, for high-end devices like Fold 7) ──────────
         DownloadableModel(
             id = "qwen2.5-7b-q4",
