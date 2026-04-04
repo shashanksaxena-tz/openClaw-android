@@ -3,6 +3,7 @@ package com.openclaw.android.llm
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.isActive
 import kotlinx.serialization.json.*
 import java.util.UUID
@@ -343,6 +344,13 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
             val fullText = StringBuilder()
             var cancelled = false
 
+            // Timeout: if no token is generated within 60 seconds, abort.
+            // Off-grid uses 8s timeout for GPU init; we use 60s for the full
+            // first-token because cold mmap + CPU prefill is legitimately slow.
+            val firstTokenTimeout = 60_000L
+            val generateStart = System.currentTimeMillis()
+            var gotFirstToken = false
+
             val result = try {
                 LlamaBridge.generate(
                     prompt = prompt,
@@ -352,6 +360,11 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
                         else listOf("<|im_end|>", "<|im_start|>"),
                     onToken = { token ->
                         if (!cancelled) {
+                            if (!gotFirstToken) {
+                                gotFirstToken = true
+                                val ttft = System.currentTimeMillis() - generateStart
+                                Log.i(TAG, "Time to first token: ${ttft}ms")
+                            }
                             try {
                                 fullText.append(token)
                                 onChunk(token)
@@ -365,14 +378,27 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
                                 return@generate false
                             }
                         }
+                        // Abort if stuck waiting for first token too long
+                        if (!gotFirstToken && System.currentTimeMillis() - generateStart > firstTokenTimeout) {
+                            Log.e(TAG, "Aborting: no token generated in ${firstTokenTimeout / 1000}s")
+                            cancelled = true
+                            return@generate false
+                        }
                         !cancelled && isActive
                     },
                 )
             } catch (e: Throwable) {
-                // Catch Throwable (not just Exception) to handle native crashes
-                // that surface as Error (e.g. UnsatisfiedLinkError, OutOfMemoryError)
                 Log.e(TAG, "Native generate call crashed", e)
                 Result.failure(RuntimeException("Local model inference failed: ${e.message ?: "native crash"}", e))
+            }
+
+            // If we timed out waiting for first token, return a helpful error
+            if (cancelled && !gotFirstToken) {
+                onError(IllegalStateException(
+                    "Local model is too slow on this device (no response in ${firstTokenTimeout / 1000}s). " +
+                    "Try a smaller model or switch to a cloud model."
+                ))
+                return@withContext
             }
 
             val responseText = result.getOrElse { e ->
