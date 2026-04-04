@@ -189,16 +189,15 @@ class LlamaProvider(
         }
 
         for ((i, a) in attempts.withIndex()) {
-            InferenceLog.log(TAG, "Load attempt ${i + 1}/${attempts.size}: ${a.label}")
+            val start = System.currentTimeMillis()
             val ok = try {
                 LlamaBridge.loadModel(modelPath, device.threads, a.gpu, a.ctx, useMmap, a.flash).isSuccess
             } catch (e: Throwable) {
                 Log.e(TAG, "Load crashed: ${e.message}"); false
             }
-            if (ok) {
-                if (i > 0) InferenceLog.log(TAG, "Loaded via fallback: ${a.label}")
-                return null
-            }
+            val elapsed = System.currentTimeMillis() - start
+            InferenceLog.logLoadAttempt(i + 1, attempts.size, a.label, ok, elapsed)
+            if (ok) return null
         }
 
         return "Failed to load model after ${attempts.size} attempts. Try a smaller model."
@@ -208,31 +207,48 @@ class LlamaProvider(
 
     /** Build prompt, progressively stripping content to fit context. Returns null if impossible. */
     private fun buildAndFitPrompt(request: ChatRequest, modelPath: String?, contextSize: Int): String? {
-        val maxTokens = contextSize - 256 // reserve for generation
+        val maxTokens = contextSize - 256
+        val template = if (ChatTemplate.isGemma(modelPath)) "gemma" else "chatml"
 
         // Attempt 1: full request
         var prompt = ChatTemplate.build(request, modelPath)
-        if (LlamaBridge.tokenCount(prompt) <= maxTokens) return prompt
+        var tokens = LlamaBridge.tokenCount(prompt)
+        if (tokens <= maxTokens) {
+            InferenceLog.logPrompt(tokens, maxTokens, "none", template)
+            return prompt
+        }
 
         // Attempt 2: strip tools
-        InferenceLog.log(TAG, "Prompt overflow — stripping tools")
         prompt = ChatTemplate.build(request.copy(tools = null), modelPath)
-        if (LlamaBridge.tokenCount(prompt) <= maxTokens) return prompt
+        tokens = LlamaBridge.tokenCount(prompt)
+        if (tokens <= maxTokens) {
+            InferenceLog.logPrompt(tokens, maxTokens, "tools", template)
+            return prompt
+        }
 
         // Attempt 3: minimal system prompt
-        InferenceLog.log(TAG, "Still too large — minimal system prompt")
         prompt = ChatTemplate.build(request.copy(
             tools = null, systemPrompt = "You are a helpful AI on an Android phone. Be concise.",
         ), modelPath)
-        if (LlamaBridge.tokenCount(prompt) <= maxTokens) return prompt
+        tokens = LlamaBridge.tokenCount(prompt)
+        if (tokens <= maxTokens) {
+            InferenceLog.logPrompt(tokens, maxTokens, "tools+sysprompt", template)
+            return prompt
+        }
 
         // Attempt 4: truncate to last 2 messages
-        InferenceLog.log(TAG, "Still too large — truncating to last 2 messages")
         prompt = ChatTemplate.build(ChatRequest(
             model = request.model, messages = request.messages.takeLast(2),
             systemPrompt = "Be concise.", maxTokens = request.maxTokens, temperature = request.temperature,
         ), modelPath)
-        return if (LlamaBridge.tokenCount(prompt) <= maxTokens) prompt else null
+        tokens = LlamaBridge.tokenCount(prompt)
+        if (tokens <= maxTokens) {
+            InferenceLog.logPrompt(tokens, maxTokens, "tools+sysprompt+history", template)
+            return prompt
+        }
+
+        InferenceLog.logError(TAG, "Prompt still $tokens tokens after all stripping (max $maxTokens)")
+        return null
     }
 
     // ── Private: generation ─────────────────────────────────────────────────
