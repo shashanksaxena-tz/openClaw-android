@@ -13,6 +13,7 @@ import com.openclaw.android.data.SettingsRepository
 import com.openclaw.android.data.SpaceManager
 import com.openclaw.android.data.db.AppDatabase
 import com.openclaw.android.llm.*
+import com.openclaw.android.llm.InferenceLog
 import com.openclaw.android.llm.ModelDownloadManager
 import com.openclaw.android.sandbox.SandboxedFileSystem
 import com.openclaw.android.tools.*
@@ -68,8 +69,10 @@ class OpenClawApp : Application() {
         super.onCreate()
 
         // Install a crash handler so native/OOM crashes get saved for next launch.
-        // This lets us show the user what went wrong instead of silently exiting.
         installCrashHandler()
+
+        // Initialize inference diagnostics log
+        InferenceLog.init(this)
 
         // Notification channels
         NotificationHelper.createChannel(this)
