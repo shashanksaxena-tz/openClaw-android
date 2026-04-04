@@ -13,17 +13,14 @@ data class DeviceProfile(
     val totalGb: Double get() = totalMemMb / 1024.0
     val availGb: Double get() = availableMemMb / 1024.0
 
-    /** Max context tokens this device can safely handle. */
+    /** Max context tokens. Conservative like off-grid: 2048 default, only scale up on 12GB+. */
     val maxContext: Int get() {
         val base = when {
-            totalGb <= 4 -> 1024
             totalGb <= 6 -> 2048
-            totalGb <= 8 -> 4096
-            totalGb <= 12 -> 8192
-            else -> 16384
+            totalGb <= 12 -> 2048   // off-grid defaults to 2048 for all ≤12GB
+            else -> 4096
         }
-        // Downgrade if available memory is tight
-        return if (availGb < 1.5 && base > 2048) base / 2 else base
+        return if (availGb < 1.0 && base > 1024) 1024 else base
     }
 
     /**
@@ -35,11 +32,16 @@ data class DeviceProfile(
      */
     val gpuLayers: Int get() = 0
 
-    /** Thread count: up to 6 performance cores. */
-    val threads: Int get() = minOf(maxOf(1, cpuCores - 2), 6)
+    /** Thread count: 4 max (off-grid default). Over-threading onto efficiency cores hurts. */
+    val threads: Int get() = minOf(maxOf(1, cpuCores - 2), 4)
 
-    /** Flash attention: enabled on 8GB+ (always CPU-only since GPU disabled on Android). */
-    val flashAttention: Boolean get() = totalGb >= 8
+    /**
+     * Flash attention: DISABLED by default.
+     * Was causing hangs on SM-F966B even with cpu-only + q8_0 KV.
+     * Off-grid enables it but they use llama.rn which may handle it differently.
+     * Can be re-enabled once confirmed working on real devices.
+     */
+    val flashAttention: Boolean get() = false
 
     /** Whether this device has enough RAM to attempt model loading. */
     val canLoadModel: Boolean get() = availableMemMb >= MIN_RAM_MB

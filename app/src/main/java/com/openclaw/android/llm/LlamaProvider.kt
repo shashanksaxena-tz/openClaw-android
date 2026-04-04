@@ -6,6 +6,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.isActive
 import kotlinx.serialization.json.*
 import java.util.UUID
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * Local on-device LLM provider using llama.cpp via JNI.
@@ -259,6 +261,13 @@ class LlamaProvider(
         data class Error(val message: String) : GenerateResult()
     }
 
+    /**
+     * Run native generate with a hard timeout.
+     *
+     * The native llama_decode() for prompt prefill can hang (Adreno GPU, flash_attn bugs,
+     * OOM swap thrashing). The onToken callback only fires AFTER prefill completes, so
+     * checking timeout inside onToken doesn't help. We use a real thread timeout instead.
+     */
     private fun generate(
         prompt: String,
         maxTokens: Int,
@@ -267,50 +276,63 @@ class LlamaProvider(
         onChunk: (String) -> Unit,
     ): GenerateResult {
         val startMs = System.currentTimeMillis()
-        var gotFirstToken = false
-        var cancelled = false
+        @Volatile var gotFirstToken = false
+        @Volatile var cancelled = false
         val fullText = StringBuilder()
 
         InferenceLog.log(TAG, "Calling native generate (${prompt.length} chars, maxTokens=$maxTokens)...")
+
+        // Run native call in a separate thread with a hard timeout.
+        // If llama_decode() hangs in prefill, the Future.get() will timeout
+        // and we return a Timeout result instead of blocking forever.
+        val executor = Executors.newSingleThreadExecutor()
+        val future = executor.submit<Result<String>> {
+            try {
+                LlamaBridge.generate(
+                    prompt = prompt,
+                    maxTokens = maxTokens,
+                    temperature = temperature,
+                    stopSequences = ChatTemplate.stopSequences(modelPath),
+                    onToken = { token ->
+                        if (!cancelled) {
+                            if (!gotFirstToken) {
+                                gotFirstToken = true
+                                val ttft = System.currentTimeMillis() - startMs
+                                InferenceLog.logFirstToken(ttft)
+                            }
+                            fullText.append(token)
+                            try { onChunk(token) } catch (_: Exception) {}
+
+                            if (fullText.contains(ESCALATION_MARKER)) {
+                                cancelled = true
+                                return@generate false
+                            }
+                        }
+                        !cancelled
+                    },
+                )
+            } catch (e: Throwable) {
+                Result.failure(e)
+            }
+        }
+
         val result = try {
-            LlamaBridge.generate(
-                prompt = prompt,
-                maxTokens = maxTokens,
-                temperature = temperature,
-                stopSequences = ChatTemplate.stopSequences(modelPath),
-                onToken = { token ->
-                    if (!cancelled) {
-                        if (!gotFirstToken) {
-                            gotFirstToken = true
-                            val ttft = System.currentTimeMillis() - startMs
-                            InferenceLog.logFirstToken(ttft)
-                        }
-                        fullText.append(token)
-                        try { onChunk(token) } catch (_: Exception) {}
-
-                        if (fullText.contains(ESCALATION_MARKER)) {
-                            cancelled = true
-                            return@generate false
-                        }
-                    }
-                    // Timeout: abort if no first token within limit
-                    if (!gotFirstToken && System.currentTimeMillis() - startMs > FIRST_TOKEN_TIMEOUT_MS) {
-                        cancelled = true
-                        return@generate false
-                    }
-                    !cancelled
-                },
-            )
-        } catch (e: Throwable) {
-            return GenerateResult.Error("Native crash: ${e.message ?: "unknown"}")
-        }
-
-        if (cancelled && !gotFirstToken) {
+            future.get(FIRST_TOKEN_TIMEOUT_MS + 30_000, TimeUnit.MILLISECONDS) // 90s hard limit
+        } catch (e: TimeoutException) {
+            cancelled = true // signal native code to stop if it ever checks
+            InferenceLog.logError(TAG, "HARD TIMEOUT: native generate did not return in ${(FIRST_TOKEN_TIMEOUT_MS + 30_000) / 1000}s")
+            executor.shutdownNow()
             return GenerateResult.Timeout(System.currentTimeMillis() - startMs)
+        } catch (e: Exception) {
+            executor.shutdownNow()
+            return GenerateResult.Error("Generate thread error: ${e.message}")
+        } finally {
+            executor.shutdown()
         }
 
+        val elapsed = System.currentTimeMillis() - startMs
         return result.fold(
-            onSuccess = { text -> GenerateResult.Success(text, System.currentTimeMillis() - startMs) },
+            onSuccess = { text -> GenerateResult.Success(text, elapsed) },
             onFailure = { e -> GenerateResult.Error(e.message ?: "Generation failed") },
         )
     }
