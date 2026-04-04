@@ -847,6 +847,124 @@ fun SettingsScreen(
                 }
             }
 
+            // ── Inference Diagnostics Section ────────────────────────────────
+            run {
+                val inferenceLog = remember { com.openclaw.android.llm.InferenceLog.getLogText() }
+                var showInferenceLog by remember { mutableStateOf(false) }
+                var refreshedLog by remember { mutableStateOf(inferenceLog) }
+
+                Spacer(Modifier.height(18.dp))
+                GlassSection(
+                    icon = Icons.Outlined.Analytics,
+                    title = "Inference Log",
+                    description = "Local model diagnostics — share when reporting slow/stuck inference.",
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(InnerShape)
+                                .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.08f))
+                                .border(0.5.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.25f), InnerShape)
+                                .clickable {
+                                    refreshedLog = com.openclaw.android.llm.InferenceLog.getLogText()
+                                    showInferenceLog = true
+                                }
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("View Log", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.tertiary))
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(InnerShape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                                .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, InnerShape)
+                                .clickable {
+                                    val log = com.openclaw.android.llm.InferenceLog.getLogText()
+                                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                    clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Inference Log", log))
+                                }
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("Copy to Clipboard", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface))
+                        }
+                    }
+                }
+
+                if (showInferenceLog) {
+                    Dialog(
+                        onDismissRequest = { showInferenceLog = false },
+                        properties = DialogProperties(usePlatformDefaultWidth = false),
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth(0.95f)
+                                .fillMaxHeight(0.7f),
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    "Inference Log",
+                                    style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface),
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    "Copy and share when reporting issues",
+                                    style = TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
+                                )
+                                Spacer(Modifier.height(12.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth()
+                                        .clip(InnerShape)
+                                        .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                                        .padding(12.dp)
+                                        .verticalScroll(rememberScrollState()),
+                                ) {
+                                    Text(
+                                        refreshedLog.ifBlank { "No inference log yet. Try sending a message to a local model." },
+                                        style = TextStyle(
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            lineHeight = 14.sp,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                        ),
+                                    )
+                                }
+                                Spacer(Modifier.height(12.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    TextButton(onClick = {
+                                        com.openclaw.android.llm.InferenceLog.clear()
+                                        refreshedLog = ""
+                                    }) {
+                                        Text("Clear", color = MaterialTheme.colorScheme.error)
+                                    }
+                                    Row {
+                                        TextButton(onClick = {
+                                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                            clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Inference Log", refreshedLog))
+                                        }) {
+                                            Text("Copy All", color = MaterialTheme.colorScheme.tertiary)
+                                        }
+                                        TextButton(onClick = { showInferenceLog = false }) {
+                                            Text("Close", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Spacer(Modifier.height(36.dp))
 
             // ── Footer ───────────────────────────────────────────────────────
