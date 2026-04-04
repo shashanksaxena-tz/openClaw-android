@@ -132,7 +132,7 @@ fun SettingsScreen(
                         .padding(horizontal = 12.dp, vertical = 5.dp),
                 ) {
                     Text(
-                        "v1.1.0",
+                        "v2.0.0",
                         style = TextStyle(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
