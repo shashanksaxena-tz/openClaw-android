@@ -13,14 +13,11 @@ data class DeviceProfile(
     val totalGb: Double get() = totalMemMb / 1024.0
     val availGb: Double get() = availableMemMb / 1024.0
 
-    /** Max context tokens. Conservative like off-grid: 2048 default, only scale up on 12GB+. */
-    val maxContext: Int get() {
-        val base = when {
-            totalGb <= 6 -> 2048
-            totalGb <= 12 -> 2048   // off-grid defaults to 2048 for all ≤12GB
-            else -> 4096
-        }
-        return if (availGb < 1.0 && base > 1024) 1024 else base
+    /** Max context tokens. Conservative like off-grid: always at least 2048. */
+    val maxContext: Int get() = when {
+        totalGb <= 6 -> 2048
+        totalGb <= 12 -> 2048
+        else -> 4096
     }
 
     /**
@@ -43,11 +40,12 @@ data class DeviceProfile(
      */
     val flashAttention: Boolean get() = false
 
-    /** Whether this device has enough RAM to attempt model loading. */
+    /** Whether this device has enough RAM to attempt model loading.
+     *  Off-grid only warns, never blocks. We use 150MB absolute floor. */
     val canLoadModel: Boolean get() = availableMemMb >= MIN_RAM_MB
 
     companion object {
-        const val MIN_RAM_MB = 300L
+        const val MIN_RAM_MB = 150L
 
         fun detect(): DeviceProfile = DeviceProfile(
             totalMemMb = LlamaBridge.getTotalMemoryMb(),

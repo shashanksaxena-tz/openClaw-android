@@ -119,27 +119,42 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeLoadModel(
         ctx_params.type_v = GGML_TYPE_F16;
     }
 
-    // Progressive context fallback: try requested size, then 2048, then 1024.
-    // This mirrors off-grid's initContextWithFallback() approach.
-    int ctx_sizes[] = { contextSize, 2048, 1024 };
-    int n_attempts = (contextSize <= 1024) ? 1 : (contextSize <= 2048) ? 2 : 3;
+    // Progressive context fallback: try requested size down to 512.
+    // On low-RAM devices, even 1024 can fail. Always attempt smaller sizes.
+    int ctx_sizes[] = { contextSize, 2048, 1024, 512 };
+    int n_sizes = 4;
+    // Skip sizes larger than requested
+    int start_idx = 0;
+    while (start_idx < n_sizes - 1 && ctx_sizes[start_idx] > contextSize) start_idx++;
 
-    for (int attempt = 0; attempt < n_attempts; attempt++) {
+    for (int attempt = start_idx; attempt < n_sizes; attempt++) {
         int try_ctx = ctx_sizes[attempt];
         ctx_params.n_ctx = try_ctx;
 
-        LOGI("Context init attempt %d/%d with ctx=%d", attempt + 1, n_attempts, try_ctx);
+        LOGI("Context init attempt %d/%d with ctx=%d, kv=%s",
+             attempt - start_idx + 1, n_sizes - start_idx, try_ctx,
+             (nGpuLayers == 0) ? "q8_0" : "f16");
+
         g_ctx = llama_init_from_model(g_model, ctx_params);
         if (g_ctx) {
-            if (attempt > 0) {
-                LOGI("Context init succeeded with reduced size: %d (requested: %d)", try_ctx, contextSize);
-            }
-            LOGI("Model loaded successfully. Context: %d tokens, mmap: %s, flash_attn: %s",
-                 try_ctx, useMmap ? "on" : "off", flashAttn ? "on" : "off");
+            LOGI("Model loaded successfully. Context: %d tokens, mmap: %s, flash_attn: %s, kv: %s",
+                 try_ctx, useMmap ? "on" : "off", flashAttn ? "on" : "off",
+                 (nGpuLayers == 0) ? "q8_0" : "f16");
             return JNI_TRUE;
         }
-        LOGE("Context init failed with ctx=%d, %s", try_ctx,
-             (attempt < n_attempts - 1) ? "retrying with smaller context..." : "giving up");
+        LOGE("Context init failed with ctx=%d", try_ctx);
+    }
+
+    // Last resort: try f16 KV cache with ctx=512 (most compatible, least memory)
+    LOGI("All q8_0 attempts failed — trying f16 KV with ctx=512 as last resort");
+    ctx_params.type_k = GGML_TYPE_F16;
+    ctx_params.type_v = GGML_TYPE_F16;
+    ctx_params.n_ctx = 512;
+    g_ctx = llama_init_from_model(g_model, ctx_params);
+    if (g_ctx) {
+        LOGI("Model loaded with f16 KV fallback, ctx=512");
+        return JNI_TRUE;
+    }
     }
 
     // All attempts failed — clean up
