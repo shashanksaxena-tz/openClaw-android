@@ -293,7 +293,7 @@ class LlamaProvider(
                     maxTokens = maxTokens,
                     temperature = temperature,
                     stopSequences = ChatTemplate.stopSequences(modelPath),
-                    onToken = { token ->
+                    onToken = fun(token: String): Boolean {
                         if (!cancelled) {
                             if (!gotFirstToken) {
                                 gotFirstToken = true
@@ -305,10 +305,10 @@ class LlamaProvider(
 
                             if (fullText.contains(ESCALATION_MARKER)) {
                                 cancelled = true
-                                return@generate false
+                                return false
                             }
                         }
-                        !cancelled
+                        return !cancelled
                     },
                 )
             } catch (e: Throwable) {
@@ -317,10 +317,10 @@ class LlamaProvider(
         }
 
         val result = try {
-            future.get(FIRST_TOKEN_TIMEOUT_MS + 30_000, TimeUnit.MILLISECONDS) // 90s hard limit
-        } catch (e: TimeoutException) {
-            cancelled = true // signal native code to stop if it ever checks
-            InferenceLog.logError(TAG, "HARD TIMEOUT: native generate did not return in ${(FIRST_TOKEN_TIMEOUT_MS + 30_000) / 1000}s")
+            future.get(FIRST_TOKEN_TIMEOUT_MS + 30_000, TimeUnit.MILLISECONDS)
+        } catch (_: java.util.concurrent.TimeoutException) {
+            cancelled = true
+            InferenceLog.logError(TAG, "HARD TIMEOUT: native generate blocked for ${(FIRST_TOKEN_TIMEOUT_MS + 30_000) / 1000}s")
             executor.shutdownNow()
             return GenerateResult.Timeout(System.currentTimeMillis() - startMs)
         } catch (e: Exception) {
