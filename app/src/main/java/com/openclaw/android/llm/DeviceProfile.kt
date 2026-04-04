@@ -26,18 +26,20 @@ data class DeviceProfile(
         return if (availGb < 1.5 && base > 2048) base / 2 else base
     }
 
-    /** GPU layers: 0 for ≤6GB, 12 for ≤8GB, 24 for >8GB. */
-    val gpuLayers: Int get() = when {
-        totalGb <= 6 -> 0
-        totalGb <= 8 -> 12
-        else -> 24
-    }
+    /**
+     * GPU layers: DISABLED on Android by default.
+     * Adreno OpenCL backend loads models fine but hangs during llama_decode().
+     * Confirmed on SM-F966B (Fold 6, Adreno 750, 11GB RAM) — model loads with
+     * gpu=24 in 8s but inference never produces a token.
+     * Off-grid also defaults to GPU=0 on Android for the same reason.
+     */
+    val gpuLayers: Int get() = 0
 
     /** Thread count: up to 6 performance cores. */
     val threads: Int get() = minOf(maxOf(1, cpuCores - 2), 6)
 
-    /** Flash attention: safe on 8GB+ CPU-only (OpenCL backend can't handle it). */
-    val flashAttention: Boolean get() = totalGb >= 8 && gpuLayers == 0
+    /** Flash attention: enabled on 8GB+ (always CPU-only since GPU disabled on Android). */
+    val flashAttention: Boolean get() = totalGb >= 8
 
     /** Whether this device has enough RAM to attempt model loading. */
     val canLoadModel: Boolean get() = availableMemMb >= MIN_RAM_MB

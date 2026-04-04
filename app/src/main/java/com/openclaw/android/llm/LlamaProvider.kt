@@ -271,6 +271,7 @@ class LlamaProvider(
         var cancelled = false
         val fullText = StringBuilder()
 
+        InferenceLog.log(TAG, "Calling native generate (${prompt.length} chars, maxTokens=$maxTokens)...")
         val result = try {
             LlamaBridge.generate(
                 prompt = prompt,

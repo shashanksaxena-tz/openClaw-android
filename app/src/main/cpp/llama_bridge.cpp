@@ -18,6 +18,7 @@
 #include <jni.h>
 #include <string>
 #include <mutex>
+#include <chrono>
 #include <android/log.h>
 #include <sys/sysinfo.h>
 
@@ -225,7 +226,10 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeGenerate(
     jmethodID onTokenMethod = env->GetMethodID(callbackClass, "onToken",
         "(Ljava/lang/String;)Z");
 
-    // Tokenize prompt
+    // ── Step 1: Tokenize ─────────────────────────────────────────────────
+    auto t_start = std::chrono::high_resolution_clock::now();
+    LOGI("[STEP 1/5] Tokenizing prompt (%d chars)...", (int)prompt.size());
+
     std::vector<llama_token> tokens(prompt.size() + 128);
     int n_tokens = llama_tokenize(vocab, prompt.c_str(), prompt.size(),
                                    tokens.data(), tokens.size(), true, true);
@@ -236,16 +240,18 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeGenerate(
     }
     tokens.resize(n_tokens);
 
-    LOGI("Prompt tokens: %d, generating up to %d tokens", n_tokens, maxTokens);
+    auto t_tokenize = std::chrono::high_resolution_clock::now();
+    auto ms_tokenize = std::chrono::duration_cast<std::chrono::milliseconds>(t_tokenize - t_start).count();
+    LOGI("[STEP 1/5] Tokenized: %d tokens in %lldms. Max gen: %d", n_tokens, (long long)ms_tokenize, maxTokens);
 
-    // Clear memory (KV cache) and decode prompt
+    // ── Step 2: Clear KV cache ──────────────────────────────────────────
+    LOGI("[STEP 2/5] Clearing KV cache...");
     llama_memory_clear(llama_get_memory(ctx), true);
 
-    // Process prompt in batches of n_batch tokens (default 512).
-    // Processing all at once was causing 3-4 minute hangs on phones —
-    // batching dramatically improves prefill throughput and responsiveness.
+    // ── Step 3: Prefill (decode prompt in batches) ──────────────────────
     const int n_batch = llama_n_batch(ctx);
-    LOGI("Processing %d prompt tokens in batches of %d", n_tokens, n_batch);
+    LOGI("[STEP 3/5] Prefill: %d tokens in batches of %d...", n_tokens, n_batch);
+    auto t_prefill_start = std::chrono::high_resolution_clock::now();
 
     for (int i = 0; i < n_tokens; i += n_batch) {
         int n_eval = std::min(n_batch, n_tokens - i);
@@ -256,15 +262,27 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeGenerate(
             common_batch_add(batch, tokens[i + j], i + j, {0}, is_last);
         }
 
-        if (llama_decode(ctx, batch) != 0) {
-            llama_batch_free(batch);
-            LOGE("Failed to decode prompt batch at offset %d", i);
-            return env->NewStringUTF("Error: Failed to process prompt");
-        }
+        auto t_batch_start = std::chrono::high_resolution_clock::now();
+        int decode_result = llama_decode(ctx, batch);
+        auto t_batch_end = std::chrono::high_resolution_clock::now();
+        auto ms_batch = std::chrono::duration_cast<std::chrono::milliseconds>(t_batch_end - t_batch_start).count();
+
         llama_batch_free(batch);
+
+        if (decode_result != 0) {
+            LOGE("[STEP 3/5] FAILED at batch offset %d after %lldms", i, (long long)ms_batch);
+            return env->NewStringUTF("Error: Prompt decode failed");
+        }
+        LOGI("[STEP 3/5] Batch %d-%d decoded in %lldms", i, i + n_eval - 1, (long long)ms_batch);
     }
 
-    // Sampling setup
+    auto t_prefill_end = std::chrono::high_resolution_clock::now();
+    auto ms_prefill = std::chrono::duration_cast<std::chrono::milliseconds>(t_prefill_end - t_prefill_start).count();
+    double prefill_tps = (ms_prefill > 0) ? (n_tokens * 1000.0 / ms_prefill) : 0;
+    LOGI("[STEP 3/5] Prefill done: %d tokens in %lldms (%.1f t/s)", n_tokens, (long long)ms_prefill, prefill_tps);
+
+    // ── Step 4: Setup sampler ───────────────────────────────────────────
+    LOGI("[STEP 4/5] Setting up sampler (temp=%.2f)...", temperature);
     auto sparams = llama_sampler_chain_default_params();
     llama_sampler *sampler = llama_sampler_chain_init(sparams);
 
@@ -277,10 +295,9 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeGenerate(
         llama_sampler_chain_add(sampler, llama_sampler_init_dist(0));
     }
 
-    // Allocate a single batch for token-by-token generation (reused in loop)
+    // ── Step 5: Generate tokens ─────────────────────────────────────────
+    LOGI("[STEP 5/5] Generating (max %d tokens)...", maxTokens);
     llama_batch next_batch = llama_batch_init(1, 0, 1);
-
-    // Generate tokens
     std::string full_response;
     int n_cur = n_tokens;
 
@@ -343,7 +360,13 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeGenerate(
     llama_batch_free(next_batch);
     llama_sampler_free(sampler);
 
-    LOGI("Generated %d chars", (int)full_response.size());
+    auto t_end = std::chrono::high_resolution_clock::now();
+    auto ms_total = std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start).count();
+    int gen_tokens = n_cur - n_tokens;
+    auto ms_gen = std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_prefill_end).count();
+    double gen_tps = (ms_gen > 0) ? (gen_tokens * 1000.0 / ms_gen) : 0;
+    LOGI("[DONE] %d tokens generated in %lldms (%.1f t/s). Total: %lldms. Prefill: %lldms",
+         gen_tokens, (long long)ms_gen, gen_tps, (long long)ms_total, (long long)ms_prefill);
     return env->NewStringUTF(full_response.c_str());
 }
 
