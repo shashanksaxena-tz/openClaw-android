@@ -3,9 +3,9 @@ package com.openclaw.android.llm
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.isActive
 import kotlinx.serialization.json.*
 import java.util.UUID
+import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -26,14 +26,13 @@ class LlamaProvider(
     companion object {
         private const val TAG = "LlamaProvider"
         const val ESCALATION_MARKER = "[ESCALATE_TO_CLOUD]"
-        private const val FIRST_TOKEN_TIMEOUT_MS = 60_000L
+        private const val GENERATE_TIMEOUT_MS = 90_000L // 90s hard limit
 
         private val TOOL_CALL_PATTERN = Regex(
             "```tool_call\\s*\\n(\\{[^`]+\\})\\s*\\n```",
             RegexOption.DOT_MATCHES_ALL,
         )
 
-        /** Quants where disabling mmap allows llama.cpp to repack weights for speed. */
         private val REPACKABLE_QUANTS = listOf("q4_0", "iq4_nl")
 
         fun shouldUseMmap(modelPath: String): Boolean =
@@ -73,7 +72,6 @@ class LlamaProvider(
         onError: (Exception) -> Unit,
     ) = withContext(Dispatchers.IO) {
         try {
-            // 1. Load model
             val loadError = loadModelIfNeeded()
             if (loadError != null) {
                 InferenceLog.logError(TAG, loadError)
@@ -81,7 +79,6 @@ class LlamaProvider(
                 return@withContext
             }
 
-            // 2. Build prompt with progressive stripping
             val modelPath = resolveModelPath()
             val contextSize = LlamaBridge.getContextLength().let { if (it > 0) it else 2048 }
             val prompt = buildAndFitPrompt(request, modelPath, contextSize)
@@ -96,10 +93,8 @@ class LlamaProvider(
             val maxGenTokens = minOf(request.maxTokens, 2048, contextSize - promptTokens)
             InferenceLog.logInferenceStart(promptTokens, maxGenTokens, contextSize)
 
-            // 3. Generate with timeout safety net
             val result = generate(prompt, maxGenTokens, request.temperature.toFloat(), modelPath, onChunk)
 
-            // 4. Handle result
             when (result) {
                 is GenerateResult.Success -> {
                     val toolCalls = parseToolCalls(result.text)
@@ -120,7 +115,7 @@ class LlamaProvider(
                     ))
                 }
                 is GenerateResult.Timeout -> {
-                    val msg = "Local model too slow (no response in ${FIRST_TOKEN_TIMEOUT_MS / 1000}s). Try a smaller model."
+                    val msg = "Local model too slow (no response in ${GENERATE_TIMEOUT_MS / 1000}s). Try a smaller model."
                     InferenceLog.logError(TAG, msg)
                     onError(IllegalStateException(msg))
                 }
@@ -148,10 +143,6 @@ class LlamaProvider(
         else downloadManager.getDownloadedModels().firstOrNull()?.filePath
     }
 
-    /**
-     * Load model with 3-tier fallback: GPU → CPU → CPU+2K context.
-     * Returns null on success, error message on failure.
-     */
     private fun loadModelIfNeeded(): String? {
         if (LlamaBridge.isModelLoaded()) return null
         if (!LlamaBridge.isLoaded) return "Native library not loaded."
@@ -160,7 +151,6 @@ class LlamaProvider(
         val modelPath = resolveModelPath() ?: return "No model downloaded. Go to Settings to download one."
         val modelFile = java.io.File(modelPath)
 
-        // Validate GGUF
         if (!modelFile.exists() || modelFile.length() < 8) return "Model file missing or empty. Re-download in Settings."
         val magic = try {
             java.io.RandomAccessFile(modelFile, "r").use { raf ->
@@ -169,7 +159,6 @@ class LlamaProvider(
         } catch (_: Exception) { "" }
         if (magic != "GGUF") return "Model file corrupted. Delete and re-download."
 
-        // Device profile
         val device = DeviceProfile.detect()
         if (!device.canLoadModel) {
             return "Not enough RAM (${device.availableMemMb}MB free, need ${DeviceProfile.MIN_RAM_MB}MB). Close other apps."
@@ -182,7 +171,6 @@ class LlamaProvider(
             "threads" to device.threads, "flash" to device.flashAttention, "mmap" to useMmap,
         ))
 
-        // 3-tier fallback
         data class Attempt(val gpu: Int, val ctx: Int, val flash: Boolean, val label: String)
         val attempts = buildList {
             add(Attempt(device.gpuLayers, device.maxContext, device.flashAttention, "gpu=${device.gpuLayers} ctx=${device.maxContext}"))
@@ -207,12 +195,10 @@ class LlamaProvider(
 
     // ── Private: prompt building ────────────────────────────────────────────
 
-    /** Build prompt, progressively stripping content to fit context. Returns null if impossible. */
     private fun buildAndFitPrompt(request: ChatRequest, modelPath: String?, contextSize: Int): String? {
         val maxTokens = contextSize - 256
         val template = if (ChatTemplate.isGemma(modelPath)) "gemma" else "chatml"
 
-        // Attempt 1: full request
         var prompt = ChatTemplate.build(request, modelPath)
         var tokens = LlamaBridge.tokenCount(prompt)
         if (tokens <= maxTokens) {
@@ -220,7 +206,6 @@ class LlamaProvider(
             return prompt
         }
 
-        // Attempt 2: strip tools
         prompt = ChatTemplate.build(request.copy(tools = null), modelPath)
         tokens = LlamaBridge.tokenCount(prompt)
         if (tokens <= maxTokens) {
@@ -228,7 +213,6 @@ class LlamaProvider(
             return prompt
         }
 
-        // Attempt 3: minimal system prompt
         prompt = ChatTemplate.build(request.copy(
             tools = null, systemPrompt = "You are a helpful AI on an Android phone. Be concise.",
         ), modelPath)
@@ -238,7 +222,6 @@ class LlamaProvider(
             return prompt
         }
 
-        // Attempt 4: truncate to last 2 messages
         prompt = ChatTemplate.build(ChatRequest(
             model = request.model, messages = request.messages.takeLast(2),
             systemPrompt = "Be concise.", maxTokens = request.maxTokens, temperature = request.temperature,
@@ -261,12 +244,13 @@ class LlamaProvider(
         data class Error(val message: String) : GenerateResult()
     }
 
+    /** Container for generate result to avoid Kotlin Result + Java interop issues. */
+    private class NativeResult(val text: String?, val error: Throwable?)
+
     /**
      * Run native generate with a hard timeout.
-     *
-     * The native llama_decode() for prompt prefill can hang (Adreno GPU, flash_attn bugs,
-     * OOM swap thrashing). The onToken callback only fires AFTER prefill completes, so
-     * checking timeout inside onToken doesn't help. We use a real thread timeout instead.
+     * Uses a separate thread so that if llama_decode() hangs during prefill,
+     * we can timeout and return an error instead of blocking forever.
      */
     private fun generate(
         prompt: String,
@@ -276,65 +260,64 @@ class LlamaProvider(
         onChunk: (String) -> Unit,
     ): GenerateResult {
         val startMs = System.currentTimeMillis()
-        @Volatile var gotFirstToken = false
-        @Volatile var cancelled = false
+        var gotFirstToken = false
+        // Use array for thread-safe mutable flag (can't use @Volatile on local vars)
+        val cancelFlag = booleanArrayOf(false)
         val fullText = StringBuilder()
 
         InferenceLog.log(TAG, "Calling native generate (${prompt.length} chars, maxTokens=$maxTokens)...")
 
-        // Run native call in a separate thread with a hard timeout.
-        // If llama_decode() hangs in prefill, the Future.get() will timeout
-        // and we return a Timeout result instead of blocking forever.
         val executor = Executors.newSingleThreadExecutor()
-        val future = executor.submit<Result<String>> {
+        val callable = Callable<NativeResult> {
             try {
-                LlamaBridge.generate(
+                val result = LlamaBridge.generate(
                     prompt = prompt,
                     maxTokens = maxTokens,
                     temperature = temperature,
                     stopSequences = ChatTemplate.stopSequences(modelPath),
                     onToken = fun(token: String): Boolean {
-                        if (!cancelled) {
-                            if (!gotFirstToken) {
-                                gotFirstToken = true
-                                val ttft = System.currentTimeMillis() - startMs
-                                InferenceLog.logFirstToken(ttft)
-                            }
-                            fullText.append(token)
-                            try { onChunk(token) } catch (_: Exception) {}
-
-                            if (fullText.contains(ESCALATION_MARKER)) {
-                                cancelled = true
-                                return false
-                            }
+                        if (cancelFlag[0]) return false
+                        if (!gotFirstToken) {
+                            gotFirstToken = true
+                            InferenceLog.logFirstToken(System.currentTimeMillis() - startMs)
                         }
-                        return !cancelled
+                        fullText.append(token)
+                        try { onChunk(token) } catch (_: Exception) {}
+                        if (fullText.contains(ESCALATION_MARKER)) {
+                            cancelFlag[0] = true
+                            return false
+                        }
+                        return true
                     },
                 )
+                NativeResult(result.getOrNull(), result.exceptionOrNull())
             } catch (e: Throwable) {
-                Result.failure(e)
+                NativeResult(null, e)
             }
         }
 
-        val result = try {
-            future.get(FIRST_TOKEN_TIMEOUT_MS + 30_000, TimeUnit.MILLISECONDS)
+        val future = executor.submit(callable)
+        val nativeResult: NativeResult
+        try {
+            nativeResult = future.get(GENERATE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         } catch (_: java.util.concurrent.TimeoutException) {
-            cancelled = true
-            InferenceLog.logError(TAG, "HARD TIMEOUT: native generate blocked for ${(FIRST_TOKEN_TIMEOUT_MS + 30_000) / 1000}s")
+            cancelFlag[0] = true
+            InferenceLog.logError(TAG, "HARD TIMEOUT after ${GENERATE_TIMEOUT_MS / 1000}s — native generate blocked (check logcat for step details)")
             executor.shutdownNow()
             return GenerateResult.Timeout(System.currentTimeMillis() - startMs)
         } catch (e: Exception) {
             executor.shutdownNow()
-            return GenerateResult.Error("Generate thread error: ${e.message}")
+            return GenerateResult.Error("Generate thread error: ${e.cause?.message ?: e.message}")
         } finally {
             executor.shutdown()
         }
 
         val elapsed = System.currentTimeMillis() - startMs
-        return result.fold(
-            onSuccess = { text -> GenerateResult.Success(text, elapsed) },
-            onFailure = { e -> GenerateResult.Error(e.message ?: "Generation failed") },
-        )
+        return if (nativeResult.error != null) {
+            GenerateResult.Error(nativeResult.error.message ?: "Generation failed")
+        } else {
+            GenerateResult.Success(nativeResult.text ?: fullText.toString(), elapsed)
+        }
     }
 
     // ── Private: response parsing ───────────────────────────────────────────
