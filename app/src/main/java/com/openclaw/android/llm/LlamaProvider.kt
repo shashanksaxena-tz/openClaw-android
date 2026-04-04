@@ -486,25 +486,48 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
 
         Log.i(TAG, "Device config: totalRAM=${totalMemMb}MB, ctx=$contextSize, gpu_layers=$nGpuLayers, mmap=$useMmap, flash_attn=$useFlashAttn, threads=$nThreads")
 
-        val result = try {
-            LlamaBridge.loadModel(
-                modelPath = modelPath,
-                nThreads = nThreads,
-                nGpuLayers = nGpuLayers,
-                contextSize = contextSize,
-                useMmap = useMmap,
-                flashAttn = useFlashAttn,
-            )
-        } catch (e: Throwable) {
-            // Native code can throw Error (OutOfMemoryError, UnsatisfiedLinkError)
-            // which crashes the process. Catch and convert to a Result.
-            Log.e(TAG, "Native model load crashed", e)
-            Result.failure(RuntimeException("Model loading crashed: ${e.message ?: "native error"}"))
+        // 3-tier init fallback (mirrors off-grid's initContextWithFallback):
+        // 1. Try with GPU + requested context
+        // 2. Fall back to CPU-only + same context
+        // 3. Fall back to CPU-only + ctx=2048
+        data class LoadAttempt(val gpu: Int, val ctx: Int, val flash: Boolean, val label: String)
+        val attempts = mutableListOf<LoadAttempt>()
+        attempts.add(LoadAttempt(nGpuLayers, contextSize, useFlashAttn, "GPU=$nGpuLayers, ctx=$contextSize"))
+        if (nGpuLayers > 0) {
+            // Fallback: CPU-only with same context
+            attempts.add(LoadAttempt(0, contextSize, useFlashAttn, "CPU-only, ctx=$contextSize"))
+        }
+        if (contextSize > 2048) {
+            // Final fallback: CPU-only with minimum context
+            attempts.add(LoadAttempt(0, 2048, false, "CPU-only, ctx=2048 (safe minimum)"))
+        }
+
+        var result: Result<Unit> = Result.failure(RuntimeException("No load attempts"))
+        for ((i, attempt) in attempts.withIndex()) {
+            Log.i(TAG, "Load attempt ${i + 1}/${attempts.size}: ${attempt.label}")
+            result = try {
+                LlamaBridge.loadModel(
+                    modelPath = modelPath,
+                    nThreads = nThreads,
+                    nGpuLayers = attempt.gpu,
+                    contextSize = attempt.ctx,
+                    useMmap = useMmap,
+                    flashAttn = attempt.flash,
+                )
+            } catch (e: Throwable) {
+                Log.e(TAG, "Load attempt ${i + 1} crashed: ${e.message}", e)
+                Result.failure(RuntimeException("Model loading crashed: ${e.message ?: "native error"}", e))
+            }
+            if (result.isSuccess) {
+                if (i > 0) Log.i(TAG, "Loaded with fallback: ${attempt.label}")
+                break
+            }
+            Log.w(TAG, "Attempt ${i + 1} failed, ${if (i < attempts.size - 1) "trying next..." else "giving up"}")
         }
 
         if (result.isFailure) {
             val reason = result.exceptionOrNull()?.message ?: "Unknown error"
-            Log.e(TAG, "Model load failed: $reason (available RAM: ${availableMemMb}MB)")
+            Log.e(TAG, "All load attempts failed: $reason (available RAM: ${availableMemMb}MB)")
             return if (availableMemMb < 1024) {
                 "Failed to load model: not enough RAM (${availableMemMb}MB available). " +
                     "Close other apps and try again, or use a smaller model."
