@@ -106,6 +106,7 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeLoadModel(
     ctx_params.n_ctx = contextSize;
     ctx_params.n_threads = nThreads > 0 ? nThreads : 4;
     ctx_params.n_threads_batch = ctx_params.n_threads;
+    ctx_params.n_batch = 512;  // Process prompt in 512-token chunks (off-grid default)
     ctx_params.flash_attn_type = flashAttn ? LLAMA_FLASH_ATTN_TYPE_ENABLED : LLAMA_FLASH_ATTN_TYPE_DISABLED;
     if (nGpuLayers == 0) {
         // CPU-only: safe to use q8_0 KV cache (2x memory savings)
@@ -240,18 +241,28 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeGenerate(
     // Clear memory (KV cache) and decode prompt
     llama_memory_clear(llama_get_memory(ctx), true);
 
-    // Process prompt in batch
-    llama_batch batch = llama_batch_init(n_tokens, 0, 1);
-    for (int i = 0; i < n_tokens; i++) {
-        common_batch_add(batch, tokens[i], i, {0}, false);
-    }
-    batch.logits[batch.n_tokens - 1] = true;
+    // Process prompt in batches of n_batch tokens (default 512).
+    // Processing all at once was causing 3-4 minute hangs on phones —
+    // batching dramatically improves prefill throughput and responsiveness.
+    const int n_batch = llama_n_batch(ctx);
+    LOGI("Processing %d prompt tokens in batches of %d", n_tokens, n_batch);
 
-    if (llama_decode(ctx, batch) != 0) {
+    for (int i = 0; i < n_tokens; i += n_batch) {
+        int n_eval = std::min(n_batch, n_tokens - i);
+        llama_batch batch = llama_batch_init(n_eval, 0, 1);
+
+        for (int j = 0; j < n_eval; j++) {
+            bool is_last = (i + j == n_tokens - 1);
+            common_batch_add(batch, tokens[i + j], i + j, {0}, is_last);
+        }
+
+        if (llama_decode(ctx, batch) != 0) {
+            llama_batch_free(batch);
+            LOGE("Failed to decode prompt batch at offset %d", i);
+            return env->NewStringUTF("Error: Failed to process prompt");
+        }
         llama_batch_free(batch);
-        return env->NewStringUTF("Error: Failed to process prompt");
     }
-    llama_batch_free(batch);
 
     // Sampling setup
     auto sparams = llama_sampler_chain_default_params();

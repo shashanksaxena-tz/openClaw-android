@@ -189,11 +189,21 @@ class AgentRuntime(
                 while (iterations < MAX_TOOL_ITERATIONS && !_isCancelled) {
                     iterations++
 
+                    // Local models: use compact prompt and limit tools to save context.
+                    // The full system prompt (~900 tokens) + 31 tool defs (~2500 tokens)
+                    // easily overflows a 2K-4K context window, causing multi-minute hangs.
+                    val isLocal = activeSelection.isLocal
+                    val effectiveSystemPrompt = if (isLocal) LOCAL_SYSTEM_PROMPT else fullSystemPrompt
+                    val effectiveTools = when {
+                        !activeSelection.modelInfo.supportsToolUse -> null
+                        isLocal -> toolRegistry.getDefinitions().take(8) // Only core tools for local
+                        else -> toolRegistry.getDefinitions()
+                    }
                     val request = ChatRequest(
                         model = activeSelection.modelId,
                         messages = conversationManager.getMessagesForRequest(),
-                        tools = if (activeSelection.modelInfo.supportsToolUse) toolRegistry.getDefinitions() else null,
-                        systemPrompt = fullSystemPrompt,
+                        tools = effectiveTools,
+                        systemPrompt = effectiveSystemPrompt,
                     )
 
                     var responseText = ""
@@ -427,6 +437,11 @@ sealed class AgentEvent {
     data class Error(val message: String) : AgentEvent()
     data class Escalation(val from: String, val to: String) : AgentEvent()
 }
+
+/** Compact system prompt for local models — fits in 2K context with room to spare. */
+const val LOCAL_SYSTEM_PROMPT = """You are OpenClaw, a helpful AI assistant running on an Android phone. Be concise.
+You can use tools to help: read/write files, search, fetch URLs, manage calendar, contacts, tasks, and notes.
+If a task is too complex for you, respond with: [ESCALATE_TO_CLOUD] <reason>"""
 
 const val DEFAULT_SYSTEM_PROMPT = """You are OpenClaw, a powerful personal executive AI assistant running natively on Android. You act as a digital executive assistant — reducing cognitive load, improving decision-making, and helping the user stay organized across work and life.
 
