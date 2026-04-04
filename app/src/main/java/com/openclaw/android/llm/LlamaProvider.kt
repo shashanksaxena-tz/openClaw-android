@@ -38,23 +38,35 @@ class LlamaProvider(
          * Returns safe context length based on device total RAM.
          * Mirrors off-grid's getMaxContextForDevice() — prevents OOM on low-RAM devices.
          */
-        fun getMaxContextForDevice(totalMemoryMb: Long): Int {
+        fun getMaxContextForDevice(totalMemoryMb: Long, availableMemMb: Long): Int {
             val totalGb = totalMemoryMb / 1024.0
-            return when {
+            val availGb = availableMemMb / 1024.0
+            // Base tier from total RAM (matches off-grid's getMaxContextForDevice)
+            val baseCap = when {
+                totalGb <= 4 -> 1024
                 totalGb <= 6 -> 2048
                 totalGb <= 8 -> 4096
-                else -> 8192
+                totalGb <= 12 -> 8192
+                else -> 16384
             }
+            // Downgrade if available memory is tight (< 1.5GB free)
+            return if (availGb < 1.5 && baseCap > 2048) baseCap / 2 else baseCap
         }
 
         /**
          * Returns safe GPU layer count based on device RAM.
-         * On low-RAM devices (≤4GB), GPU allocation can call abort() which
-         * bypasses Java try/catch, killing the app instantly.
+         * Matches off-grid's ANDROID_GPU_LAYER_CAPS tiering:
+         * ≤6GB → 0 (CPU-only, GPU alloc can SIGABRT)
+         * ≤8GB → 12 layers
+         * >8GB → 24 layers
          */
         fun getGpuLayersForDevice(totalMemoryMb: Long): Int {
             val totalGb = totalMemoryMb / 1024.0
-            return if (totalGb <= 4) 0 else 99
+            return when {
+                totalGb <= 6 -> 0
+                totalGb <= 8 -> 12
+                else -> 24
+            }
         }
 
         /** Quant formats where disabling mmap allows llama.cpp to repack weights for speed. */
@@ -444,34 +456,35 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
             return "Cannot read model file. It may be corrupted — try re-downloading."
         }
 
-        // With mmap enabled, the model is NOT loaded into contiguous RAM — the OS pages
-        // data in/out on demand. We only need enough free RAM for the KV cache + scratch buffers,
-        // NOT the full model size. A rough estimate: ~500MB for a 4K context with f16 KV cache.
-        // Only block loading if the device is critically low on memory.
+        // Memory budget: off-grid uses modelSize×1.5 and caps at 60% of device RAM.
+        // With mmap the model itself is NOT in RAM — we need memory for KV cache,
+        // scratch buffers, and some headroom. Minimum 300MB to even attempt loading.
         val availableMemMb = LlamaBridge.getAvailableMemoryMb()
+        val totalMemMb = LlamaBridge.getTotalMemoryMb()
         val modelSizeMb = modelFile.length() / (1024 * 1024)
-        Log.i(TAG, "Available memory: ${availableMemMb}MB, model size: ${modelSizeMb}MB, path: $modelPath")
+        Log.i(TAG, "Available memory: ${availableMemMb}MB, total: ${totalMemMb}MB, model size: ${modelSizeMb}MB, path: $modelPath")
 
-        // With mmap, we just need ~500MB for context buffers — NOT the full model size
-        val minRequiredMb = 500L
+        val minRequiredMb = 300L // Absolute floor — need at least this for KV cache + buffers
         if (availableMemMb < minRequiredMb) {
-            Log.e(TAG, "Critically low RAM: ${availableMemMb}MB available (need at least ${minRequiredMb}MB for context buffers)")
-            return "Not enough free memory (${availableMemMb}MB available). " +
+            Log.e(TAG, "Critically low RAM: ${availableMemMb}MB available (need at least ${minRequiredMb}MB)")
+            return "Not enough free memory (${availableMemMb}MB available, need ${minRequiredMb}MB). " +
                 "Close other apps and try again, or download a smaller model."
         }
 
-        // Device-aware configuration — mirrors off-grid's architecture
-        val totalMemMb = LlamaBridge.getTotalMemoryMb()
+        // Device-aware configuration — aligned with off-grid's architecture
         val cpuCores = Runtime.getRuntime().availableProcessors()
-        val nThreads = minOf(maxOf(1, cpuCores - 2), 4) // Cap at 4 — over-threading onto efficiency cores slows inference
-        val contextSize = getMaxContextForDevice(totalMemMb)
-        // Use CPU-only by default — GPU offloading on Android can call abort()
-        // which kills the process instantly, bypassing all Java error handling.
-        // The off-grid reference app also defaults to CPU-only for stability.
-        val nGpuLayers = 0
+        val nThreads = minOf(maxOf(1, cpuCores - 2), 6) // Up to 6 threads (off-grid uses 6 on Android)
+        val contextSize = getMaxContextForDevice(totalMemMb, availableMemMb)
+        // GPU offloading: enable on 8GB+ devices (off-grid uses 12-24 layers)
+        val nGpuLayers = getGpuLayersForDevice(totalMemMb)
         val useMmap = shouldUseMmap(modelPath)
 
-        Log.i(TAG, "Device config: totalRAM=${totalMemMb}MB, ctx=$contextSize, gpu_layers=$nGpuLayers, mmap=$useMmap, threads=$nThreads")
+        // Flash attention: enable on 8GB+ CPU-only devices (reduces KV cache memory).
+        // Off-grid makes this toggleable; we auto-enable when safe.
+        // Disabled when GPU layers > 0 on Android — OpenCL backend SIGSEGVs with flash attn.
+        val useFlashAttn = (totalMemMb / 1024.0) >= 8 && nGpuLayers == 0
+
+        Log.i(TAG, "Device config: totalRAM=${totalMemMb}MB, ctx=$contextSize, gpu_layers=$nGpuLayers, mmap=$useMmap, flash_attn=$useFlashAttn, threads=$nThreads")
 
         val result = try {
             LlamaBridge.loadModel(
@@ -480,7 +493,7 @@ When you CAN handle the task, respond normally. Be concise — you're on a phone
                 nGpuLayers = nGpuLayers,
                 contextSize = contextSize,
                 useMmap = useMmap,
-                flashAttn = false, // Disabled: flash attention can cause native SIGABRT on some devices
+                flashAttn = useFlashAttn,
             )
         } catch (e: Throwable) {
             // Native code can throw Error (OutOfMemoryError, UnsatisfiedLinkError)
