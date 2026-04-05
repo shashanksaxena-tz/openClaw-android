@@ -5,8 +5,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 import java.util.UUID
-import java.util.concurrent.Callable
-import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /**
@@ -245,13 +243,10 @@ class LlamaProvider(
         data class Error(val message: String) : GenerateResult()
     }
 
-    /** Container for generate result to avoid Kotlin Result + Java interop issues. */
-    private class NativeResult(val text: String?, val error: Throwable?)
-
     /**
      * Run native generate with a hard timeout.
-     * Uses a separate thread so that if llama_decode() hangs during prefill,
-     * we can timeout and return an error instead of blocking forever.
+     * Uses CountDownLatch so if llama_decode() hangs during prefill,
+     * we timeout and return an error instead of blocking forever.
      */
     private fun generate(
         prompt: String,
@@ -262,14 +257,15 @@ class LlamaProvider(
     ): GenerateResult {
         val startMs = System.currentTimeMillis()
         var gotFirstToken = false
-        // Use array for thread-safe mutable flag (can't use @Volatile on local vars)
         val cancelFlag = booleanArrayOf(false)
         val fullText = StringBuilder()
+        var resultText: String? = null
+        var resultError: Throwable? = null
+        val latch = java.util.concurrent.CountDownLatch(1)
 
         InferenceLog.log(TAG, "Calling native generate (${prompt.length} chars, maxTokens=$maxTokens)...")
 
-        val executor = Executors.newSingleThreadExecutor()
-        val callable = Callable<NativeResult> {
+        val thread = Thread {
             try {
                 val result = LlamaBridge.generate(
                     prompt = prompt,
@@ -291,33 +287,28 @@ class LlamaProvider(
                         return true
                     },
                 )
-                NativeResult(result.getOrNull(), result.exceptionOrNull())
+                resultText = result.getOrNull()
+                resultError = result.exceptionOrNull()
             } catch (e: Throwable) {
-                NativeResult(null, e)
+                resultError = e
+            } finally {
+                latch.countDown()
             }
         }
+        thread.start()
 
-        val future = executor.submit(callable)
-        val nativeResult: NativeResult
-        try {
-            nativeResult = future.get(GENERATE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-        } catch (_: java.util.concurrent.TimeoutException) {
+        val completed = latch.await(GENERATE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        if (!completed) {
             cancelFlag[0] = true
-            InferenceLog.logError(TAG, "HARD TIMEOUT after ${GENERATE_TIMEOUT_MS / 1000}s — native generate blocked (check logcat for step details)")
-            executor.shutdownNow()
+            InferenceLog.logError(TAG, "HARD TIMEOUT after ${GENERATE_TIMEOUT_MS / 1000}s — native generate blocked")
             return GenerateResult.Timeout(System.currentTimeMillis() - startMs)
-        } catch (e: Exception) {
-            executor.shutdownNow()
-            return GenerateResult.Error("Generate thread error: ${e.cause?.message ?: e.message}")
-        } finally {
-            executor.shutdown()
         }
 
         val elapsed = System.currentTimeMillis() - startMs
-        return if (nativeResult.error != null) {
-            GenerateResult.Error(nativeResult.error.message ?: "Generation failed")
+        return if (resultError != null) {
+            GenerateResult.Error(resultError?.message ?: "Generation failed")
         } else {
-            GenerateResult.Success(nativeResult.text ?: fullText.toString(), elapsed)
+            GenerateResult.Success(resultText ?: fullText.toString(), elapsed)
         }
     }
 
