@@ -40,18 +40,18 @@ class ModelDownloadManager(private val context: Context) {
      *
      * Key advantage over GGUF: LiteRT-LM models are specifically optimized for
      * Android hardware (ARM NEON, GPU via OpenCL/Vulkan, NPU via QNN).
-     * The 557MB Gemma3-1B runs faster here than a 2GB GGUF via llama.cpp.
+     * The 557MB Gemma 4-1B runs faster here than a 2GB GGUF via llama.cpp.
      */
     val availableModels: List<DownloadableModel> = listOf(
         // ── Small (2-3GB RAM, runs on any modern phone) ─────────────────
         DownloadableModel(
             id = "gemma3-1b-litert",
-            name = "Gemma 3 1B",
+            name = "Gemma 4 1B",
             description = "Google's compact model. Fast, efficient, great for chat. Recommended starter.",
             sizeBytes = 557_000_000L,
             ramRequired = "2 GB",
-            downloadUrl = "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/Gemma3-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm",
-            fileName = "Gemma3-1B-IT_q4.litertlm",
+            downloadUrl = "https://huggingface.co/litert-community/Gemma 4-1B-IT/resolve/main/Gemma 4-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm",
+            fileName = "Gemma 4-1B-IT_q4.litertlm",
             contextWindow = 4096,
             supportsToolUse = true,
             tier = ModelTier.SMALL,
@@ -71,7 +71,7 @@ class ModelDownloadManager(private val context: Context) {
         // ── Medium (3-4GB RAM, recommended for most phones) ─────────────
         DownloadableModel(
             id = "gemma3n-e2b-litert",
-            name = "Gemma 3n E2B",
+            name = "Gemma 4n E2B",
             description = "Google's efficient 2B model. Best balance of speed and quality.",
             sizeBytes = 2_965_000_000L,
             ramRequired = "4 GB",
@@ -96,7 +96,7 @@ class ModelDownloadManager(private val context: Context) {
         // ── Large (6+ GB RAM, for flagship phones) ──────────────────────
         DownloadableModel(
             id = "gemma3n-e4b-litert",
-            name = "Gemma 3n E4B",
+            name = "Gemma 4n E4B",
             description = "Google's best phone model. Excellent quality, 4-bit optimized.",
             sizeBytes = 4_235_000_000L,
             ramRequired = "6 GB",

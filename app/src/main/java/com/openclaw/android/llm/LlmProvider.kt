@@ -38,13 +38,23 @@ data class ModelInfo(
 )
 
 @Serializable
+data class ChatSettings(
+    val temperature: Double = 0.7,
+    val topK: Int = 40,
+    val topP: Double = 0.95,
+    val maxTokens: Int = 4096,
+    val contextWindow: Int? = null,
+    val preferredBackend: String? = null, // "cpu", "gpu", "npu"
+    val enabledTools: List<String>? = null, // tool names
+)
+
+@Serializable
 data class ChatRequest(
     val model: String,
     val messages: List<ChatMessage>,
     val tools: List<ToolDefinition>? = null,
     val systemPrompt: String? = null,
-    val maxTokens: Int = 4096,
-    val temperature: Double = 0.7,
+    val settings: ChatSettings = ChatSettings(),
 )
 
 @Serializable

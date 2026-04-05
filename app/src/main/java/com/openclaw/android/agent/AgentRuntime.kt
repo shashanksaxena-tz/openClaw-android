@@ -42,6 +42,7 @@ class AgentRuntime(
 
     var systemPrompt: String = DEFAULT_SYSTEM_PROMPT
     var preferredModelId: String? = null
+    var chatSettings: ChatSettings = ChatSettings()
 
     private var _activeSpaceId: String? = null
     val activeSpaceName: String?
@@ -194,16 +195,21 @@ class AgentRuntime(
                     // easily overflows a 2K-4K context window, causing multi-minute hangs.
                     val isLocal = activeSelection.isLocal
                     val effectiveSystemPrompt = if (isLocal) LOCAL_SYSTEM_PROMPT else fullSystemPrompt
+                    
+                    // Respect tool overrides if provided
+                    val availableTools = if (isLocal) toolRegistry.getDefinitions().take(20) else toolRegistry.getDefinitions()
                     val effectiveTools = when {
                         !activeSelection.modelInfo.supportsToolUse -> null
-                        isLocal -> toolRegistry.getDefinitions().take(20) // Increased to leverage Gemma 4 capabilities
-                        else -> toolRegistry.getDefinitions()
+                        chatSettings.enabledTools != null -> availableTools.filter { it.name in chatSettings.enabledTools!! }
+                        else -> availableTools
                     }
+
                     val request = ChatRequest(
                         model = activeSelection.modelId,
                         messages = conversationManager.getMessagesForRequest(),
                         tools = effectiveTools,
                         systemPrompt = effectiveSystemPrompt,
+                        settings = chatSettings,
                     )
 
                     var responseText = ""
@@ -213,6 +219,8 @@ class AgentRuntime(
                     val streamBuffer = StringBuilder()
                     val chunkBatch = StringBuilder()
                     val lastEmitTime = AtomicLong(System.currentTimeMillis())
+                    
+                    emit(AgentEvent.InitializingModel)
                     emit(AgentEvent.StreamStart)
 
                     activeSelection.provider.chatCompletion(
@@ -428,6 +436,7 @@ sealed class AgentEvent {
     data class UserMessage(val text: String, val media: List<ContentPart> = emptyList()) : AgentEvent()
     data class AssistantMessage(val text: String) : AgentEvent()
     data class ModelSelected(val modelName: String) : AgentEvent()
+    data object InitializingModel : AgentEvent()
     data object StreamStart : AgentEvent()
     data class StreamChunk(val chunk: String) : AgentEvent()
     data object StreamEnd : AgentEvent()
