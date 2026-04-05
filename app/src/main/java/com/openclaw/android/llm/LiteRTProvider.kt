@@ -95,6 +95,7 @@ class LiteRTProvider(
                 systemInstruction = fullSystemPrompt.ifBlank { null },
                 temperature = request.settings.temperature.toFloat(),
                 topK = request.settings.topK,
+                maxTokens = request.settings.maxTokens,
             )
             if (convResult.isFailure) {
                 val msg = "Failed to create conversation: ${convResult.exceptionOrNull()?.message}"
@@ -195,11 +196,15 @@ class LiteRTProvider(
             return "Model file missing or corrupted. Re-download in Settings."
         }
 
+        // Check RAM — LiteRT-LM models are much more efficient than GGUF,
+        // but we still need a baseline.
         val availMb = LiteRTBridge.getAvailableMemoryMb(appContext)
         if (availMb < 150) {
             return "Not enough RAM (${availMb}MB free). Close other apps and try again."
         }
 
+        // Load the model. LiteRT-LM handles backend selection, thread count,
+        // memory mapping, and optimization internally.
         Log.i(TAG, "Loading model: $targetPath (preferredBackend=$preferredBackend)")
         val start = System.currentTimeMillis()
 
@@ -244,8 +249,8 @@ class LiteRTProvider(
             null
         } else {
             val msg = result.exceptionOrNull()?.message ?: "Unknown error"
-            Log.e(TAG, "Failed to load model: $msg")
-            "Failed to load model: $msg"
+            Log.e(TAG, "Failed to load model after ${elapsed}ms: $msg")
+            "Failed to load model: $msg. Try a smaller model or restart the app."
         }
     }
 

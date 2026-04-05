@@ -40,7 +40,7 @@ class ModelDownloadManager(private val context: Context) {
      *
      * Key advantage over GGUF: LiteRT-LM models are specifically optimized for
      * Android hardware (ARM NEON, GPU via OpenCL/Vulkan, NPU via QNN).
-     * Gemma 4 introduces "Effective" parameter sizes (E2B, E4B) for mobile.
+     * The 557MB Gemma 4-1B runs faster here than a 2GB GGUF via llama.cpp.
      */
     val availableModels: List<DownloadableModel> = listOf(
         // ── Small (2-3GB RAM, runs on any modern phone) ─────────────────
@@ -159,7 +159,7 @@ class ModelDownloadManager(private val context: Context) {
         try {
             val requestBuilder = Request.Builder()
                 .url(model.downloadUrl)
-                .addHeader("User-Agent", "OpenClaw-Android/4.0")
+                .addHeader("User-Agent", "OpenClaw-Android/2.0")
 
             if (existingBytes > 0) {
                 requestBuilder.addHeader("Range", "bytes=$existingBytes-")
