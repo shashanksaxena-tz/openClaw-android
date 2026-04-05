@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit
 class LlamaProvider(
     private val downloadManager: ModelDownloadManager,
     private val getActiveModelId: () -> String?,
+    private val appContext: android.content.Context? = null,
 ) : LlmProvider {
 
     companion object {
@@ -159,7 +160,7 @@ class LlamaProvider(
         } catch (_: Exception) { "" }
         if (magic != "GGUF") return "Model file corrupted. Delete and re-download."
 
-        val device = DeviceProfile.detect()
+        val device = DeviceProfile.detect(appContext)
         if (!device.canLoadModel) {
             return "Not enough RAM (${device.availableMemMb}MB free, need ${DeviceProfile.MIN_RAM_MB}MB). Close other apps."
         }

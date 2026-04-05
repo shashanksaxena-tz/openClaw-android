@@ -33,9 +33,13 @@ object InferenceLog {
     private const val MAX_LINES = 300
     private val fmt = SimpleDateFormat("HH:mm:ss", Locale.US)
     private var logFile: File? = null
+    private var appContext: Context? = null
 
     fun init(context: Context) {
-        synchronized(this) { logFile = File(context.filesDir, FILE_NAME) }
+        synchronized(this) {
+            logFile = File(context.filesDir, FILE_NAME)
+            appContext = context.applicationContext
+        }
         logDevice()
     }
 
@@ -55,10 +59,11 @@ object InferenceLog {
     // ── Structured events ───────────────────────────────────────────────────
 
     fun logDevice() {
-        val totalMb = LlamaBridge.getTotalMemoryMb()
-        val freeMb = LlamaBridge.getAvailableMemoryMb()
+        val profile = DeviceProfile.detect(appContext)
+        // Also log the raw sysinfo value so we can see the discrepancy
+        val sysinfoFreeMb = LlamaBridge.getAvailableMemoryMb()
         val cores = Runtime.getRuntime().availableProcessors()
-        log("DEVICE", "${Build.MODEL} | RAM: ${totalMb}MB total, ${freeMb}MB free | CPU: $cores cores | Android ${Build.VERSION.RELEASE}")
+        log("DEVICE", "${Build.MODEL} | RAM: ${profile.totalMemMb}MB total, ${profile.availableMemMb}MB avail (sysinfo: ${sysinfoFreeMb}MB) | CPU: $cores cores | Android ${Build.VERSION.RELEASE}")
         log("DEVICE", "llama.cpp loaded=${LlamaBridge.isLoaded} real=${LlamaBridge.isRealBuild}")
     }
 

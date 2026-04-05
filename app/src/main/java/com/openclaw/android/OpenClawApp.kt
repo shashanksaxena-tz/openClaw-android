@@ -116,6 +116,7 @@ class OpenClawApp : Application() {
         val llamaProvider = LlamaProvider(
             downloadManager = modelDownloadManager,
             getActiveModelId = { settings.getActiveLocalModelId().ifBlank { null } },
+            appContext = this,
         )
         val providers = mutableMapOf<String, LlmProvider>(
             "gemini" to GeminiProvider(apiKeyProvider = { settings.getGeminiKey() }),
