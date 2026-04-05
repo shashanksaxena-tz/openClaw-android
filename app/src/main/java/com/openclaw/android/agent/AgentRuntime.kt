@@ -196,7 +196,7 @@ class AgentRuntime(
                     val effectiveSystemPrompt = if (isLocal) LOCAL_SYSTEM_PROMPT else fullSystemPrompt
                     val effectiveTools = when {
                         !activeSelection.modelInfo.supportsToolUse -> null
-                        isLocal -> toolRegistry.getDefinitions().take(20) // Increased from 8 to leverage Gemma 3 capabilities
+                        isLocal -> toolRegistry.getDefinitions().take(20) // Increased to leverage Gemma 4 capabilities
                         else -> toolRegistry.getDefinitions()
                     }
                     val request = ChatRequest(
@@ -438,7 +438,7 @@ sealed class AgentEvent {
     data class Escalation(val from: String, val to: String) : AgentEvent()
 }
 
-/** Compact system prompt for local models — fits in 4K context with room to spare. */
+/** Compact system prompt for local models (Gemma 4) — fits in 8K context with room to spare. */
 const val LOCAL_SYSTEM_PROMPT = """You are OpenClaw, a helpful AI assistant running on an Android phone. Be concise.
 You can use tools to help: read/write files, search, fetch URLs, manage calendar, contacts, tasks, notes, email, and device settings.
 If a task is too complex for you, respond with: [ESCALATE_TO_CLOUD] <reason>"""

@@ -8,7 +8,7 @@ Your local LLM backend has been completely replaced. The old pipeline (llama.cpp
 
 | Aspect | Old (llama.cpp) | New (LiteRT-LM) |
 |--------|-----------------|------------------|
-| **Model size** | 2-5GB GGUF files | 557MB-4.2GB .litertlm files |
+| **Model size** | 2-5GB GGUF files | 1.4GB-2.8GB .litertlm files |
 | **Build complexity** | CMake + NDK + git submodule + C++ compilation | Single Maven dependency |
 | **GPU support** | Broken on Android (Adreno hangs) | Works out of the box (CPU/GPU/NPU) |
 | **Prompt formatting** | Manual ChatML/Gemma template building | Handled by the engine internally |
@@ -35,7 +35,7 @@ Your local LLM backend has been completely replaced. The old pipeline (llama.cpp
 ## Files Modified (7 files)
 
 - **`build.gradle.kts`** — Removed CMake/NDK config, llama.cpp submodule task. Added `litertlm-android:0.9.0-alpha02` Maven dependency.
-- **`ModelDownloadManager.kt`** — Model catalog changed from GGUF to .litertlm files. Added `cleanupLegacyModels()` to remove old .gguf files. Models now include Gemma3-1B (557MB!), Qwen 2.5, Gemma 3n E2B/E4B, Phi 4 Mini.
+- **`ModelDownloadManager.kt`** — Model catalog changed from GGUF to .litertlm files. Added `cleanupLegacyModels()` to remove old .gguf files. Models now include Gemma 4-1B (557MB!), Qwen 2.5, Gemma 4n E2B/E4B, Phi 4 Mini.
 - **`OpenClawApp.kt`** — Wires `LiteRTProvider` instead of `LlamaProvider`. Calls `cleanupLegacyModels()` on startup.
 - **`AgentRuntime.kt`** — Import changed from `LlamaProvider` to `LiteRTProvider`. Escalation marker references updated.
 - **`InferenceLog.kt`** — Device logging now uses `LiteRTBridge` instead of `DeviceProfile`/`LlamaBridge`.
@@ -60,7 +60,7 @@ Everything else: all 20+ UI screens, 25+ tools, AgentRuntime orchestration loop,
 
 ## Model Downloads
 
-Users will need to re-download models (old .gguf files are auto-cleaned up). The new Gemma3-1B at 557MB is **4x smaller** than the smallest GGUF you had before and will load faster.
+Users will need to re-download models (old .gguf files are auto-cleaned up). The new Gemma 4 E2B is optimized for mobile performance and will load significantly faster than previous generations.
 
 ## Known Considerations
 
