@@ -97,17 +97,6 @@ object LiteRTBridge {
         }
     }
 
-    fun createGpuBackend(): Backend = com.google.ai.edge.litertlm.Backend.GPU()
-    
-    fun createCpuBackend(): Backend = com.google.ai.edge.litertlm.Backend.CPU()
-    
-    fun createNpuBackend(context: android.content.Context): Backend {
-        return com.google.ai.edge.litertlm.Backend.NPU(
-            nativeLibraryDir = context.applicationInfo.nativeLibraryDir,
-            compilationCacheDir = context.cacheDir.absolutePath
-        )
-    }
-
     /**
      * Create a new conversation session with optional configuration.
      *

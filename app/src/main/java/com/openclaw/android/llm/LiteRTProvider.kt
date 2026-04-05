@@ -75,7 +75,7 @@ class LiteRTProvider(
     ) = withContext(Dispatchers.IO) {
         try {
             // ── Step 1: Ensure model is loaded ──────────────────────────────
-            val loadError = ensureModelLoaded(request.settings.preferredBackend)
+            val loadError = ensureModelLoaded()
             if (loadError != null) {
                 Log.e(TAG, loadError)
                 onError(IllegalStateException(loadError))
@@ -93,9 +93,8 @@ class LiteRTProvider(
 
             val convResult = LiteRTBridge.createConversation(
                 systemInstruction = fullSystemPrompt.ifBlank { null },
-                temperature = request.settings.temperature.toFloat(),
-                topK = request.settings.topK,
-                maxTokens = request.settings.maxTokens,
+                temperature = request.temperature.toFloat(),
+                maxTokens = minOf(request.maxTokens, 2048),
             )
             if (convResult.isFailure) {
                 val msg = "Failed to create conversation: ${convResult.exceptionOrNull()?.message}"
@@ -177,8 +176,14 @@ class LiteRTProvider(
 
     /**
      * Ensure a model is loaded. Returns null if OK, or an error message.
+     *
+     * LiteRT-LM handles all the complexity that was previously manual:
+     *  - No need to detect CPU cores, GPU layers, flash attention
+     *  - No need for mmap configuration
+     *  - No fallback loading attempts with different configs
+     *  - The engine auto-optimizes for the device on first load
      */
-    private fun ensureModelLoaded(preferredBackend: String? = null): String? {
+    private fun ensureModelLoaded(): String? {
         // Already loaded?
         val currentPath = LiteRTBridge.getLoadedModelPath()
         val targetPath = resolveModelPath()
@@ -205,47 +210,20 @@ class LiteRTProvider(
 
         // Load the model. LiteRT-LM handles backend selection, thread count,
         // memory mapping, and optimization internally.
-        Log.i(TAG, "Loading model: $targetPath (preferredBackend=$preferredBackend)")
+        Log.i(TAG, "Loading model: $targetPath (${modelFile.length() / (1024 * 1024)}MB, avail RAM: ${availMb}MB)")
         val start = System.currentTimeMillis()
 
-        var result: Result<Unit> = Result.failure(IllegalStateException("Not started"))
-
-        // Attempt preferred first if specified
-        if (preferredBackend != null) {
-            result = when (preferredBackend.lowercase()) {
-                "npu" -> if (appContext != null) LiteRTBridge.loadModel(targetPath, LiteRTBridge.createNpuBackend(appContext)) 
-                         else Result.failure(IllegalStateException("No context for NPU"))
-                "gpu" -> LiteRTBridge.loadModel(targetPath, LiteRTBridge.createGpuBackend())
-                "cpu" -> LiteRTBridge.loadModel(targetPath, LiteRTBridge.createCpuBackend())
-                else -> Result.failure(IllegalArgumentException("Unknown backend: $preferredBackend"))
-            }
-        }
-
-        // If no preference or preference failed, try standard fallback: NPU -> GPU -> CPU
-        if (result.isFailure) {
-            Log.i(TAG, "Attempting NPU load...")
-            result = if (appContext != null) {
-                LiteRTBridge.loadModel(targetPath, LiteRTBridge.createNpuBackend(appContext))
-            } else Result.failure(IllegalStateException("No context for NPU"))
-        }
-
-        if (result.isFailure) {
-            Log.i(TAG, "Attempting GPU load...")
-            result = try {
-                LiteRTBridge.loadModel(targetPath, LiteRTBridge.createGpuBackend())
-            } catch (e: Exception) { Result.failure(e) }
-        }
-
-        if (result.isFailure) {
-            Log.i(TAG, "Attempting CPU load...")
-            result = try {
-                LiteRTBridge.loadModel(targetPath, LiteRTBridge.createCpuBackend())
-            } catch (e: Exception) { Result.failure(e) }
+        // Try GPU first, fall back to CPU
+        val result = try {
+            LiteRTBridge.loadModel(targetPath, Backend.GPU())
+        } catch (e: Exception) {
+            Log.w(TAG, "GPU load failed, falling back to CPU: ${e.message}")
+            LiteRTBridge.loadModel(targetPath, Backend.CPU())
         }
 
         val elapsed = System.currentTimeMillis() - start
         return if (result.isSuccess) {
-            Log.i(TAG, "Model loaded successfully in ${elapsed}ms")
+            Log.i(TAG, "Model loaded in ${elapsed}ms")
             null
         } else {
             val msg = result.exceptionOrNull()?.message ?: "Unknown error"
