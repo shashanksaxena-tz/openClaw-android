@@ -112,8 +112,11 @@ class OpenClawApp : Application() {
         // Model download manager for local GGUF models
         modelDownloadManager = ModelDownloadManager(this)
 
-        // LLM providers (including local llama.cpp model)
-        val llamaProvider = LlamaProvider(
+        // Clean up any old GGUF models from the llama.cpp era
+        modelDownloadManager.cleanupLegacyModels()
+
+        // LLM providers (including local LiteRT-LM model)
+        val liteRTProvider = LiteRTProvider(
             downloadManager = modelDownloadManager,
             getActiveModelId = { settings.getActiveLocalModelId().ifBlank { null } },
             appContext = this,
@@ -124,12 +127,8 @@ class OpenClawApp : Application() {
             "cerebras" to CerebrasProvider(apiKeyProvider = { settings.getCerebrasKey() }),
         )
         // Only register the local provider when the user has explicitly enabled it.
-        // The old OR condition caused crashes: even with local model disabled,
-        // having a downloaded model would register the provider, and the local-first
-        // strategy would route requests to it — crashing if the model couldn't handle
-        // the prompt (context overflow, native abort).
         if (settings.getLocalModelEnabled() && modelDownloadManager.getDownloadedModels().isNotEmpty()) {
-            providers["local-llama"] = llamaProvider
+            providers["local-llama"] = liteRTProvider
         }
         modelRouter = ModelRouter(providers)
 
@@ -213,9 +212,8 @@ class OpenClawApp : Application() {
      * Saves crash info to a file so the next app launch can show the user what went wrong.
      *
      * LIMITATION: This only catches JVM-level exceptions (OutOfMemoryError, etc.).
-     * Native signals (SIGSEGV, SIGABRT from llama.cpp) kill the process directly and
-     * bypass Java's UncaughtExceptionHandler. For native crash capture, a signal handler
-     * like Google Breakpad would be needed.
+     * Native signals (SIGSEGV, SIGABRT) kill the process directly and
+     * bypass Java's UncaughtExceptionHandler.
      */
     private fun installCrashHandler() {
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()

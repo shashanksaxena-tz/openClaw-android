@@ -1,7 +1,6 @@
 package com.openclaw.android.llm
 
 import android.content.Context
-import android.os.Build
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -59,12 +58,11 @@ object InferenceLog {
     // ── Structured events ───────────────────────────────────────────────────
 
     fun logDevice() {
-        val profile = DeviceProfile.detect(appContext)
-        // Also log the raw sysinfo value so we can see the discrepancy
-        val sysinfoFreeMb = LlamaBridge.getAvailableMemoryMb()
+        val totalMb = LiteRTBridge.getTotalMemoryMb(appContext)
+        val availMb = LiteRTBridge.getAvailableMemoryMb(appContext)
         val cores = Runtime.getRuntime().availableProcessors()
-        log("DEVICE", "${Build.MODEL} | RAM: ${profile.totalMemMb}MB total, ${profile.availableMemMb}MB avail (sysinfo: ${sysinfoFreeMb}MB) | CPU: $cores cores | Android ${Build.VERSION.RELEASE}")
-        log("DEVICE", "llama.cpp loaded=${LlamaBridge.isLoaded} real=${LlamaBridge.isRealBuild}")
+        log("DEVICE", "${android.os.Build.MODEL} | RAM: ${totalMb}MB total, ${availMb}MB avail | CPU: $cores cores | Android ${android.os.Build.VERSION.RELEASE}")
+        log("DEVICE", "LiteRT-LM available=${LiteRTBridge.isAvailable} loaded=${LiteRTBridge.isModelLoaded}")
     }
 
     fun logModelLoad(modelPath: String, config: Map<String, Any>) {

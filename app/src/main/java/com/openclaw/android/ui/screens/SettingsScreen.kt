@@ -1921,8 +1921,9 @@ private fun LocalModelsSection(
             return@GlassSection
         }
 
-        // Block the entire local model section if native inference engine is not available (stub build)
-        if (!com.openclaw.android.llm.LlamaBridge.isRealBuild) {
+        // LiteRT-LM is always available (pure Maven dependency, no native stub issues)
+        // This check is kept for future-proofing but will always pass.
+        if (!com.openclaw.android.llm.LiteRTBridge.isAvailable) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2043,7 +2044,7 @@ private fun LocalModelsSection(
         }
 
         // Available RAM info
-        val availableRam = com.openclaw.android.llm.LlamaBridge.getAvailableMemoryMb()
+        val availableRam = com.openclaw.android.llm.LiteRTBridge.getAvailableMemoryMb(context)
         if (availableRam > 0) {
             Spacer(Modifier.height(2.dp))
             Text(

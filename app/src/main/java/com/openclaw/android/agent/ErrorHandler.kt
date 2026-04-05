@@ -69,7 +69,7 @@ object ErrorHandler {
 
             // Local model errors
             msg.contains("not available in this build", ignoreCase = true) ||
-            msg.contains("llama.cpp was not compiled", ignoreCase = true) ->
+            msg.contains("engine not available", ignoreCase = true) ->
                 UserError(
                     title = "Local AI engine missing",
                     message = "This build doesn't include the on-device AI engine. " +

@@ -7,7 +7,7 @@ package com.openclaw.android.llm
  * Supports a **local-first** strategy: when a local model is available and the
  * user hasn't pinned a specific cloud model, requests go to the on-device LLM
  * first. The local model self-determines whether it can handle the task or
- * needs to escalate to cloud — see [LlamaProvider.ESCALATION_MARKER].
+ * needs to escalate to cloud — see [LiteRTProvider.ESCALATION_MARKER].
  */
 class ModelRouter(
     private val providers: Map<String, LlmProvider>,

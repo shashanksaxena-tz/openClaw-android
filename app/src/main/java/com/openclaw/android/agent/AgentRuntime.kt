@@ -3,7 +3,7 @@ package com.openclaw.android.agent
 import com.openclaw.android.PermissionManager
 import com.openclaw.android.data.SpaceManager
 import com.openclaw.android.llm.*
-import com.openclaw.android.llm.LlamaProvider
+import com.openclaw.android.llm.LiteRTProvider
 import com.openclaw.android.sandbox.SandboxedFileSystem
 import com.openclaw.android.tools.ToolRegistry
 import com.openclaw.android.tools.ToolResult
@@ -196,7 +196,7 @@ class AgentRuntime(
                     val effectiveSystemPrompt = if (isLocal) LOCAL_SYSTEM_PROMPT else fullSystemPrompt
                     val effectiveTools = when {
                         !activeSelection.modelInfo.supportsToolUse -> null
-                        isLocal -> toolRegistry.getDefinitions().take(8) // Only core tools for local
+                        isLocal -> toolRegistry.getDefinitions().take(20) // Increased from 8 to leverage Gemma 3 capabilities
                         else -> toolRegistry.getDefinitions()
                     }
                     val request = ChatRequest(
@@ -284,7 +284,7 @@ class AgentRuntime(
 
                     // ── Escalation: local model says it can't handle this ────
                     if (activeSelection.isLocal &&
-                        responseText.contains(LlamaProvider.ESCALATION_MARKER)
+                        responseText.contains(LiteRTProvider.ESCALATION_MARKER)
                     ) {
                         val cloudSelection = modelRouter.selectCloudModel(hasImages, hasAudio)
                         if (cloudSelection != null) {
@@ -301,7 +301,7 @@ class AgentRuntime(
                         }
                         // No cloud model available — show what we got
                         val cleaned = responseText
-                            .replace(LlamaProvider.ESCALATION_MARKER, "")
+                            .replace(LiteRTProvider.ESCALATION_MARKER, "")
                             .trim()
                             .ifBlank { "I need a cloud model for this task, but none is configured. Add an API key in Settings." }
                         try { conversationManager.addAssistantMessage(cleaned) } catch (e: Exception) { Log.e("AgentRuntime", "DB save failed", e) }
@@ -438,9 +438,9 @@ sealed class AgentEvent {
     data class Escalation(val from: String, val to: String) : AgentEvent()
 }
 
-/** Compact system prompt for local models — fits in 2K context with room to spare. */
+/** Compact system prompt for local models — fits in 4K context with room to spare. */
 const val LOCAL_SYSTEM_PROMPT = """You are OpenClaw, a helpful AI assistant running on an Android phone. Be concise.
-You can use tools to help: read/write files, search, fetch URLs, manage calendar, contacts, tasks, and notes.
+You can use tools to help: read/write files, search, fetch URLs, manage calendar, contacts, tasks, notes, email, and device settings.
 If a task is too complex for you, respond with: [ESCALATE_TO_CLOUD] <reason>"""
 
 const val DEFAULT_SYSTEM_PROMPT = """You are OpenClaw, a powerful personal executive AI assistant running natively on Android. You act as a digital executive assistant — reducing cognitive load, improving decision-making, and helping the user stay organized across work and life.
