@@ -155,10 +155,9 @@ Java_com_openclaw_android_llm_LlamaBridge_nativeLoadModel(
         LOGI("Model loaded with f16 KV fallback, ctx=512");
         return JNI_TRUE;
     }
-    }
 
     // All attempts failed — clean up
-    LOGE("Failed to create context after %d attempts", n_attempts);
+    LOGE("Failed to create context after all attempts");
     llama_model_free(g_model);
     g_model = nullptr;
     g_vocab = nullptr;
