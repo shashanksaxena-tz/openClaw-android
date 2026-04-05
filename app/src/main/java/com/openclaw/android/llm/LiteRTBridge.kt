@@ -97,16 +97,12 @@ object LiteRTBridge {
         }
     }
 
-    /**
-     * Helper to create backends with correct configuration.
-     */
-    fun createGpuBackend(): Backend = Backend.Gpu()
+    fun createGpuBackend(): Backend = Backend.gpu()
     
-    fun createCpuBackend(): Backend = Backend.Cpu()
+    fun createCpuBackend(): Backend = Backend.cpu()
     
     fun createNpuBackend(context: android.content.Context): Backend {
-        // libraryDir is optional or required depending on the chip.
-        return Backend.Npu(libraryDir = context.applicationInfo.nativeLibraryDir)
+        return Backend.npu(libraryDir = context.applicationInfo.nativeLibraryDir)
     }
 
     /**
