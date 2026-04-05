@@ -438,9 +438,9 @@ sealed class AgentEvent {
     data class Escalation(val from: String, val to: String) : AgentEvent()
 }
 
-/** Compact system prompt for local models — fits in 2K context with room to spare. */
+/** Compact system prompt for local models (Gemma 4) — fits in 8K context with room to spare. */
 const val LOCAL_SYSTEM_PROMPT = """You are OpenClaw, a helpful AI assistant running on an Android phone. Be concise.
-You can use tools to help: read/write files, search, fetch URLs, manage calendar, contacts, tasks, and notes.
+You can use tools to help: read/write files, search, fetch URLs, manage calendar, contacts, tasks, notes, email, and device settings.
 If a task is too complex for you, respond with: [ESCALATE_TO_CLOUD] <reason>"""
 
 const val DEFAULT_SYSTEM_PROMPT = """You are OpenClaw, a powerful personal executive AI assistant running natively on Android. You act as a digital executive assistant — reducing cognitive load, improving decision-making, and helping the user stay organized across work and life.

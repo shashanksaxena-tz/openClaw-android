@@ -45,14 +45,14 @@ class ModelDownloadManager(private val context: Context) {
     val availableModels: List<DownloadableModel> = listOf(
         // ── Small (2-3GB RAM, runs on any modern phone) ─────────────────
         DownloadableModel(
-            id = "gemma3-1b-litert",
-            name = "Gemma 4 1B",
-            description = "Google's compact model. Fast, efficient, great for chat. Recommended starter.",
-            sizeBytes = 557_000_000L,
+            id = "gemma4-e2b-litert",
+            name = "Gemma 4 E2B",
+            description = "Google's ultra-efficient mobile model. Fast, smart, and tiny.",
+            sizeBytes = 1_420_000_000L,
             ramRequired = "2 GB",
-            downloadUrl = "https://huggingface.co/litert-community/Gemma 4-1B-IT/resolve/main/Gemma 4-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm",
-            fileName = "Gemma 4-1B-IT_q4.litertlm",
-            contextWindow = 4096,
+            downloadUrl = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
+            fileName = "gemma-4-E2B-it.litertlm",
+            contextWindow = 8192,
             supportsToolUse = true,
             tier = ModelTier.SMALL,
         ),
@@ -68,16 +68,16 @@ class ModelDownloadManager(private val context: Context) {
             supportsToolUse = true,
             tier = ModelTier.SMALL,
         ),
-        // ── Medium (3-4GB RAM, recommended for most phones) ─────────────
+        // ── Medium (4-6GB RAM, recommended for most phones) ─────────────
         DownloadableModel(
-            id = "gemma3n-e2b-litert",
-            name = "Gemma 4n E2B",
-            description = "Google's efficient 2B model. Best balance of speed and quality.",
-            sizeBytes = 2_965_000_000L,
+            id = "gemma4-e4b-litert",
+            name = "Gemma 4 E4B",
+            description = "Google's balanced 4B model. Excellent performance/quality ratio.",
+            sizeBytes = 2_850_000_000L,
             ramRequired = "4 GB",
-            downloadUrl = "https://huggingface.co/google/gemma-3n-E2B-it-litert-lm-preview/resolve/main/gemma-3n-E2B-it-int4.litertlm",
-            fileName = "gemma-3n-E2B-it-int4.litertlm",
-            contextWindow = 4096,
+            downloadUrl = "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm",
+            fileName = "gemma-4-E4B-it.litertlm",
+            contextWindow = 8192,
             supportsToolUse = true,
             tier = ModelTier.MEDIUM,
         ),
@@ -92,19 +92,6 @@ class ModelDownloadManager(private val context: Context) {
             contextWindow = 4096,
             supportsToolUse = true,
             tier = ModelTier.MEDIUM,
-        ),
-        // ── Large (6+ GB RAM, for flagship phones) ──────────────────────
-        DownloadableModel(
-            id = "gemma3n-e4b-litert",
-            name = "Gemma 4n E4B",
-            description = "Google's best phone model. Excellent quality, 4-bit optimized.",
-            sizeBytes = 4_235_000_000L,
-            ramRequired = "6 GB",
-            downloadUrl = "https://huggingface.co/google/gemma-3n-E4B-it-litert-lm-preview/resolve/main/gemma-3n-E4B-it-int4.litertlm",
-            fileName = "gemma-3n-E4B-it-int4.litertlm",
-            contextWindow = 4096,
-            supportsToolUse = true,
-            tier = ModelTier.LARGE,
         ),
     )
 
@@ -172,7 +159,8 @@ class ModelDownloadManager(private val context: Context) {
         try {
             val requestBuilder = Request.Builder()
                 .url(model.downloadUrl)
-                .addHeader("User-Agent", "OpenClaw-Android/2.0")
+                .addHeader("User-Agent", "OpenClaw-Android/4.0")
+
 
             if (existingBytes > 0) {
                 requestBuilder.addHeader("Range", "bytes=$existingBytes-")
