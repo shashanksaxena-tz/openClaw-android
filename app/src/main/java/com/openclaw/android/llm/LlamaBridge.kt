@@ -200,16 +200,66 @@ object LlamaBridge {
     }
 
     fun getAvailableMemoryMb(): Long {
+        var memAvailableMb = 0L
+        try {
+            val meminfo = java.io.File("/proc/meminfo")
+            if (meminfo.exists()) {
+                meminfo.useLines { lines ->
+                    for (line in lines) {
+                        if (line.startsWith("MemAvailable:")) {
+                            val parts = line.split("\\s+".toRegex())
+                            if (parts.size >= 2) {
+                                memAvailableMb = parts[1].toLong() / 1024 // kB to MB
+                            }
+                            break
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // Ignore exception and fall back
+        }
+
         return try {
-            if (isLoaded) nativeGetAvailableMemory() / (1024 * 1024)
-            else Runtime.getRuntime().let { (it.maxMemory() - it.totalMemory() + it.freeMemory()) / (1024 * 1024) }
+            if (memAvailableMb > 0) {
+                memAvailableMb
+            } else if (isLoaded) {
+                nativeGetAvailableMemory() / (1024 * 1024)
+            } else {
+                Runtime.getRuntime().let { (it.maxMemory() - it.totalMemory() + it.freeMemory()) / (1024 * 1024) }
+            }
         } catch (e: Exception) { 0L }
     }
 
     fun getTotalMemoryMb(): Long {
+        var memTotalMb = 0L
+        try {
+            val meminfo = java.io.File("/proc/meminfo")
+            if (meminfo.exists()) {
+                meminfo.useLines { lines ->
+                    for (line in lines) {
+                        if (line.startsWith("MemTotal:")) {
+                            val parts = line.split("\\s+".toRegex())
+                            if (parts.size >= 2) {
+                                memTotalMb = parts[1].toLong() / 1024 // kB to MB
+                            }
+                            break
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // Ignore exception and fall back
+        }
+
         return try {
-            if (isLoaded) nativeGetTotalMemory() / (1024 * 1024)
-            else Runtime.getRuntime().maxMemory() / (1024 * 1024)
+            if (memTotalMb > 0) {
+                memTotalMb
+            } else if (isLoaded) {
+                nativeGetTotalMemory() / (1024 * 1024)
+            } else {
+                Runtime.getRuntime().maxMemory() / (1024 * 1024)
+            }
         } catch (e: Exception) { 0L }
     }
 
