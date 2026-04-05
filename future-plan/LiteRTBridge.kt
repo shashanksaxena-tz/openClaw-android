@@ -58,12 +58,12 @@ object LiteRTBridge {
      * because the optimized weights are cached.
      *
      * @param modelPath Absolute path to the .litertlm file
-     * @param backend Which hardware backend to use (CPU, GPU, NPU)
+     * @param backend Which hardware backend to use (CPU, GPU)
      * @return Result.success if loaded, Result.failure with details if not
      */
     fun loadModel(
         modelPath: String,
-        backend: Backend,
+        backend: Backend = Backend.CPU(),
     ): Result<Unit> {
         val file = File(modelPath)
         if (!file.exists() || file.length() < 100) {
@@ -90,23 +90,11 @@ object LiteRTBridge {
             Log.i(TAG, "Model loaded: $modelPath (backend=${backend::class.simpleName})")
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to load model: $modelPath with backend ${backend::class.simpleName}", e)
+            Log.e(TAG, "Failed to load model: $modelPath", e)
             engine = null
             loadedModelPath = null
             Result.failure(e)
         }
-    }
-
-    /**
-     * Helper to create backends with correct configuration.
-     */
-    fun createGpuBackend(): Backend = Backend.Gpu()
-    
-    fun createCpuBackend(): Backend = Backend.Cpu()
-    
-    fun createNpuBackend(context: android.content.Context): Backend {
-        // libraryDir is optional or required depending on the chip.
-        return Backend.Npu(libraryDir = context.applicationInfo.nativeLibraryDir)
     }
 
     /**
@@ -119,6 +107,7 @@ object LiteRTBridge {
         systemInstruction: String? = null,
         temperature: Float = 0.7f,
         topK: Int = 40,
+        maxTokens: Int = 2048,
     ): Result<Unit> {
         val eng = engine ?: return Result.failure(
             IllegalStateException("No model loaded. Call loadModel() first.")
@@ -130,22 +119,37 @@ object LiteRTBridge {
 
         return try {
             val samplerConfig = SamplerConfig(
-                temperature = temperature.toDouble(), // SamplerConfig may expect Double in some SDK versions
+                temperature = temperature,
                 topK = topK,
-                topP = 0.95, // topP is often Double in these SDKs
+                maxTokens = maxTokens,
             )
 
-            val config = if (systemInstruction != null) {
-                ConversationConfig(
-                    samplerConfig = samplerConfig,
-                    systemInstruction = com.google.ai.edge.litertlm.Content.of(systemInstruction)
+            val configBuilder = ConversationConfig(
+                samplerConfig = samplerConfig,
+            )
+
+            // If system instruction is provided, add it as the initial context
+            val messages = if (systemInstruction != null) {
+                listOf(
+                    Message.system(systemInstruction),
                 )
             } else {
-                ConversationConfig(samplerConfig = samplerConfig)
+                emptyList()
             }
 
-            conversation = eng.createConversation(config)
-            Log.i(TAG, "Conversation created (temp=$temperature, topK=$topK)")
+            val conv = if (messages.isNotEmpty()) {
+                eng.createConversation(
+                    ConversationConfig(
+                        samplerConfig = samplerConfig,
+                        initialMessages = messages,
+                    )
+                )
+            } else {
+                eng.createConversation(configBuilder)
+            }
+
+            conversation = conv
+            Log.i(TAG, "Conversation created (temp=$temperature, topK=$topK, maxTokens=$maxTokens)")
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to create conversation", e)
@@ -180,9 +184,8 @@ object LiteRTBridge {
 
         try {
             val fullResponse = StringBuilder()
-            val msg = Message.user(message)
 
-            conv.sendMessageAsync(msg)
+            conv.sendMessageAsync(message)
                 .catch { e ->
                     Log.e(TAG, "Stream error", e)
                     onError(if (e is Exception) e else RuntimeException(e.message, e))
@@ -197,7 +200,8 @@ object LiteRTBridge {
                     fullResponse.append(tokenText)
                     val shouldContinue = onToken(tokenText)
                     if (!shouldContinue) {
-                        throw kotlinx.coroutines.CancellationException("Generation cancelled by user")
+                        // Note: Flow cancellation is handled by the coroutine scope
+                        return@collect
                     }
                 }
         } catch (e: Exception) {

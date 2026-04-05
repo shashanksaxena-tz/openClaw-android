@@ -2044,7 +2044,7 @@ private fun LocalModelsSection(
         }
 
         // Available RAM info
-        val availableRam = com.openclaw.android.llm.LiteRTBridge.getAvailableMemoryMb(androidx.compose.ui.platform.LocalContext.current)
+        val availableRam = com.openclaw.android.llm.LiteRTBridge.getAvailableMemoryMb()
         if (availableRam > 0) {
             Spacer(Modifier.height(2.dp))
             Text(
