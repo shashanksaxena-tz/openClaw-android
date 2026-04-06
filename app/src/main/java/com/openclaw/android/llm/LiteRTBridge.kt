@@ -63,7 +63,7 @@ object LiteRTBridge {
      */
     fun loadModel(
         modelPath: String,
-        backend: Backend = Backend.Cpu(),
+        backend: Backend = Backend.CPU(),
     ): Result<Unit> {
         val file = File(modelPath)
         if (!file.exists() || file.length() < 100) {
@@ -119,15 +119,14 @@ object LiteRTBridge {
 
         return try {
             val samplerConfig = SamplerConfig(
-                temperature = temperature.toDouble(),
                 topK = topK,
-                topP = 0.95,  // topP is required in alpha02; maxTokens not supported
+                topP = 0.95,  // alpha02 only supports topK and topP; temperature not available in this version
             )
 
             val config = if (systemInstruction != null) {
                 ConversationConfig(
                     samplerConfig = samplerConfig,
-                    systemInstruction = com.google.ai.edge.litertlm.Content.of(systemInstruction)
+                    systemInstruction = com.google.ai.edge.litertlm.Contents.of(systemInstruction)
                 )
             } else {
                 ConversationConfig(samplerConfig = samplerConfig)

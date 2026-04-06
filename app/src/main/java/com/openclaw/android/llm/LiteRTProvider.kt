@@ -214,10 +214,10 @@ class LiteRTProvider(
 
         // Try GPU first, fall back to CPU
         val result = try {
-            LiteRTBridge.loadModel(targetPath, Backend.Gpu())
+            LiteRTBridge.loadModel(targetPath, Backend.GPU())
         } catch (e: Exception) {
             Log.w(TAG, "GPU load failed, falling back to CPU: ${e.message}")
-            LiteRTBridge.loadModel(targetPath, Backend.Cpu())
+            LiteRTBridge.loadModel(targetPath, Backend.CPU())
         }
 
         val elapsed = System.currentTimeMillis() - start
