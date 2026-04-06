@@ -120,7 +120,8 @@ object LiteRTBridge {
         return try {
             val samplerConfig = SamplerConfig(
                 topK = topK,
-                topP = 0.95,  // alpha02 only supports topK and topP; temperature not available in this version
+                topP = 0.95,
+                temperature = temperature.toDouble(),
             )
 
             val config = if (systemInstruction != null) {
