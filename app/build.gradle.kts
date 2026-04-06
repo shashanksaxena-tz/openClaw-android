@@ -138,7 +138,7 @@ dependencies {
 
     // LiteRT-LM — Google's on-device LLM inference engine
     // Replaces the old llama.cpp JNI/C++ native build entirely
-    implementation("com.google.ai.edge.litertlm:litertlm-android:0.9.0-alpha02")
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.10.0")
 
     // Splash screen
     implementation("androidx.core:core-splashscreen:1.0.1")
