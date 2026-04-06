@@ -630,10 +630,12 @@ fun ChatScreen(
                 )
             },
         ) {
-            ChatSettingsSheetContent(
-                settings = runtime.chatSettings,
-                onSettingsChange = { runtime.chatSettings = it }
-            )
+            // TODO: Implement ChatSettings backing in AgentRuntime
+            // ChatSettingsSheetContent(
+            //     settings = runtime.chatSettings,
+            //     onSettingsChange = { runtime.chatSettings = it }
+            // )
+            Text("Chat settings coming soon", modifier = Modifier.padding(16.dp))
         }
     }
 }
@@ -907,7 +909,8 @@ private fun WelcomeHero(
 @Composable
 private fun ThinkingIndicator(runtime: AgentRuntime) {
     val events by runtime.events.collectAsState()
-    val isInitializing = events.lastOrNull() is AgentEvent.InitializingModel
+    // TODO: Add InitializingModel event type to AgentEvent
+    val isInitializing = false // events.lastOrNull() is AgentEvent.InitializingModel
     
     val infiniteTransition = rememberInfiniteTransition(label = "thinking")
 

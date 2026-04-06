@@ -94,7 +94,6 @@ class LiteRTProvider(
             val convResult = LiteRTBridge.createConversation(
                 systemInstruction = fullSystemPrompt.ifBlank { null },
                 temperature = request.temperature.toFloat(),
-                maxTokens = minOf(request.maxTokens, 2048),
             )
             if (convResult.isFailure) {
                 val msg = "Failed to create conversation: ${convResult.exceptionOrNull()?.message}"
@@ -215,10 +214,10 @@ class LiteRTProvider(
 
         // Try GPU first, fall back to CPU
         val result = try {
-            LiteRTBridge.loadModel(targetPath, Backend.GPU())
+            LiteRTBridge.loadModel(targetPath, Backend.Gpu())
         } catch (e: Exception) {
             Log.w(TAG, "GPU load failed, falling back to CPU: ${e.message}")
-            LiteRTBridge.loadModel(targetPath, Backend.CPU())
+            LiteRTBridge.loadModel(targetPath, Backend.Cpu())
         }
 
         val elapsed = System.currentTimeMillis() - start

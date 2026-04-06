@@ -63,7 +63,7 @@ object LiteRTBridge {
      */
     fun loadModel(
         modelPath: String,
-        backend: Backend = Backend.CPU(),
+        backend: Backend = Backend.Cpu(),
     ): Result<Unit> {
         val file = File(modelPath)
         if (!file.exists() || file.length() < 100) {
@@ -119,37 +119,22 @@ object LiteRTBridge {
 
         return try {
             val samplerConfig = SamplerConfig(
-                temperature = temperature,
+                temperature = temperature.toDouble(),
                 topK = topK,
-                maxTokens = maxTokens,
+                topP = 0.95,  // topP is required in alpha02; maxTokens not supported
             )
 
-            val configBuilder = ConversationConfig(
-                samplerConfig = samplerConfig,
-            )
-
-            // If system instruction is provided, add it as the initial context
-            val messages = if (systemInstruction != null) {
-                listOf(
-                    Message.system(systemInstruction),
+            val config = if (systemInstruction != null) {
+                ConversationConfig(
+                    samplerConfig = samplerConfig,
+                    systemInstruction = com.google.ai.edge.litertlm.Content.of(systemInstruction)
                 )
             } else {
-                emptyList()
+                ConversationConfig(samplerConfig = samplerConfig)
             }
 
-            val conv = if (messages.isNotEmpty()) {
-                eng.createConversation(
-                    ConversationConfig(
-                        samplerConfig = samplerConfig,
-                        initialMessages = messages,
-                    )
-                )
-            } else {
-                eng.createConversation(configBuilder)
-            }
-
-            conversation = conv
-            Log.i(TAG, "Conversation created (temp=$temperature, topK=$topK, maxTokens=$maxTokens)")
+            conversation = eng.createConversation(config)
+            Log.i(TAG, "Conversation created (temp=$temperature, topK=$topK)")
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to create conversation", e)
