@@ -1,4 +1,9 @@
 pluginManagement {
+    plugins {
+        kotlin("android") version "2.2.0"
+        kotlin("plugin.compose") version "2.2.0"
+        kotlin("plugin.serialization") version "2.2.0"
+    }
     repositories {
         google {
             content {
