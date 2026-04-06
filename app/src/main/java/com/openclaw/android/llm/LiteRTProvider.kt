@@ -93,7 +93,7 @@ class LiteRTProvider(
 
             val convResult = LiteRTBridge.createConversation(
                 systemInstruction = fullSystemPrompt.ifBlank { null },
-                temperature = request.temperature.toFloat(),
+                temperature = request.settings.temperature.toFloat(),
             )
             if (convResult.isFailure) {
                 val msg = "Failed to create conversation: ${convResult.exceptionOrNull()?.message}"
