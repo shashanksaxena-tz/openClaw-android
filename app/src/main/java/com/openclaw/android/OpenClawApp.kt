@@ -14,6 +14,7 @@ import com.openclaw.android.data.SpaceManager
 import com.openclaw.android.data.db.AppDatabase
 import com.openclaw.android.llm.*
 import com.openclaw.android.llm.InferenceLog
+import com.openclaw.android.llm.LiteRTBridge
 import com.openclaw.android.llm.ModelDownloadManager
 import com.openclaw.android.sandbox.SandboxedFileSystem
 import com.openclaw.android.tools.*
@@ -70,6 +71,9 @@ class OpenClawApp : Application() {
 
         // Install a crash handler so native/OOM crashes get saved for next launch.
         installCrashHandler()
+
+        // Initialize LiteRT-LM bridge with app context (needed for cacheDir)
+        LiteRTBridge.init(this)
 
         // Initialize inference diagnostics log
         InferenceLog.init(this)
