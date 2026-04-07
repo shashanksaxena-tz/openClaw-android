@@ -238,13 +238,8 @@ private fun ToolResultBubble(event: AgentEvent.ToolCallResult, modifier: Modifie
                 }
             }
             Spacer(Modifier.height(4.dp))
-            Text(
-                text = displayText,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    lineHeight = 16.sp,
-                ),
+            MarkdownText(
+                markdown = displayText,
                 color = if (event.isError) ErrorRed.copy(alpha = 0.8f)
                 else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             )
