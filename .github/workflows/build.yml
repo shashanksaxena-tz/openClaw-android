@@ -9,6 +9,7 @@ on:
       - 'claude/fix-dashboard-kotlin-errors-zbLyi'
       - 'claude/fix-kotlin-compilation-errors-HkcYZ'
       - 'claude/add-gemma4-shrink-docs-FLVJr'
+      - 'claude/fix-litert-model-loading-VCJrL'
       - 'main'
   pull_request:
     branches: [main]

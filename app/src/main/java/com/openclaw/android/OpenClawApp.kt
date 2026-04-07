@@ -133,6 +133,17 @@ class OpenClawApp : Application() {
         // Only register the local provider when the user has explicitly enabled it.
         if (settings.getLocalModelEnabled() && modelDownloadManager.getDownloadedModels().isNotEmpty()) {
             providers["local-llama"] = liteRTProvider
+
+            // Proactively load the model in the background (like Edge Gallery).
+            // This takes ~60s on first load but means the model is ready when
+            // the user opens the chat, instead of blocking on first message.
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    liteRTProvider.preloadModel()
+                } catch (e: Exception) {
+                    Log.w("OpenClawApp", "Model preload failed: ${e.message}")
+                }
+            }
         }
         modelRouter = ModelRouter(providers)
 

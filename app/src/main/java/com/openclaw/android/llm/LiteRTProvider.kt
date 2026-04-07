@@ -159,6 +159,23 @@ class LiteRTProvider(
         "LiteRT-LM: ${file.name} (${file.length() / (1024 * 1024)}MB)"
     }
 
+    /**
+     * Proactively load the model in the background.
+     *
+     * Edge Gallery loads the model when you open a chat (takes ~60s on first load).
+     * This method should be called early (e.g. at app startup or when chat opens)
+     * so the model is ready when the user sends their first message.
+     */
+    suspend fun preloadModel() = withContext(Dispatchers.IO) {
+        if (LiteRTBridge.isModelLoaded) return@withContext
+        val error = ensureModelLoaded()
+        if (error != null) {
+            Log.w(TAG, "Preload failed: $error")
+        } else {
+            Log.i(TAG, "Model preloaded successfully")
+        }
+    }
+
     // ── Private: model loading ──────────────────────────────────────────────
 
     private fun resolveModelPath(): String? {
