@@ -1,34 +1,26 @@
 package com.openclaw.android.llm
 
+import android.content.Context
 import android.util.Log
 import com.google.ai.edge.litertlm.Backend
+import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
-import com.google.ai.edge.litertlm.LogSeverity
 import com.google.ai.edge.litertlm.Message
+import com.google.ai.edge.litertlm.MessageCallback
 import com.google.ai.edge.litertlm.SamplerConfig
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.onCompletion
 import java.io.File
 
 /**
  * Singleton bridge to the LiteRT-LM inference engine.
  *
- * Replaces the old LlamaBridge (JNI → llama.cpp) with Google's production-grade
- * LiteRT-LM SDK. Key differences:
- *
- *  - No native C++/JNI code — pure Kotlin via the Maven artifact
- *  - Uses `.litertlm` model files (quantized, optimized for on-device)
- *  - Engine handles tokenization, KV-cache, hardware acceleration internally
- *  - Streaming via Kotlin Flow (not raw token callbacks)
- *  - Supports CPU, GPU, and NPU backends natively
- *
- * Architecture (from Google's docs):
- *  - Engine (singleton): Loads the model once. Shared across the app.
- *  - Conversation: Stateful chat session created from the engine.
- *    Manages chat history, context window, and turn-taking internally.
+ * Matches Google's Edge Gallery initialization pattern exactly:
+ *  - EngineConfig with cacheDir for optimized weight storage
+ *  - CPU backend by default (GPU opt-in to avoid native crashes on some devices)
+ *  - MessageCallback for streaming (not Flow<Message>.toString())
+ *  - Proper Content.Text extraction from Message objects
  */
 object LiteRTBridge {
 
@@ -43,6 +35,9 @@ object LiteRTBridge {
     /** Path of the currently loaded model. */
     private var loadedModelPath: String? = null
 
+    /** Android context for resolving cache directories. */
+    private var appContext: Context? = null
+
     /** Whether a model is currently loaded and ready for inference. */
     val isModelLoaded: Boolean
         get() = engine != null
@@ -50,12 +45,18 @@ object LiteRTBridge {
     /** Always true — LiteRT-LM is a pure Kotlin/Maven dependency, no native stub issues. */
     val isAvailable: Boolean = true
 
+    /** Set the application context (call once from Application.onCreate). */
+    fun init(context: Context) {
+        appContext = context.applicationContext
+    }
+
     /**
      * Load a .litertlm model file.
      *
-     * This can take 5-10+ seconds on first load (model weights are rearranged
-     * for optimal execution on the specific device). Subsequent loads are faster
-     * because the optimized weights are cached.
+     * Matches Edge Gallery's initialization pattern:
+     *  - EngineConfig includes cacheDir for optimized weight caching
+     *  - Engine(config) + engine.initialize()
+     *  - CPU backend by default (safe on all devices)
      *
      * @param modelPath Absolute path to the .litertlm file
      * @param backend Which hardware backend to use (CPU, GPU)
@@ -74,20 +75,22 @@ object LiteRTBridge {
         unloadModel()
 
         return try {
-            // Suppress verbose native logs in the TUI/chat experience
-            Engine.setNativeMinLogSeverity(LogSeverity.ERROR)
+            // Resolve cacheDir the same way Edge Gallery does
+            val cacheDir = appContext?.getExternalFilesDir(null)?.absolutePath
 
             val engineConfig = EngineConfig(
                 modelPath = modelPath,
                 backend = backend,
+                cacheDir = cacheDir,
             )
 
+            Log.i(TAG, "Creating engine: model=$modelPath, backend=${backend::class.simpleName}, cacheDir=$cacheDir")
             val newEngine = Engine(engineConfig)
             newEngine.initialize()
 
             engine = newEngine
             loadedModelPath = modelPath
-            Log.i(TAG, "Model loaded: $modelPath (backend=${backend::class.simpleName})")
+            Log.i(TAG, "Model loaded successfully: $modelPath")
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load model: $modelPath", e)
@@ -100,8 +103,7 @@ object LiteRTBridge {
     /**
      * Create a new conversation session with optional configuration.
      *
-     * Each conversation maintains its own KV-cache and chat history internally.
-     * Call this before [sendMessage]. Old conversation is automatically closed.
+     * Matches Edge Gallery's pattern: engine.createConversation(ConversationConfig(...))
      */
     fun createConversation(
         systemInstruction: String? = null,
@@ -145,18 +147,15 @@ object LiteRTBridge {
     /**
      * Send a message and stream the response token by token.
      *
-     * This is the core inference method. LiteRT-LM handles:
-     *  - Tokenization
-     *  - KV-cache management
-     *  - Context window management
-     *  - Hardware-accelerated decode
+     * Uses the MessageCallback pattern (same as Edge Gallery) instead of
+     * Flow<Message>.toString() which doesn't extract text properly.
      *
      * @param message The user's message text
-     * @param onToken Called for each streamed token. Return false to cancel.
+     * @param onToken Called for each streamed token text.
      * @param onDone Called when generation is complete with the full response.
      * @param onError Called if an error occurs during generation.
      */
-    suspend fun sendMessage(
+    fun sendMessage(
         message: String,
         onToken: (String) -> Boolean,
         onDone: (String) -> Unit,
@@ -170,25 +169,31 @@ object LiteRTBridge {
         try {
             val fullResponse = StringBuilder()
 
-            conv.sendMessageAsync(message)
-                .catch { e ->
-                    Log.e(TAG, "Stream error", e)
-                    onError(if (e is Exception) e else RuntimeException(e.message, e))
-                }
-                .onCompletion {
-                    if (it == null) {
+            // Use MessageCallback pattern exactly like Edge Gallery
+            conv.sendMessageAsync(
+                Message.user(message),
+                object : MessageCallback {
+                    override fun onMessage(message: Message) {
+                        // Extract text content from Message, same as Edge Gallery
+                        message.contents.filterIsInstance<Content.Text>().forEach { textContent ->
+                            val text = textContent.text
+                            fullResponse.append(text)
+                            onToken(text)
+                        }
+                    }
+
+                    override fun onDone() {
                         onDone(fullResponse.toString())
                     }
-                }
-                .collect { chunk ->
-                    val tokenText = chunk.toString()
-                    fullResponse.append(tokenText)
-                    val shouldContinue = onToken(tokenText)
-                    if (!shouldContinue) {
-                        // Note: Flow cancellation is handled by the coroutine scope
-                        return@collect
+
+                    override fun onError(throwable: Throwable) {
+                        Log.e(TAG, "Stream error", throwable)
+                        val ex = if (throwable is Exception) throwable
+                                 else RuntimeException(throwable.message, throwable)
+                        onError(ex)
                     }
-                }
+                },
+            )
         } catch (e: Exception) {
             Log.e(TAG, "sendMessage error", e)
             onError(e)

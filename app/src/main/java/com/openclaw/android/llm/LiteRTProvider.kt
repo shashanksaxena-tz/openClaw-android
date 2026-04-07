@@ -103,12 +103,6 @@ class LiteRTProvider(
             }
 
             // ── Step 3: Build the user message ──────────────────────────────
-            // LiteRT-LM handles chat history internally via Conversation.
-            // We send the latest user message. For multi-turn context, the
-            // conversation object maintains state across sendMessage calls.
-            //
-            // For the first message in a new conversation, we prepend recent
-            // history so the model has context.
             val userMessage = buildUserMessage(request)
             if (userMessage.isBlank()) {
                 onError(IllegalStateException("Empty message"))
@@ -119,12 +113,12 @@ class LiteRTProvider(
             var tokenCount = 0
 
             // ── Step 4: Send message and stream response ────────────────────
+            // Uses MessageCallback pattern (matching Edge Gallery exactly)
             LiteRTBridge.sendMessage(
                 message = userMessage,
                 onToken = { token ->
                     tokenCount++
                     onChunk(token)
-                    // Check for escalation marker mid-stream
                     true // keep generating
                 },
                 onDone = { fullResponse ->
@@ -207,18 +201,14 @@ class LiteRTProvider(
             return "Not enough RAM (${availMb}MB free). Close other apps and try again."
         }
 
-        // Load the model. LiteRT-LM handles backend selection, thread count,
-        // memory mapping, and optimization internally.
+        // Load the model with CPU backend (safe on all devices).
+        // GPU can cause native crashes (SIGSEGV) on some devices that bypass
+        // Java exception handling and kill the process instantly.
+        // Edge Gallery also defaults to CPU and lets users opt-in to GPU.
         Log.i(TAG, "Loading model: $targetPath (${modelFile.length() / (1024 * 1024)}MB, avail RAM: ${availMb}MB)")
         val start = System.currentTimeMillis()
 
-        // Try GPU first, fall back to CPU
-        val result = try {
-            LiteRTBridge.loadModel(targetPath, Backend.GPU())
-        } catch (e: Exception) {
-            Log.w(TAG, "GPU load failed, falling back to CPU: ${e.message}")
-            LiteRTBridge.loadModel(targetPath, Backend.CPU())
-        }
+        val result = LiteRTBridge.loadModel(targetPath, Backend.CPU())
 
         val elapsed = System.currentTimeMillis() - start
         return if (result.isSuccess) {
