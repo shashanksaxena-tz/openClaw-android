@@ -13,6 +13,8 @@ import com.openclaw.android.data.SettingsRepository
 import com.openclaw.android.data.SpaceManager
 import com.openclaw.android.data.db.AppDatabase
 import com.openclaw.android.llm.*
+import com.openclaw.android.llm.InferenceLog
+import com.openclaw.android.llm.LiteRTBridge
 import com.openclaw.android.llm.ModelDownloadManager
 import com.openclaw.android.sandbox.SandboxedFileSystem
 import com.openclaw.android.tools.*
@@ -68,8 +70,13 @@ class OpenClawApp : Application() {
         super.onCreate()
 
         // Install a crash handler so native/OOM crashes get saved for next launch.
-        // This lets us show the user what went wrong instead of silently exiting.
         installCrashHandler()
+
+        // Initialize LiteRT-LM bridge with app context (needed for cacheDir)
+        LiteRTBridge.init(this)
+
+        // Initialize inference diagnostics log
+        InferenceLog.init(this)
 
         // Notification channels
         NotificationHelper.createChannel(this)
@@ -109,10 +116,14 @@ class OpenClawApp : Application() {
         // Model download manager for local GGUF models
         modelDownloadManager = ModelDownloadManager(this)
 
-        // LLM providers (including local llama.cpp model)
-        val llamaProvider = LlamaProvider(
+        // Clean up any old GGUF models from the llama.cpp era
+        modelDownloadManager.cleanupLegacyModels()
+
+        // LLM providers (including local LiteRT-LM model)
+        val liteRTProvider = LiteRTProvider(
             downloadManager = modelDownloadManager,
             getActiveModelId = { settings.getActiveLocalModelId().ifBlank { null } },
+            appContext = this,
         )
         val providers = mutableMapOf<String, LlmProvider>(
             "gemini" to GeminiProvider(apiKeyProvider = { settings.getGeminiKey() }),
@@ -120,12 +131,19 @@ class OpenClawApp : Application() {
             "cerebras" to CerebrasProvider(apiKeyProvider = { settings.getCerebrasKey() }),
         )
         // Only register the local provider when the user has explicitly enabled it.
-        // The old OR condition caused crashes: even with local model disabled,
-        // having a downloaded model would register the provider, and the local-first
-        // strategy would route requests to it — crashing if the model couldn't handle
-        // the prompt (context overflow, native abort).
         if (settings.getLocalModelEnabled() && modelDownloadManager.getDownloadedModels().isNotEmpty()) {
-            providers["local-llama"] = llamaProvider
+            providers["local-llama"] = liteRTProvider
+
+            // Proactively load the model in the background (like Edge Gallery).
+            // This takes ~60s on first load but means the model is ready when
+            // the user opens the chat, instead of blocking on first message.
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    liteRTProvider.preloadModel()
+                } catch (e: Exception) {
+                    Log.w("OpenClawApp", "Model preload failed: ${e.message}")
+                }
+            }
         }
         modelRouter = ModelRouter(providers)
 
@@ -209,9 +227,8 @@ class OpenClawApp : Application() {
      * Saves crash info to a file so the next app launch can show the user what went wrong.
      *
      * LIMITATION: This only catches JVM-level exceptions (OutOfMemoryError, etc.).
-     * Native signals (SIGSEGV, SIGABRT from llama.cpp) kill the process directly and
-     * bypass Java's UncaughtExceptionHandler. For native crash capture, a signal handler
-     * like Google Breakpad would be needed.
+     * Native signals (SIGSEGV, SIGABRT) kill the process directly and
+     * bypass Java's UncaughtExceptionHandler.
      */
     private fun installCrashHandler() {
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()

@@ -15,95 +15,83 @@ import java.io.RandomAccessFile
 import java.util.concurrent.TimeUnit
 
 /**
- * Manages downloading, storing, and tracking GGUF models for local inference.
+ * Manages downloading, storing, and tracking .litertlm models for local inference.
  *
  * Models are stored in the app's internal storage under `models/`.
  * Supports resumable downloads and provides progress updates via StateFlow.
+ *
+ * Uses .litertlm files from the HuggingFace LiteRT Community.
+ * These are pre-quantized, pre-optimized model bundles that include tokenizer,
+ * model weights, and metadata — no separate prompt templates needed.
  */
 class ModelDownloadManager(private val context: Context) {
 
     companion object {
         private const val TAG = "ModelDownloadManager"
         private const val MODELS_DIR = "models"
-        private const val BUFFER_SIZE = 8 * 1024 // 8KB chunks
+        private const val BUFFER_SIZE = 8 * 1024
     }
 
-    /** Curated list of models tested on Android devices. */
+    /**
+     * Curated list of .litertlm models optimized for Android.
+     *
+     * From the official HuggingFace LiteRT Community and Google repos.
+     * All models are 4-bit quantized for on-device efficiency.
+     *
+     * Key advantage over GGUF: LiteRT-LM models are specifically optimized for
+     * Android hardware (ARM NEON, GPU via OpenCL/Vulkan, NPU via QNN).
+     * The 557MB Gemma 4-1B runs faster here than a 2GB GGUF via llama.cpp.
+     */
     val availableModels: List<DownloadableModel> = listOf(
-        // ── Small (1-2GB RAM, runs on any modern phone) ──────────────────
+        // ── Small (2-3GB RAM, runs on any modern phone) ─────────────────
         DownloadableModel(
-            id = "qwen2.5-1.5b-q4",
-            name = "Qwen 2.5 1.5B",
-            description = "Ultra-light model. Fast responses, basic tool calling.",
-            sizeBytes = 1_100_000_000L,
+            id = "gemma4-e2b-litert",
+            name = "Gemma 4 E2B",
+            description = "Google's ultra-efficient mobile model. Fast, smart, and tiny.",
+            sizeBytes = 1_420_000_000L,
             ramRequired = "2 GB",
-            downloadUrl = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf",
-            fileName = "qwen2.5-1.5b-instruct-q4_k_m.gguf",
-            contextWindow = 32768,
+            downloadUrl = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
+            fileName = "gemma-4-E2B-it.litertlm",
+            contextWindow = 8192,
             supportsToolUse = true,
             tier = ModelTier.SMALL,
         ),
         DownloadableModel(
-            id = "phi-3.5-mini-q4",
-            name = "Phi 3.5 Mini (3.8B)",
-            description = "Microsoft's compact model. Strong reasoning for its size.",
-            sizeBytes = 2_300_000_000L,
+            id = "qwen25-1.5b-litert",
+            name = "Qwen 2.5 1.5B",
+            description = "Alibaba's efficient model. Good reasoning for its size.",
+            sizeBytes = 1_524_000_000L,
             ramRequired = "3 GB",
-            downloadUrl = "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf",
-            fileName = "Phi-3.5-mini-instruct-Q4_K_M.gguf",
-            contextWindow = 131072,
+            downloadUrl = "https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct/resolve/main/Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv4096.litertlm",
+            fileName = "Qwen2.5-1.5B-Instruct_q8.litertlm",
+            contextWindow = 4096,
             supportsToolUse = true,
             tier = ModelTier.SMALL,
         ),
-        // ── Medium (3-4GB RAM, recommended for most flagship phones) ─────
+        // ── Medium (4-6GB RAM, recommended for most phones) ─────────────
         DownloadableModel(
-            id = "llama-3.2-3b-q4",
-            name = "Llama 3.2 3B",
-            description = "Meta's efficient model. Good balance of speed and quality.",
-            sizeBytes = 2_000_000_000L,
-            ramRequired = "3 GB",
-            downloadUrl = "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-            fileName = "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-            contextWindow = 131072,
+            id = "gemma4-e4b-litert",
+            name = "Gemma 4 E4B",
+            description = "Google's balanced 4B model. Excellent performance/quality ratio.",
+            sizeBytes = 2_850_000_000L,
+            ramRequired = "4 GB",
+            downloadUrl = "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm",
+            fileName = "gemma-4-E4B-it.litertlm",
+            contextWindow = 8192,
             supportsToolUse = true,
             tier = ModelTier.MEDIUM,
         ),
         DownloadableModel(
-            id = "qwen2.5-3b-q4",
-            name = "Qwen 2.5 3B",
-            description = "Best tool-calling at this size. Recommended for most devices.",
-            sizeBytes = 2_100_000_000L,
-            ramRequired = "3 GB",
-            downloadUrl = "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf",
-            fileName = "qwen2.5-3b-instruct-q4_k_m.gguf",
-            contextWindow = 32768,
+            id = "phi4-mini-litert",
+            name = "Phi 4 Mini (3.8B)",
+            description = "Microsoft's compact model. Strong reasoning, 8-bit quantized.",
+            sizeBytes = 3_728_000_000L,
+            ramRequired = "4 GB",
+            downloadUrl = "https://huggingface.co/litert-community/Phi-4-mini-instruct/resolve/main/Phi-4-mini-instruct_multi-prefill-seq_q8_ekv4096.litertlm",
+            fileName = "Phi-4-mini-instruct_q8.litertlm",
+            contextWindow = 4096,
             supportsToolUse = true,
             tier = ModelTier.MEDIUM,
-        ),
-        // ── Large (5-8GB RAM, for high-end devices like Fold 7) ──────────
-        DownloadableModel(
-            id = "qwen2.5-7b-q4",
-            name = "Qwen 2.5 7B",
-            description = "Best local model for tool calling and orchestration. Recommended for 12GB+ RAM.",
-            sizeBytes = 4_700_000_000L,
-            ramRequired = "6 GB",
-            downloadUrl = "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/main/qwen2.5-7b-instruct-q4_k_m.gguf",
-            fileName = "qwen2.5-7b-instruct-q4_k_m.gguf",
-            contextWindow = 32768,
-            supportsToolUse = true,
-            tier = ModelTier.LARGE,
-        ),
-        DownloadableModel(
-            id = "llama-3.1-8b-q4",
-            name = "Llama 3.1 8B",
-            description = "Meta's capable model. Strong general reasoning.",
-            sizeBytes = 4_900_000_000L,
-            ramRequired = "6 GB",
-            downloadUrl = "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
-            fileName = "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
-            contextWindow = 131072,
-            supportsToolUse = true,
-            tier = ModelTier.LARGE,
         ),
     )
 
@@ -123,7 +111,6 @@ class ModelDownloadManager(private val context: Context) {
     @Volatile
     private var cancelRequested = false
 
-    /** Get list of models already downloaded on device. */
     fun getDownloadedModels(): List<DownloadedModel> {
         val dir = modelsDir
         if (!dir.exists()) return emptyList()
@@ -135,28 +122,24 @@ class ModelDownloadManager(private val context: Context) {
                     model = model,
                     filePath = file.absolutePath,
                     fileSizeBytes = file.length(),
-                    isComplete = file.length() >= model.sizeBytes * 0.99, // allow 1% variance from estimate
+                    isComplete = file.length() >= model.sizeBytes * 0.95,
                 )
             } else null
         }
     }
 
-    /** Check if a specific model is downloaded. */
     fun isModelDownloaded(modelId: String): Boolean {
         val model = availableModels.find { it.id == modelId } ?: return false
         val file = File(modelsDir, model.fileName)
-        return file.exists() && file.length() >= model.sizeBytes * 0.99
+        return file.exists() && file.length() >= model.sizeBytes * 0.95
     }
 
-    /** Get the file path of a downloaded model (only returns complete downloads). */
     fun getModelPath(modelId: String): String? {
         val model = availableModels.find { it.id == modelId } ?: return null
         val file = File(modelsDir, model.fileName)
-        // Only return path for complete downloads — loading a partial GGUF crashes native code
-        return if (file.exists() && file.length() >= model.sizeBytes * 0.99) file.absolutePath else null
+        return if (file.exists() && file.length() >= model.sizeBytes * 0.95) file.absolutePath else null
     }
 
-    /** Download a model with progress updates. Supports resume. */
     suspend fun downloadModel(modelId: String) = withContext(Dispatchers.IO) {
         val model = availableModels.find { it.id == modelId }
             ?: throw IllegalArgumentException("Unknown model: $modelId")
@@ -176,9 +159,9 @@ class ModelDownloadManager(private val context: Context) {
         try {
             val requestBuilder = Request.Builder()
                 .url(model.downloadUrl)
-                .addHeader("User-Agent", "OpenClaw-Android/1.1")
+                .addHeader("User-Agent", "OpenClaw-Android/4.0")
 
-            // Resume support
+
             if (existingBytes > 0) {
                 requestBuilder.addHeader("Range", "bytes=$existingBytes-")
                 Log.i(TAG, "Resuming download from byte $existingBytes")
@@ -192,7 +175,6 @@ class ModelDownloadManager(private val context: Context) {
             }
 
             val totalBytes = if (response.code == 206) {
-                // Partial content - total is existing + remaining
                 val contentLength = response.body?.contentLength() ?: 0L
                 existingBytes + contentLength
             } else {
@@ -205,15 +187,14 @@ class ModelDownloadManager(private val context: Context) {
             val raf = RandomAccessFile(file, "rw")
             try {
                 if (response.code == 206) {
-                    raf.seek(existingBytes) // Resume at end
+                    raf.seek(existingBytes)
                 } else {
-                    raf.setLength(0) // Fresh start
+                    raf.setLength(0)
                 }
 
                 val buffer = ByteArray(BUFFER_SIZE)
                 var bytesWritten = if (response.code == 206) existingBytes else 0L
                 var lastProgressUpdate = System.currentTimeMillis()
-                // Speed / ETA tracking with rolling average
                 var speedSampleStart = System.currentTimeMillis()
                 var speedSampleBytes = 0L
                 var currentSpeed = 0L
@@ -233,15 +214,12 @@ class ModelDownloadManager(private val context: Context) {
                         bytesWritten += read
                         speedSampleBytes += read
 
-                        // Update progress at most every 500ms to avoid UI thrashing
                         val now = System.currentTimeMillis()
                         if (now - lastProgressUpdate > 500) {
-                            // Calculate speed from sample window
                             val sampleElapsed = now - speedSampleStart
                             if (sampleElapsed > 0) {
                                 currentSpeed = (speedSampleBytes * 1000) / sampleElapsed
                             }
-                            // Reset sample window every 2 seconds for smoother readings
                             if (sampleElapsed > 2000) {
                                 speedSampleStart = now
                                 speedSampleBytes = 0L
@@ -276,29 +254,38 @@ class ModelDownloadManager(private val context: Context) {
         }
     }
 
-    /** Cancel an in-progress download. Partial file is kept for resume. */
     fun cancelDownload() {
         cancelRequested = true
     }
 
-    /** Delete a downloaded model from disk. */
     fun deleteModel(modelId: String): Boolean {
         val model = availableModels.find { it.id == modelId } ?: return false
         val file = File(modelsDir, model.fileName)
         return if (file.exists()) {
+            if (LiteRTBridge.getLoadedModelPath() == file.absolutePath) {
+                LiteRTBridge.unloadModel()
+            }
             val deleted = file.delete()
             Log.i(TAG, "Deleted model ${model.name}: $deleted")
             deleted
         } else false
     }
 
-    /** Total disk space used by downloaded models. */
     fun getTotalDiskUsage(): Long =
         modelsDir.listFiles()?.sumOf { it.length() } ?: 0L
 
-    /** Reset download state to idle. */
     fun resetState() {
         _downloadState.value = DownloadState.Idle
+    }
+
+    /** Remove any old .gguf files from the previous llama.cpp-based version. */
+    fun cleanupLegacyModels() {
+        val dir = modelsDir
+        if (!dir.exists()) return
+        dir.listFiles()?.filter { it.extension == "gguf" }?.forEach { file ->
+            Log.i(TAG, "Removing legacy GGUF model: ${file.name}")
+            file.delete()
+        }
     }
 }
 
@@ -350,7 +337,7 @@ sealed class DownloadState {
     data class Downloading(
         val modelId: String,
         val modelName: String,
-        val progress: Float, // 0.0 to 1.0
+        val progress: Float,
         val downloadedBytes: Long,
         val totalBytes: Long,
         val speedBytesPerSec: Long = 0L,

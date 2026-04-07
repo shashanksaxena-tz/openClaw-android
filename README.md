@@ -84,76 +84,9 @@ cd openclaw-android
 - **Groq**: [console.groq.com](https://console.groq.com/) → API Keys
 - **Cerebras**: [cloud.cerebras.ai](https://cloud.cerebras.ai/) → API Keys
 
-## Tools Available to the AI
+## Security
 
-| Tool | Description |
-|------|-------------|
-| `read_file` | Read files from workspace/ or shared/ |
-| `write_file` | Create/edit files in workspace/ |
-| `list_files` | List directory contents |
-| `delete_file` | Delete files from workspace/ |
-| `search_files` | Search by filename or content |
-| `move_file` | Move/rename files, copy from shared/ to workspace/ |
-| `create_directory` | Create folders in workspace/ |
-| `fetch_url` | Fetch web page content |
-
-## Security Model
-
-- **Sandboxed**: AI can only access `workspace/` (read/write) and `shared/` (read-only)
-- **No code execution**: AI cannot run scripts or shell commands
-- **No system access**: No contacts, messages, location, or other app data
-- **Encrypted keys**: API keys stored with AES-256 encryption
-- **HTTPS only**: All API calls over TLS, cleartext traffic disabled
-
-## Project Structure
-
-```
-app/src/main/java/com/openclaw/android/
-├── OpenClawApp.kt              # Application setup, dependency wiring
-├── MainActivity.kt             # Main activity with bottom nav
-├── agent/
-│   ├── AgentRuntime.kt         # LLM ↔ Tool orchestration loop
-│   └── ConversationManager.kt  # Message history management
-├── llm/
-│   ├── LlmProvider.kt         # Provider interface + data models
-│   ├── GeminiProvider.kt       # Google Gemini (native API)
-│   ├── GroqProvider.kt         # Groq (OpenAI-compatible)
-│   ├── CerebrasProvider.kt     # Cerebras (OpenAI-compatible)
-│   └── ModelRouter.kt          # Smart model selection
-├── tools/
-│   ├── Tool.kt                 # Tool interface
-│   ├── ToolRegistry.kt         # Tool registration
-│   ├── ReadFileTool.kt         # Read files
-│   ├── WriteFileTool.kt        # Write files
-│   ├── ListFilesTool.kt        # List directories
-│   ├── DeleteFileTool.kt       # Delete files
-│   ├── SearchFilesTool.kt      # Search files
-│   ├── MoveFileTool.kt         # Move/copy files
-│   ├── CreateDirectoryTool.kt  # Create directories
-│   └── FetchUrlTool.kt         # Fetch URLs
-├── sandbox/
-│   └── SandboxedFileSystem.kt  # Security boundary enforcement
-├── share/
-│   └── ShareReceiverActivity.kt # Android share intent handler
-├── data/
-│   └── SettingsRepository.kt   # Encrypted settings storage
-└── ui/
-    ├── theme/                  # Material 3 theming
-    ├── screens/
-    │   ├── ChatScreen.kt       # Chat interface
-    │   ├── SettingsScreen.kt   # API keys & model config
-    │   └── FileBrowserScreen.kt # Workspace file browser
-    └── components/
-        └── MessageBubble.kt    # Chat message rendering
-```
-
-## Limitations
-
-- **No code execution** — the AI writes files but can't run them
-- **No background tasks** — reactive only, responds when you interact
-- **No multi-app integration** — can't control other apps, only receives shared content
-- **Context limits** — long conversations with many images use more API tokens
-- **Internet required** — needs network for LLM API calls
+Sandboxed AI: workspace/ (read/write), shared/ (read-only). No code execution, no system access. API keys encrypted with AES-256. HTTPS only.
 
 ## License
 

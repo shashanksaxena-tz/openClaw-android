@@ -118,8 +118,9 @@ class GroqProvider(
 
 internal fun buildOpenAiCompatibleBody(request: ChatRequest, json: Json): JsonObject = buildJsonObject {
     put("model", request.model)
-    put("max_tokens", request.maxTokens)
-    put("temperature", request.temperature)
+    put("max_tokens", request.settings.maxTokens)
+    put("temperature", request.settings.temperature)
+    put("top_p", request.settings.topP)
     put("stream", true)
 
     putJsonArray("messages") {

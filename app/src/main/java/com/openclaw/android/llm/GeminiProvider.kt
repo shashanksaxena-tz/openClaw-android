@@ -269,8 +269,10 @@ class GeminiProvider(
 
         // Generation config
         putJsonObject("generationConfig") {
-            put("maxOutputTokens", request.maxTokens)
-            put("temperature", request.temperature)
+            put("maxOutputTokens", request.settings.maxTokens)
+            put("temperature", request.settings.temperature)
+            put("topK", request.settings.topK)
+            put("topP", request.settings.topP)
         }
     }
 }

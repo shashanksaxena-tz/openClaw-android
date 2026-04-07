@@ -49,19 +49,6 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 // ── Design tokens ────────────────────────────────────────────────────────────
-private val TrueBlack = Color(0xFF050508)
-private val Charcoal = Color(0xFF0D0D12)
-private val ElectricViolet = Color(0xFFA855F7)
-private val NeonCyan = Color(0xFF22D3EE)
-private val SoftPink = Color(0xFFF472B6)
-private val DangerRed = Color(0xFFEF4444)
-private val GlassBorder = Color.White.copy(alpha = 0.05f)
-private val GlassBorderLight = Color.White.copy(alpha = 0.08f)
-private val GlassSurface = Charcoal.copy(alpha = 0.65f)
-private val GlassSurfaceElevated = Charcoal.copy(alpha = 0.80f)
-private val MutedText = Color.White.copy(alpha = 0.45f)
-private val SubtleText = Color.White.copy(alpha = 0.60f)
-private val PrimaryGradient = Brush.horizontalGradient(listOf(ElectricViolet, NeonCyan))
 private val GlassShape = RoundedCornerShape(16.dp)
 private val ChipShape = RoundedCornerShape(12.dp)
 
@@ -111,38 +98,47 @@ fun FileBrowserScreen(
         return
     }
 
+    // Capture theme colors for use in non-composable scopes (e.g. drawBehind)
+    val colorScheme = MaterialTheme.colorScheme
+    val primaryColor = colorScheme.primary
+    val tertiaryColor = colorScheme.tertiary
+    val errorColor = colorScheme.error
+    val onSurfaceColor = colorScheme.onSurface
+    val onSurfaceVariantColor = colorScheme.onSurfaceVariant
+    val outlineVariantColor = colorScheme.outlineVariant
+
     // ── Delete confirmation dialog ───────────────────────────────────────────
     fileToDelete?.let { file ->
         AlertDialog(
             onDismissRequest = { fileToDelete = null },
             shape = GlassShape,
-            containerColor = Charcoal,
+            containerColor = colorScheme.surface,
             tonalElevation = 0.dp,
             modifier = Modifier
                 .border(
                     width = 1.dp,
                     brush = Brush.verticalGradient(
-                        listOf(DangerRed.copy(alpha = 0.40f), DangerRed.copy(alpha = 0.10f))
+                        listOf(errorColor.copy(alpha = 0.40f), errorColor.copy(alpha = 0.10f))
                     ),
                     shape = GlassShape,
                 )
                 .shadow(
                     elevation = 24.dp,
                     shape = GlassShape,
-                    ambientColor = DangerRed.copy(alpha = 0.25f),
-                    spotColor = DangerRed.copy(alpha = 0.25f),
+                    ambientColor = errorColor.copy(alpha = 0.25f),
+                    spotColor = errorColor.copy(alpha = 0.25f),
                 ),
             icon = {
                 Box(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(DangerRed.copy(alpha = 0.12f)),
+                        .background(errorColor.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         Icons.Default.Delete, null,
-                        tint = DangerRed,
+                        tint = errorColor,
                         modifier = Modifier.size(24.dp),
                     )
                 }
@@ -150,7 +146,7 @@ fun FileBrowserScreen(
             title = {
                 Text(
                     "Delete ${file.name}?",
-                    color = Color.White,
+                    color = onSurfaceColor,
                     fontWeight = FontWeight.SemiBold,
                 )
             },
@@ -158,7 +154,7 @@ fun FileBrowserScreen(
                 Text(
                     if (file.isDirectory) "This will delete the folder and all its contents."
                     else "This file will be permanently deleted.",
-                    color = SubtleText,
+                    color = onSurfaceVariantColor,
                 )
             },
             confirmButton = {
@@ -170,12 +166,12 @@ fun FileBrowserScreen(
                         fileToDelete = null
                         refreshTrigger++
                     },
-                    colors = ButtonDefaults.textButtonColors(contentColor = DangerRed),
+                    colors = ButtonDefaults.textButtonColors(contentColor = errorColor),
                 ) { Text("Delete", fontWeight = FontWeight.SemiBold) }
             },
             dismissButton = {
                 TextButton(onClick = { fileToDelete = null }) {
-                    Text("Cancel", color = SubtleText)
+                    Text("Cancel", color = onSurfaceVariantColor)
                 }
             },
         )
@@ -185,20 +181,20 @@ fun FileBrowserScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(TrueBlack),
+            .background(colorScheme.background),
     ) {
         // ── Header ───────────────────────────────────────────────────────────
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(GlassSurfaceElevated)
+                .background(colorScheme.surfaceContainerHigh)
                 .drawBehind {
                     // Subtle gradient line at bottom
                     drawLine(
                         brush = Brush.horizontalGradient(
                             listOf(
-                                ElectricViolet.copy(alpha = 0.5f),
-                                NeonCyan.copy(alpha = 0.3f),
+                                primaryColor.copy(alpha = 0.5f),
+                                tertiaryColor.copy(alpha = 0.3f),
                                 Color.Transparent,
                             )
                         ),
@@ -225,7 +221,7 @@ fun FileBrowserScreen(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack, "Back",
-                            tint = Color.White,
+                            tint = onSurfaceColor,
                             modifier = Modifier.size(18.dp),
                         )
                     }
@@ -242,9 +238,7 @@ fun FileBrowserScreen(
                         text = titleText,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        style = LocalTextStyle.current.copy(
-                            brush = PrimaryGradient,
-                        ),
+                        color = primaryColor,
                     )
 
                     // Breadcrumb path or space subtitle
@@ -260,14 +254,14 @@ fun FileBrowserScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     Icons.Default.Folder, null,
-                                    tint = ElectricViolet.copy(alpha = 0.5f),
+                                    tint = primaryColor.copy(alpha = 0.5f),
                                     modifier = Modifier.size(12.dp),
                                 )
                                 Spacer(Modifier.width(4.dp))
                                 Text(
                                     text = path.replace("/", " / "),
                                     fontSize = 12.sp,
-                                    color = MutedText,
+                                    color = onSurfaceVariantColor,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
@@ -276,7 +270,7 @@ fun FileBrowserScreen(
                             Text(
                                 "Files in active space",
                                 fontSize = 12.sp,
-                                color = MutedText,
+                                color = onSurfaceVariantColor,
                             )
                         } else {
                             Spacer(Modifier.height(0.dp))
@@ -289,15 +283,15 @@ fun FileBrowserScreen(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(ElectricViolet.copy(alpha = 0.10f))
-                            .border(0.5.dp, ElectricViolet.copy(alpha = 0.20f), RoundedCornerShape(8.dp))
+                            .background(primaryColor.copy(alpha = 0.10f))
+                            .border(0.5.dp, primaryColor.copy(alpha = 0.20f), RoundedCornerShape(8.dp))
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                     ) {
                         Text(
                             activeSpaceName,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium,
-                            color = ElectricViolet.copy(alpha = 0.8f),
+                            color = primaryColor.copy(alpha = 0.8f),
                         )
                     }
                     Spacer(Modifier.width(8.dp))
@@ -307,7 +301,7 @@ fun FileBrowserScreen(
                 GlassCircleButton(onClick = { refreshTrigger++ }) {
                     Icon(
                         Icons.Default.Refresh, "Refresh",
-                        tint = Color.White.copy(alpha = 0.7f),
+                        tint = onSurfaceColor.copy(alpha = 0.7f),
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -338,7 +332,7 @@ fun FileBrowserScreen(
             Text(
                 "${usage.fileCount} files, ${usage.displaySize}",
                 fontSize = 11.sp,
-                color = MutedText,
+                color = onSurfaceVariantColor,
             )
         }
 
@@ -351,8 +345,8 @@ fun FileBrowserScreen(
                 .background(
                     Brush.horizontalGradient(
                         listOf(
-                            ElectricViolet.copy(alpha = 0.4f),
-                            NeonCyan.copy(alpha = 0.15f),
+                            primaryColor.copy(alpha = 0.4f),
+                            tertiaryColor.copy(alpha = 0.15f),
                             Color.Transparent,
                         )
                     )
@@ -390,8 +384,8 @@ fun FileBrowserScreen(
                     modifier = Modifier
                         .widthIn(max = 300.dp)
                         .clip(GlassShape)
-                        .background(GlassSurface)
-                        .border(0.5.dp, GlassBorderLight, GlassShape)
+                        .background(colorScheme.surfaceVariant)
+                        .border(0.5.dp, outlineVariantColor.copy(alpha = 0.5f), GlassShape)
                         .padding(32.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -406,7 +400,7 @@ fun FileBrowserScreen(
                                     scaleX = pulseScale
                                     scaleY = pulseScale
                                 },
-                            tint = if (isShowingShared) NeonCyan.copy(alpha = 0.6f) else ElectricViolet.copy(alpha = 0.6f),
+                            tint = if (isShowingShared) tertiaryColor.copy(alpha = 0.6f) else primaryColor.copy(alpha = 0.6f),
                         )
                         Spacer(Modifier.height(20.dp))
                         Text(
@@ -414,7 +408,7 @@ fun FileBrowserScreen(
                             else "Workspace is empty",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color.White.copy(alpha = 0.8f),
+                            color = onSurfaceColor.copy(alpha = 0.8f),
                             textAlign = TextAlign.Center,
                         )
                         Spacer(Modifier.height(8.dp))
@@ -422,7 +416,7 @@ fun FileBrowserScreen(
                             text = if (isShowingShared) "Share images, audio, or files\nfrom other apps."
                             else "The AI assistant will\ncreate files here.",
                             fontSize = 13.sp,
-                            color = MutedText,
+                            color = onSurfaceVariantColor,
                             textAlign = TextAlign.Center,
                             lineHeight = 18.sp,
                         )
@@ -493,8 +487,8 @@ private fun GlassCircleButton(
         modifier = modifier
             .size(36.dp)
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.06f))
-            .border(0.5.dp, GlassBorder, CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -516,6 +510,9 @@ private fun GlassFilterChip(
         label = "chipSelect",
     )
 
+    val primary = MaterialTheme.colorScheme.primary
+    val tertiary = MaterialTheme.colorScheme.tertiary
+
     Box(
         modifier = Modifier
             .clip(ChipShape)
@@ -525,8 +522,8 @@ private fun GlassFilterChip(
                         .background(
                             Brush.horizontalGradient(
                                 listOf(
-                                    ElectricViolet.copy(alpha = 0.25f),
-                                    NeonCyan.copy(alpha = 0.15f),
+                                    primary.copy(alpha = 0.25f),
+                                    tertiary.copy(alpha = 0.15f),
                                 )
                             )
                         )
@@ -534,8 +531,8 @@ private fun GlassFilterChip(
                             0.5.dp,
                             Brush.horizontalGradient(
                                 listOf(
-                                    ElectricViolet.copy(alpha = 0.5f),
-                                    NeonCyan.copy(alpha = 0.3f),
+                                    primary.copy(alpha = 0.5f),
+                                    tertiary.copy(alpha = 0.3f),
                                 )
                             ),
                             ChipShape,
@@ -543,13 +540,13 @@ private fun GlassFilterChip(
                         .shadow(
                             elevation = 8.dp,
                             shape = ChipShape,
-                            ambientColor = ElectricViolet.copy(alpha = 0.3f),
-                            spotColor = ElectricViolet.copy(alpha = 0.3f),
+                            ambientColor = primary.copy(alpha = 0.3f),
+                            spotColor = primary.copy(alpha = 0.3f),
                         )
                 } else {
                     Modifier
-                        .background(Color.White.copy(alpha = 0.04f))
-                        .border(0.5.dp, GlassBorder, ChipShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                        .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, ChipShape)
                 }
             )
             .clickable(onClick = onClick)
@@ -559,14 +556,14 @@ private fun GlassFilterChip(
             Icon(
                 icon, null,
                 modifier = Modifier.size(16.dp),
-                tint = if (isSelected) ElectricViolet else MutedText,
+                tint = if (isSelected) primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.width(6.dp))
             Text(
                 label,
                 fontSize = 13.sp,
                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (isSelected) Color.White else SubtleText,
+                color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -599,8 +596,8 @@ private fun GlassFileRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(GlassShape)
-                .background(GlassSurface)
-                .border(0.5.dp, GlassBorder, GlassShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, GlassShape)
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = onDelete,
@@ -633,7 +630,7 @@ private fun GlassFileRow(
                         file.name,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Color.White.copy(alpha = 0.9f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -644,7 +641,7 @@ private fun GlassFileRow(
                             append(dateFormat.format(Date(file.lastModified)))
                         },
                         fontSize = 11.sp,
-                        color = MutedText,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
 
@@ -654,7 +651,7 @@ private fun GlassFileRow(
                         Icon(
                             Icons.Default.Download, "Save to Downloads",
                             modifier = Modifier.size(15.dp),
-                            tint = NeonCyan.copy(alpha = 0.8f),
+                            tint = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.8f),
                         )
                     }
                     Spacer(Modifier.width(6.dp))
@@ -662,7 +659,7 @@ private fun GlassFileRow(
                         Icon(
                             Icons.Default.Share, "Share",
                             modifier = Modifier.size(15.dp),
-                            tint = SubtleText,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Spacer(Modifier.width(6.dp))
@@ -671,7 +668,7 @@ private fun GlassFileRow(
                     Icon(
                         Icons.Default.Delete, "Delete",
                         modifier = Modifier.size(15.dp),
-                        tint = DangerRed.copy(alpha = 0.7f),
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
                     )
                 }
             }
@@ -680,14 +677,15 @@ private fun GlassFileRow(
 }
 
 // ── Icon color coding ────────────────────────────────────────────────────────
+@Composable
 private fun fileIconColor(file: SandboxedFileSystem.FileInfo): Color {
-    if (file.isDirectory) return ElectricViolet
+    if (file.isDirectory) return MaterialTheme.colorScheme.primary
     return when (file.name.substringAfterLast('.').lowercase()) {
-        "jpg", "jpeg", "png", "gif", "webp", "heic" -> NeonCyan
-        "mp4", "mkv", "avi", "mov" -> SoftPink
-        "mp3", "wav", "ogg", "m4a" -> SoftPink
-        "pdf", "txt", "md", "json", "csv", "html", "htm" -> Color.White.copy(alpha = 0.75f)
-        else -> Color.White.copy(alpha = 0.55f)
+        "jpg", "jpeg", "png", "gif", "webp", "heic" -> MaterialTheme.colorScheme.tertiary
+        "mp4", "mkv", "avi", "mov" -> MaterialTheme.colorScheme.error
+        "mp3", "wav", "ogg", "m4a" -> MaterialTheme.colorScheme.error
+        "pdf", "txt", "md", "json", "csv", "html", "htm" -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
     }
 }
 

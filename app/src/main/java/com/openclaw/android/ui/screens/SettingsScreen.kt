@@ -54,30 +54,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-// ─── Design tokens ───────────────────────────────────────────────────────────
-private val BgBlack = Color(0xFF050508)
-private val SurfaceCharcoal = Color(0xFF0D0D12)
-private val PrimaryViolet = Color(0xFFA855F7)
-private val SecondaryCyan = Color(0xFF22D3EE)
-private val TertiaryPink = Color(0xFFEC4899)
-private val TextPrimary = Color(0xFFEEEEF0)
-private val TextSecondary = Color(0xFF9293A0)
-private val TextMuted = Color(0xFF8B8C9A)
-private val GlassBg = Color(0xFF0D0D12).copy(alpha = 0.62f)
-private val GlassBorder = Color.White.copy(alpha = 0.06f)
-private val InputBg = Color(0xFF09090C)
-private val ErrorRed = Color(0xFFEF4444)
+// ─── Design tokens (non-theme-dependent) ────────────────────────────────────
 private val SuccessGreen = Color(0xFF22C55E)
+private val WarningAmber = Color(0xFFFBBF24)
 private val GlassShape = RoundedCornerShape(20.dp)
 private val InnerShape = RoundedCornerShape(14.dp)
 private val PillShape = RoundedCornerShape(50)
-
-private val VioletCyanGradient = Brush.linearGradient(
-    colors = listOf(PrimaryViolet, SecondaryCyan),
-)
-private val VioletPinkGradient = Brush.linearGradient(
-    colors = listOf(PrimaryViolet, TertiaryPink),
-)
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
@@ -111,7 +93,7 @@ fun SettingsScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(BgBlack),
+            .background(MaterialTheme.colorScheme.background),
     ) {
         Column(
             modifier = Modifier
@@ -136,7 +118,7 @@ fun SettingsScreen(
                     style = TextStyle(
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
-                        brush = VioletCyanGradient,
+                        brush = Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)),
                     ),
                 )
 
@@ -145,16 +127,16 @@ fun SettingsScreen(
                 // Version badge
                 Box(
                     modifier = Modifier
-                        .background(GlassBg, PillShape)
-                        .border(0.5.dp, GlassBorder, PillShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant, PillShape)
+                        .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, PillShape)
                         .padding(horizontal = 12.dp, vertical = 5.dp),
                 ) {
                     Text(
-                        "v1.1.0",
+                        "v2.0.0",
                         style = TextStyle(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = SecondaryCyan,
+                            color = MaterialTheme.colorScheme.tertiary,
                         ),
                     )
                 }
@@ -186,11 +168,11 @@ fun SettingsScreen(
                                     .weight(1f)
                                     .clip(InnerShape)
                                     .background(
-                                        if (selected) PrimaryViolet.copy(alpha = 0.15f) else InputBg,
+                                        if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceContainerLowest,
                                     )
                                     .border(
                                         width = if (selected) 1.dp else 0.5.dp,
-                                        color = if (selected) PrimaryViolet else GlassBorder,
+                                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
                                         shape = InnerShape,
                                     )
                                     .clickable {
@@ -205,7 +187,7 @@ fun SettingsScreen(
                                     style = TextStyle(
                                         fontSize = 14.sp,
                                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                        color = if (selected) PrimaryViolet else TextSecondary,
+                                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     ),
                                 )
                             }
@@ -270,11 +252,11 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(InnerShape)
-                        .background(InputBg)
+                        .background(MaterialTheme.colorScheme.surfaceContainerLowest)
                         .border(
                             width = 0.5.dp,
-                            brush = if (currentModel != null) VioletCyanGradient
-                            else Brush.linearGradient(listOf(GlassBorder, GlassBorder)),
+                            brush = if (currentModel != null) Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary))
+                            else Brush.linearGradient(listOf(MaterialTheme.colorScheme.outlineVariant, MaterialTheme.colorScheme.outlineVariant)),
                             shape = InnerShape,
                         )
                         .clickable { showModelPicker = true }
@@ -286,7 +268,7 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .size(38.dp)
                                 .background(
-                                    PrimaryViolet.copy(alpha = 0.12f),
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                                     CircleShape,
                                 ),
                             contentAlignment = Alignment.Center,
@@ -297,7 +279,7 @@ fun SettingsScreen(
                                 Icon(
                                     Icons.Default.SmartToy,
                                     contentDescription = null,
-                                    tint = PrimaryViolet,
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(20.dp),
                                 )
                             }
@@ -309,7 +291,7 @@ fun SettingsScreen(
                                 style = TextStyle(
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = TextPrimary,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                 ),
                             )
                             if (currentModel != null) {
@@ -317,30 +299,30 @@ fun SettingsScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         currentModel.first.displayName,
-                                        style = TextStyle(fontSize = 12.sp, color = TextMuted),
+                                        style = TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
                                     )
                                     if (currentModel.second.supportsVision) {
                                         Spacer(Modifier.width(6.dp))
-                                        MiniPill("Vision", SecondaryCyan)
+                                        MiniPill("Vision", MaterialTheme.colorScheme.tertiary)
                                     }
                                     Spacer(Modifier.width(6.dp))
                                     Text(
                                         "${currentModel.second.contextWindow / 1000}K",
-                                        style = TextStyle(fontSize = 11.sp, color = TextMuted),
+                                        style = TextStyle(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
                                     )
                                 }
                             } else {
                                 Spacer(Modifier.height(2.dp))
                                 Text(
                                     "Picks the best available model for each task",
-                                    style = TextStyle(fontSize = 12.sp, color = TextMuted),
+                                    style = TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
                                 )
                             }
                         }
                         Icon(
                             Icons.Default.ChevronRight,
                             contentDescription = null,
-                            tint = TextMuted,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp),
                         )
                     }
@@ -388,8 +370,8 @@ fun SettingsScreen(
                         Box(
                             modifier = Modifier
                                 .clip(PillShape)
-                                .background(PrimaryViolet.copy(alpha = 0.12f))
-                                .border(0.5.dp, PrimaryViolet.copy(alpha = 0.25f), PillShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                                .border(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), PillShape)
                                 .clickable { showCreateSpace = true }
                                 .padding(horizontal = 14.dp, vertical = 7.dp),
                         ) {
@@ -397,7 +379,7 @@ fun SettingsScreen(
                                 Icon(
                                     Icons.Default.Add,
                                     contentDescription = null,
-                                    tint = PrimaryViolet,
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(16.dp),
                                 )
                                 Spacer(Modifier.width(4.dp))
@@ -406,7 +388,7 @@ fun SettingsScreen(
                                     style = TextStyle(
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = PrimaryViolet,
+                                        color = MaterialTheme.colorScheme.primary,
                                     ),
                                 )
                             }
@@ -466,19 +448,19 @@ fun SettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(InnerShape)
-                            .background(InputBg)
-                            .border(0.5.dp, GlassBorder, InnerShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, InnerShape)
                             .clickable(onClick = onNavigateToFiles)
                             .padding(14.dp),
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.FolderOpen, contentDescription = null, tint = PrimaryViolet, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Outlined.FolderOpen, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Open Files", style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TextPrimary))
-                                Text("View shared files and workspace", style = TextStyle(fontSize = 12.sp, color = TextMuted))
+                                Text("Open Files", style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface))
+                                Text("View shared files and workspace", style = TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant))
                             }
-                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -508,12 +490,12 @@ fun SettingsScreen(
                                     modifier = Modifier
                                         .clip(PillShape)
                                         .background(
-                                            if (isSelected) PrimaryViolet.copy(alpha = 0.15f)
-                                            else InputBg,
+                                            if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                            else MaterialTheme.colorScheme.surfaceContainerLowest,
                                         )
                                         .border(
                                             width = if (isSelected) 1.dp else 0.5.dp,
-                                            color = if (isSelected) PrimaryViolet.copy(alpha = 0.5f) else GlassBorder,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant,
                                             shape = PillShape,
                                         )
                                         .clickable {
@@ -527,7 +509,7 @@ fun SettingsScreen(
                                         style = TextStyle(
                                             fontSize = 12.sp,
                                             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                            color = if (isSelected) PrimaryViolet else TextSecondary,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                         ),
                                     )
                                 }
@@ -559,16 +541,16 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(InnerShape)
-                                .background(InputBg)
-                                .border(0.5.dp, GlassBorder, InnerShape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                                .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, InnerShape)
                                 .padding(12.dp),
                         ) {
                             Column {
                                 Text(
                                     "${summary.totalCalls}",
-                                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold, color = SecondaryCyan),
+                                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary),
                                 )
-                                Text("API calls", style = TextStyle(fontSize = 11.sp, color = TextMuted))
+                                Text("API calls", style = TextStyle(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant))
                             }
                         }
                         // Providers
@@ -576,16 +558,16 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(InnerShape)
-                                .background(InputBg)
-                                .border(0.5.dp, GlassBorder, InnerShape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                                .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, InnerShape)
                                 .padding(12.dp),
                         ) {
                             Column {
                                 Text(
                                     "${summary.byProvider.size}",
-                                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold, color = PrimaryViolet),
+                                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary),
                                 )
-                                Text("Providers used", style = TextStyle(fontSize = 11.sp, color = TextMuted))
+                                Text("Providers used", style = TextStyle(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant))
                             }
                         }
                     }
@@ -597,8 +579,8 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                             ) {
-                                Text(provider.replaceFirstChar { it.uppercase() }, style = TextStyle(fontSize = 13.sp, color = TextPrimary))
-                                Text("$count calls", style = TextStyle(fontSize = 13.sp, color = TextMuted))
+                                Text(provider.replaceFirstChar { it.uppercase() }, style = TextStyle(fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface))
+                                Text("$count calls", style = TextStyle(fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant))
                             }
                         }
                     }
@@ -607,7 +589,7 @@ fun SettingsScreen(
                         Spacer(Modifier.height(8.dp))
                         Text(
                             "Last activity: ${dateFormat.format(java.util.Date(summary.lastCall))}",
-                            style = TextStyle(fontSize = 11.sp, color = TextMuted),
+                            style = TextStyle(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
                         )
                     }
 
@@ -632,8 +614,8 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .heightIn(min = 140.dp)
                         .clip(InnerShape)
-                        .background(InputBg)
-                        .border(0.5.dp, GlassBorder, InnerShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                        .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, InnerShape)
                         .padding(14.dp),
                 ) {
                     BasicTextField(
@@ -649,15 +631,15 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         textStyle = TextStyle(
                             fontSize = 13.sp,
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                             lineHeight = 20.sp,
                         ),
-                        cursorBrush = SolidColor(PrimaryViolet),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         decorationBox = { innerTextField ->
                             if (systemPrompt.isEmpty()) {
                                 Text(
                                     "Enter system prompt...",
-                                    style = TextStyle(fontSize = 13.sp, color = TextMuted),
+                                    style = TextStyle(fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
                                 )
                             }
                             innerTextField()
@@ -699,10 +681,10 @@ fun SettingsScreen(
                             CircularProgressIndicator(
                                 modifier = Modifier.size(16.dp),
                                 strokeWidth = 2.dp,
-                                color = SecondaryCyan,
+                                color = MaterialTheme.colorScheme.tertiary,
                             )
                             Spacer(Modifier.width(8.dp))
-                            Text("Checking for updates...", style = TextStyle(fontSize = 13.sp, color = TextMuted))
+                            Text("Checking for updates...", style = TextStyle(fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant))
                         }
                     } else if (updateInfo != null) {
                         // Update available (checkForUpdate returns null when up-to-date)
@@ -729,7 +711,7 @@ fun SettingsScreen(
                                     Spacer(Modifier.height(4.dp))
                                     Text(
                                         "Downloading ${(downloadProgress * 100).toInt()}%...",
-                                        style = TextStyle(fontSize = 11.sp, color = TextMuted),
+                                        style = TextStyle(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
                                     )
                                 } else {
                                     Box(
@@ -791,20 +773,20 @@ fun SettingsScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(InnerShape)
-                                    .background(ErrorRed.copy(alpha = 0.08f))
-                                    .border(0.5.dp, ErrorRed.copy(alpha = 0.25f), InnerShape)
+                                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.08f))
+                                    .border(0.5.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.25f), InnerShape)
                                     .clickable { showCrashLog = true }
                                     .padding(12.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Text("View Log", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = ErrorRed))
+                                Text("View Log", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error))
                             }
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(InnerShape)
-                                    .background(InputBg)
-                                    .border(0.5.dp, GlassBorder, InnerShape)
+                                    .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                                    .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, InnerShape)
                                     .clickable {
                                         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
                                         clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Crash Log", crashLog))
@@ -812,7 +794,7 @@ fun SettingsScreen(
                                     .padding(12.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Text("Copy to Clipboard", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary))
+                                Text("Copy to Clipboard", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface))
                             }
                         }
                     }
@@ -827,12 +809,12 @@ fun SettingsScreen(
                                     .fillMaxWidth(0.95f)
                                     .fillMaxHeight(0.7f),
                                 shape = RoundedCornerShape(16.dp),
-                                color = SurfaceCharcoal,
+                                color = MaterialTheme.colorScheme.surface,
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Text(
                                         "Crash Log",
-                                        style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary),
+                                        style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface),
                                     )
                                     Spacer(Modifier.height(12.dp))
                                     Box(
@@ -840,13 +822,13 @@ fun SettingsScreen(
                                             .weight(1f)
                                             .fillMaxWidth()
                                             .clip(InnerShape)
-                                            .background(InputBg)
+                                            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
                                             .padding(12.dp)
                                             .verticalScroll(rememberScrollState()),
                                     ) {
                                         Text(
                                             crashLog,
-                                            style = TextStyle(fontSize = 11.sp, color = TextPrimary, lineHeight = 16.sp),
+                                            style = TextStyle(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface, lineHeight = 16.sp),
                                         )
                                     }
                                     Spacer(Modifier.height(12.dp))
@@ -855,7 +837,125 @@ fun SettingsScreen(
                                         horizontalArrangement = Arrangement.End,
                                     ) {
                                         TextButton(onClick = { showCrashLog = false }) {
-                                            Text("Close", color = TextMuted)
+                                            Text("Close", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Inference Diagnostics Section ────────────────────────────────
+            run {
+                val inferenceLog = remember { com.openclaw.android.llm.InferenceLog.getLogText() }
+                var showInferenceLog by remember { mutableStateOf(false) }
+                var refreshedLog by remember { mutableStateOf(inferenceLog) }
+
+                Spacer(Modifier.height(18.dp))
+                GlassSection(
+                    icon = Icons.Outlined.Analytics,
+                    title = "Inference Log",
+                    description = "Local model diagnostics — share when reporting slow/stuck inference.",
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(InnerShape)
+                                .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.08f))
+                                .border(0.5.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.25f), InnerShape)
+                                .clickable {
+                                    refreshedLog = com.openclaw.android.llm.InferenceLog.getLogText()
+                                    showInferenceLog = true
+                                }
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("View Log", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.tertiary))
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(InnerShape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                                .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, InnerShape)
+                                .clickable {
+                                    val log = com.openclaw.android.llm.InferenceLog.getLogText()
+                                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                    clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Inference Log", log))
+                                }
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("Copy to Clipboard", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface))
+                        }
+                    }
+                }
+
+                if (showInferenceLog) {
+                    Dialog(
+                        onDismissRequest = { showInferenceLog = false },
+                        properties = DialogProperties(usePlatformDefaultWidth = false),
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth(0.95f)
+                                .fillMaxHeight(0.7f),
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    "Inference Log",
+                                    style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface),
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    "Copy and share when reporting issues",
+                                    style = TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
+                                )
+                                Spacer(Modifier.height(12.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth()
+                                        .clip(InnerShape)
+                                        .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                                        .padding(12.dp)
+                                        .verticalScroll(rememberScrollState()),
+                                ) {
+                                    Text(
+                                        refreshedLog.ifBlank { "No inference log yet. Try sending a message to a local model." },
+                                        style = TextStyle(
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            lineHeight = 14.sp,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                        ),
+                                    )
+                                }
+                                Spacer(Modifier.height(12.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    TextButton(onClick = {
+                                        com.openclaw.android.llm.InferenceLog.clear()
+                                        refreshedLog = ""
+                                    }) {
+                                        Text("Clear", color = MaterialTheme.colorScheme.error)
+                                    }
+                                    Row {
+                                        TextButton(onClick = {
+                                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                            clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Inference Log", refreshedLog))
+                                        }) {
+                                            Text("Copy All", color = MaterialTheme.colorScheme.tertiary)
+                                        }
+                                        TextButton(onClick = { showInferenceLog = false }) {
+                                            Text("Close", color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
                                     }
                                 }
@@ -880,7 +980,7 @@ fun SettingsScreen(
                     style = TextStyle(
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
-                        brush = VioletCyanGradient,
+                        brush = Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)),
                     ),
                 )
                 Spacer(Modifier.height(4.dp))
@@ -888,7 +988,7 @@ fun SettingsScreen(
                     text = "Powered by AI",
                     style = TextStyle(
                         fontSize = 11.sp,
-                        color = TextMuted,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
                 )
             }
@@ -912,15 +1012,15 @@ private fun GlassSection(
         modifier = Modifier
             .fillMaxWidth()
             .clip(GlassShape)
-            .background(GlassBg)
-            .border(0.5.dp, GlassBorder, GlassShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, GlassShape)
             .padding(20.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 icon,
                 contentDescription = null,
-                tint = PrimaryViolet,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(22.dp),
             )
             Spacer(Modifier.width(10.dp))
@@ -929,7 +1029,7 @@ private fun GlassSection(
                 style = TextStyle(
                     fontSize = 17.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = PrimaryViolet,
+                    color = MaterialTheme.colorScheme.primary,
                 ),
                 modifier = Modifier.weight(1f),
             )
@@ -938,7 +1038,7 @@ private fun GlassSection(
         Spacer(Modifier.height(4.dp))
         Text(
             description,
-            style = TextStyle(fontSize = 12.sp, color = TextMuted, lineHeight = 16.sp),
+            style = TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 16.sp),
             modifier = Modifier.padding(start = 32.dp),
         )
         Spacer(Modifier.height(16.dp))
@@ -971,7 +1071,7 @@ private fun DebouncedApiKeyField(
             style = TextStyle(
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             ),
         )
         Spacer(Modifier.height(6.dp))
@@ -981,13 +1081,13 @@ private fun DebouncedApiKeyField(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(InnerShape)
-                .background(InputBg)
+                .background(MaterialTheme.colorScheme.surfaceContainerLowest)
                 .border(
                     width = 0.5.dp,
                     color = when {
-                        value.isNotBlank() && !isValid -> ErrorRed.copy(alpha = 0.5f)
+                        value.isNotBlank() && !isValid -> MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
                         value.isNotBlank() && isValid -> SuccessGreen.copy(alpha = 0.3f)
-                        else -> GlassBorder
+                        else -> MaterialTheme.colorScheme.outlineVariant
                     },
                     shape = InnerShape,
                 )
@@ -1013,16 +1113,16 @@ private fun DebouncedApiKeyField(
                     singleLine = true,
                     textStyle = TextStyle(
                         fontSize = 14.sp,
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                     ),
-                    cursorBrush = SolidColor(PrimaryViolet),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     visualTransformation = if (visible) VisualTransformation.None
                     else PasswordVisualTransformation(),
                     decorationBox = { innerTextField ->
                         if (value.isEmpty()) {
                             Text(
                                 "Enter key...",
-                                style = TextStyle(fontSize = 14.sp, color = TextMuted),
+                                style = TextStyle(fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
                             )
                         }
                         innerTextField()
@@ -1032,11 +1132,12 @@ private fun DebouncedApiKeyField(
                 // Validation icon with glow
                 if (value.isNotBlank()) {
                     Spacer(Modifier.width(8.dp))
+                    val errorColor = MaterialTheme.colorScheme.error
                     Box(
                         modifier = Modifier
                             .size(24.dp)
                             .drawBehind {
-                                val glowColor = if (isValid) SuccessGreen else ErrorRed
+                                val glowColor = if (isValid) SuccessGreen else errorColor
                                 drawCircle(
                                     color = glowColor.copy(alpha = 0.25f),
                                     radius = size.minDimension * 0.7f,
@@ -1048,7 +1149,7 @@ private fun DebouncedApiKeyField(
                             if (isValid) Icons.Default.CheckCircle else Icons.Default.Error,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
-                            tint = if (isValid) SuccessGreen else ErrorRed,
+                            tint = if (isValid) SuccessGreen else MaterialTheme.colorScheme.error,
                         )
                     }
                 }
@@ -1063,7 +1164,7 @@ private fun DebouncedApiKeyField(
                     Icon(
                         if (visible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                         contentDescription = if (visible) "Hide" else "Show",
-                        tint = TextMuted,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -1075,7 +1176,7 @@ private fun DebouncedApiKeyField(
         // Hint text
         Text(
             hint,
-            style = TextStyle(fontSize = 11.sp, color = TextMuted),
+            style = TextStyle(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
         )
 
         Spacer(Modifier.height(8.dp))
@@ -1084,7 +1185,7 @@ private fun DebouncedApiKeyField(
         Box(
             modifier = Modifier
                 .clip(PillShape)
-                .background(VioletPinkGradient)
+                .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.error)))
                 .clickable {
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getKeyUrl)))
                 }
@@ -1128,8 +1229,8 @@ private fun ModelPickerDialog(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .clip(GlassShape)
-                .background(SurfaceCharcoal)
-                .border(0.5.dp, GlassBorder, GlassShape)
+                .background(MaterialTheme.colorScheme.surface)
+                .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, GlassShape)
                 .padding(24.dp),
         ) {
             // Dialog header
@@ -1138,13 +1239,13 @@ private fun ModelPickerDialog(
                 style = TextStyle(
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    brush = VioletCyanGradient,
+                    brush = Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)),
                 ),
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 "Choose your preferred AI model",
-                style = TextStyle(fontSize = 12.sp, color = TextMuted),
+                style = TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
             )
             Spacer(Modifier.height(20.dp))
 
@@ -1163,14 +1264,14 @@ private fun ModelPickerDialog(
                             modifier = Modifier
                                 .size(36.dp)
                                 .background(
-                                    if (isAutoSelected) PrimaryViolet.copy(alpha = 0.18f)
+                                    if (isAutoSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
                                     else Color.White.copy(alpha = 0.04f),
                                     CircleShape,
                                 ),
                             contentAlignment = Alignment.Center,
                         ) {
                             SparkleIcon(
-                                tint = if (isAutoSelected) PrimaryViolet else TextMuted,
+                                tint = if (isAutoSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                         Spacer(Modifier.width(14.dp))
@@ -1180,19 +1281,19 @@ private fun ModelPickerDialog(
                                 style = TextStyle(
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = if (isAutoSelected) TextPrimary else TextSecondary,
+                                    color = if (isAutoSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                                 ),
                             )
                             Text(
                                 "Automatically picks the optimal model",
-                                style = TextStyle(fontSize = 11.sp, color = TextMuted),
+                                style = TextStyle(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
                             )
                         }
                         if (isAutoSelected) {
                             Icon(
                                 Icons.Default.CheckCircle,
                                 contentDescription = null,
-                                tint = PrimaryViolet,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp),
                             )
                         }
@@ -1211,7 +1312,7 @@ private fun ModelPickerDialog(
                                 modifier = Modifier
                                     .size(36.dp)
                                     .background(
-                                        if (isSelected) PrimaryViolet.copy(alpha = 0.18f)
+                                        if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
                                         else Color.White.copy(alpha = 0.04f),
                                         CircleShape,
                                     ),
@@ -1220,7 +1321,7 @@ private fun ModelPickerDialog(
                                 Icon(
                                     Icons.Default.SmartToy,
                                     contentDescription = null,
-                                    tint = if (isSelected) PrimaryViolet else TextMuted,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(18.dp),
                                 )
                             }
@@ -1231,7 +1332,7 @@ private fun ModelPickerDialog(
                                     style = TextStyle(
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = if (isSelected) TextPrimary else TextSecondary,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                                     ),
                                 )
                                 Spacer(Modifier.height(3.dp))
@@ -1241,14 +1342,14 @@ private fun ModelPickerDialog(
                                 ) {
                                     Text(
                                         provider.displayName,
-                                        style = TextStyle(fontSize = 11.sp, color = TextMuted),
+                                        style = TextStyle(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
                                     )
                                     if (model.supportsVision) {
-                                        MiniPill("Vision", SecondaryCyan)
+                                        MiniPill("Vision", MaterialTheme.colorScheme.tertiary)
                                     }
                                     Text(
                                         "${model.contextWindow / 1000}K ctx",
-                                        style = TextStyle(fontSize = 11.sp, color = TextMuted),
+                                        style = TextStyle(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
                                     )
                                 }
                             }
@@ -1256,7 +1357,7 @@ private fun ModelPickerDialog(
                                 Icon(
                                     Icons.Default.CheckCircle,
                                     contentDescription = null,
-                                    tint = PrimaryViolet,
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(20.dp),
                                 )
                             }
@@ -1272,8 +1373,8 @@ private fun ModelPickerDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(InnerShape)
-                    .background(GlassBg)
-                    .border(0.5.dp, GlassBorder, InnerShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, InnerShape)
                     .clickable { onDismiss() }
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center,
@@ -1283,7 +1384,7 @@ private fun ModelPickerDialog(
                     style = TextStyle(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
                 )
             }
@@ -1297,8 +1398,9 @@ private fun ModelOptionCard(
     onClick: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    val borderBrush = if (isSelected) VioletCyanGradient
-    else Brush.linearGradient(listOf(GlassBorder, GlassBorder))
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val borderBrush = if (isSelected) Brush.linearGradient(listOf(primaryColor, MaterialTheme.colorScheme.tertiary))
+    else Brush.linearGradient(listOf(MaterialTheme.colorScheme.outlineVariant, MaterialTheme.colorScheme.outlineVariant))
 
     Box(
         modifier = Modifier
@@ -1307,12 +1409,12 @@ private fun ModelOptionCard(
             .then(
                 if (isSelected) Modifier.drawBehind {
                     drawRoundRect(
-                        color = PrimaryViolet.copy(alpha = 0.06f),
+                        color = primaryColor.copy(alpha = 0.06f),
                         size = size,
                     )
                 } else Modifier
             )
-            .background(if (isSelected) PrimaryViolet.copy(alpha = 0.05f) else InputBg)
+            .background(if (isSelected) primaryColor.copy(alpha = 0.05f) else MaterialTheme.colorScheme.surfaceContainerLowest)
             .border(width = if (isSelected) 1.dp else 0.5.dp, brush = borderBrush, shape = InnerShape)
             .clickable(onClick = onClick)
             .padding(14.dp),
@@ -1330,8 +1432,9 @@ private fun SpaceCard(
     onClick: () -> Unit,
     onDelete: (() -> Unit)?,
 ) {
-    val borderBrush = if (isActive) VioletCyanGradient
-    else Brush.linearGradient(listOf(GlassBorder, GlassBorder))
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val borderBrush = if (isActive) Brush.linearGradient(listOf(primaryColor, MaterialTheme.colorScheme.tertiary))
+    else Brush.linearGradient(listOf(MaterialTheme.colorScheme.outlineVariant, MaterialTheme.colorScheme.outlineVariant))
 
     Box(
         modifier = Modifier
@@ -1341,12 +1444,12 @@ private fun SpaceCard(
                 if (isActive) Modifier.drawBehind {
                     // Glow effect behind the card
                     drawRoundRect(
-                        color = PrimaryViolet.copy(alpha = 0.08f),
+                        color = primaryColor.copy(alpha = 0.08f),
                         size = size,
                     )
                 } else Modifier
             )
-            .background(if (isActive) PrimaryViolet.copy(alpha = 0.06f) else InputBg)
+            .background(if (isActive) primaryColor.copy(alpha = 0.06f) else MaterialTheme.colorScheme.surfaceContainerLowest)
             .border(
                 width = if (isActive) 1.dp else 0.5.dp,
                 brush = borderBrush,
@@ -1361,7 +1464,7 @@ private fun SpaceCard(
                 modifier = Modifier
                     .size(42.dp)
                     .background(
-                        if (isActive) PrimaryViolet.copy(alpha = 0.15f)
+                        if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                         else Color.White.copy(alpha = 0.04f),
                         CircleShape,
                     ),
@@ -1381,13 +1484,13 @@ private fun SpaceCard(
                     style = TextStyle(
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                     ),
                 )
                 if (space.description.isNotBlank()) {
                     Text(
                         space.description,
-                        style = TextStyle(fontSize = 12.sp, color = TextMuted),
+                        style = TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -1400,7 +1503,7 @@ private fun SpaceCard(
                         .size(22.dp)
                         .drawBehind {
                             drawCircle(
-                                color = PrimaryViolet.copy(alpha = 0.3f),
+                                color = primaryColor.copy(alpha = 0.3f),
                                 radius = size.minDimension * 0.7f,
                             )
                         },
@@ -1409,7 +1512,7 @@ private fun SpaceCard(
                     Icon(
                         Icons.Default.CheckCircle,
                         contentDescription = "Active",
-                        tint = PrimaryViolet,
+                        tint = primaryColor,
                         modifier = Modifier.size(20.dp),
                     )
                 }
@@ -1421,14 +1524,14 @@ private fun SpaceCard(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(ErrorRed.copy(alpha = 0.08f))
+                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.08f))
                         .clickable(onClick = onDelete),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         Icons.Default.Delete,
                         contentDescription = "Delete",
-                        tint = ErrorRed.copy(alpha = 0.7f),
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
                         modifier = Modifier.size(16.dp),
                     )
                 }
@@ -1461,8 +1564,8 @@ private fun CreateSpaceDialog(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .clip(GlassShape)
-                .background(SurfaceCharcoal)
-                .border(0.5.dp, GlassBorder, GlassShape)
+                .background(MaterialTheme.colorScheme.surface)
+                .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, GlassShape)
                 .padding(24.dp),
         ) {
             // Header
@@ -1471,13 +1574,13 @@ private fun CreateSpaceDialog(
                 style = TextStyle(
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    brush = VioletCyanGradient,
+                    brush = Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)),
                 ),
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 "Create a workspace for your project",
-                style = TextStyle(fontSize = 12.sp, color = TextMuted),
+                style = TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
             )
             Spacer(Modifier.height(20.dp))
 
@@ -1487,7 +1590,7 @@ private fun CreateSpaceDialog(
                 style = TextStyle(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 ),
             )
             Spacer(Modifier.height(8.dp))
@@ -1504,12 +1607,12 @@ private fun CreateSpaceDialog(
                             .size(44.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(
-                                if (isSelected) PrimaryViolet.copy(alpha = 0.15f)
+                                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                                 else Color.White.copy(alpha = 0.04f),
                             )
                             .border(
                                 width = if (isSelected) 1.dp else 0.5.dp,
-                                color = if (isSelected) PrimaryViolet.copy(alpha = 0.5f) else GlassBorder,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant,
                                 shape = RoundedCornerShape(12.dp),
                             )
                             .clickable { emoji = e },
@@ -1533,12 +1636,12 @@ private fun CreateSpaceDialog(
                             .size(44.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(
-                                if (isSelected) PrimaryViolet.copy(alpha = 0.15f)
+                                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                                 else Color.White.copy(alpha = 0.04f),
                             )
                             .border(
                                 width = if (isSelected) 1.dp else 0.5.dp,
-                                color = if (isSelected) PrimaryViolet.copy(alpha = 0.5f) else GlassBorder,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant,
                                 shape = RoundedCornerShape(12.dp),
                             )
                             .clickable { emoji = e },
@@ -1557,7 +1660,7 @@ private fun CreateSpaceDialog(
                 style = TextStyle(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 ),
             )
             Spacer(Modifier.height(6.dp))
@@ -1565,8 +1668,8 @@ private fun CreateSpaceDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(InnerShape)
-                    .background(InputBg)
-                    .border(0.5.dp, GlassBorder, InnerShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                    .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, InnerShape)
                     .padding(horizontal = 14.dp, vertical = 14.dp),
             ) {
                 BasicTextField(
@@ -1574,13 +1677,13 @@ private fun CreateSpaceDialog(
                     onValueChange = { name = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    textStyle = TextStyle(fontSize = 14.sp, color = TextPrimary),
-                    cursorBrush = SolidColor(PrimaryViolet),
+                    textStyle = TextStyle(fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     decorationBox = { innerTextField ->
                         if (name.isEmpty()) {
                             Text(
                                 "e.g. My Project",
-                                style = TextStyle(fontSize = 14.sp, color = TextMuted),
+                                style = TextStyle(fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
                             )
                         }
                         innerTextField()
@@ -1596,7 +1699,7 @@ private fun CreateSpaceDialog(
                 style = TextStyle(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 ),
             )
             Spacer(Modifier.height(6.dp))
@@ -1605,21 +1708,21 @@ private fun CreateSpaceDialog(
                     .fillMaxWidth()
                     .heightIn(min = 80.dp)
                     .clip(InnerShape)
-                    .background(InputBg)
-                    .border(0.5.dp, GlassBorder, InnerShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                    .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, InnerShape)
                     .padding(horizontal = 14.dp, vertical = 14.dp),
             ) {
                 BasicTextField(
                     value = description,
                     onValueChange = { description = it },
                     modifier = Modifier.fillMaxWidth(),
-                    textStyle = TextStyle(fontSize = 14.sp, color = TextPrimary, lineHeight = 20.sp),
-                    cursorBrush = SolidColor(PrimaryViolet),
+                    textStyle = TextStyle(fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, lineHeight = 20.sp),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     decorationBox = { innerTextField ->
                         if (description.isEmpty()) {
                             Text(
                                 "What is this space for?",
-                                style = TextStyle(fontSize = 14.sp, color = TextMuted),
+                                style = TextStyle(fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
                             )
                         }
                         innerTextField()
@@ -1639,8 +1742,8 @@ private fun CreateSpaceDialog(
                     modifier = Modifier
                         .weight(1f)
                         .clip(InnerShape)
-                        .background(GlassBg)
-                        .border(0.5.dp, GlassBorder, InnerShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, InnerShape)
                         .clickable(onClick = onDismiss)
                         .padding(vertical = 13.dp),
                     contentAlignment = Alignment.Center,
@@ -1650,7 +1753,7 @@ private fun CreateSpaceDialog(
                         style = TextStyle(
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         ),
                     )
                 }
@@ -1661,9 +1764,9 @@ private fun CreateSpaceDialog(
                         .weight(1f)
                         .clip(InnerShape)
                         .background(
-                            if (name.isNotBlank()) VioletCyanGradient
+                            if (name.isNotBlank()) Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary))
                             else Brush.linearGradient(
-                                listOf(TextMuted.copy(alpha = 0.3f), TextMuted.copy(alpha = 0.3f)),
+                                listOf(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f), MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)),
                             ),
                         )
                         .then(
@@ -1680,7 +1783,7 @@ private fun CreateSpaceDialog(
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = if (name.isNotBlank()) Color.White
-                            else TextMuted,
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
                         ),
                     )
                 }
@@ -1696,15 +1799,15 @@ private fun GlassIconButton(
     onClick: () -> Unit,
     icon: ImageVector,
     contentDescription: String? = null,
-    tint: Color = TextSecondary,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     size: Dp = 48.dp,
 ) {
     Box(
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(GlassBg)
-            .border(0.5.dp, GlassBorder, CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -1738,7 +1841,7 @@ private fun MiniPill(text: String, color: Color) {
 
 @Composable
 private fun SparkleIcon(
-    tint: Color = PrimaryViolet,
+    tint: Color = MaterialTheme.colorScheme.primary,
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "sparkle")
     val rotation by infiniteTransition.animateFloat(
@@ -1762,8 +1865,6 @@ private fun SparkleIcon(
 }
 
 // ─── Local Models Section ────────────────────────────────────────────────────
-
-private val WarningAmber = Color(0xFFFBBF24)
 
 @Composable
 private fun LocalModelsSection(
@@ -1803,10 +1904,10 @@ private fun LocalModelsSection(
                     settings.setLocalModelEnabled(it)
                 },
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = PrimaryViolet,
-                    checkedTrackColor = PrimaryViolet.copy(alpha = 0.3f),
-                    uncheckedThumbColor = TextMuted,
-                    uncheckedTrackColor = SurfaceCharcoal,
+                    checkedThumbColor = MaterialTheme.colorScheme.primary,
+                    checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                    uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    uncheckedTrackColor = MaterialTheme.colorScheme.surface,
                 ),
                 modifier = Modifier.height(24.dp),
             )
@@ -1815,19 +1916,20 @@ private fun LocalModelsSection(
         if (!localEnabled) {
             Text(
                 "Local AI is disabled. Enable to use on-device models.",
-                style = TextStyle(fontSize = 13.sp, color = TextMuted),
+                style = TextStyle(fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
             )
             return@GlassSection
         }
 
-        // Block the entire local model section if native inference engine is not available (stub build)
-        if (!com.openclaw.android.llm.LlamaBridge.isRealBuild) {
+        // LiteRT-LM is always available (pure Maven dependency, no native stub issues)
+        // This check is kept for future-proofing but will always pass.
+        if (!com.openclaw.android.llm.LiteRTBridge.isAvailable) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(InnerShape)
-                    .background(ErrorRed.copy(alpha = 0.1f))
-                    .border(0.5.dp, ErrorRed.copy(alpha = 0.3f), InnerShape)
+                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.1f))
+                    .border(0.5.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f), InnerShape)
                     .padding(12.dp),
             ) {
                 Row(verticalAlignment = Alignment.Top) {
@@ -1840,7 +1942,7 @@ private fun LocalModelsSection(
                         "On-device AI engine is not included in this build. " +
                             "Local models cannot be used. " +
                             "Install the full release build or use a cloud model instead.",
-                        style = TextStyle(fontSize = 12.sp, color = ErrorRed),
+                        style = TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.error),
                     )
                 }
             }
@@ -1854,7 +1956,7 @@ private fun LocalModelsSection(
                 style = TextStyle(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextMuted,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     letterSpacing = 1.sp,
                 ),
             )
@@ -1904,8 +2006,8 @@ private fun LocalModelsSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(InnerShape)
-                .background(InputBg)
-                .border(0.5.dp, GlassBorder, InnerShape)
+                .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, InnerShape)
                 .clickable { showModelBrowser = true }
                 .padding(14.dp),
             contentAlignment = Alignment.Center,
@@ -1914,7 +2016,7 @@ private fun LocalModelsSection(
                 Icon(
                     Icons.Default.Download,
                     contentDescription = null,
-                    tint = SecondaryCyan,
+                    tint = MaterialTheme.colorScheme.tertiary,
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(8.dp))
@@ -1923,7 +2025,7 @@ private fun LocalModelsSection(
                     style = TextStyle(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = SecondaryCyan,
+                        color = MaterialTheme.colorScheme.tertiary,
                     ),
                 )
             }
@@ -1937,12 +2039,12 @@ private fun LocalModelsSection(
             val display = if (gb >= 1.0) "%.1f GB".format(gb) else "${diskUsage / 1_000_000} MB"
             Text(
                 "Total disk usage: $display",
-                style = TextStyle(fontSize = 11.sp, color = TextMuted),
+                style = TextStyle(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
             )
         }
 
         // Available RAM info
-        val availableRam = com.openclaw.android.llm.LlamaBridge.getAvailableMemoryMb()
+        val availableRam = com.openclaw.android.llm.LiteRTBridge.getAvailableMemoryMb(androidx.compose.ui.platform.LocalContext.current)
         if (availableRam > 0) {
             Spacer(Modifier.height(2.dp))
             Text(
@@ -1974,11 +2076,11 @@ private fun LocalModelsSection(
         if (model != null) {
             AlertDialog(
                 onDismissRequest = { showDeleteConfirm = null },
-                title = { Text("Delete ${model.name}?", color = TextPrimary) },
+                title = { Text("Delete ${model.name}?", color = MaterialTheme.colorScheme.onSurface) },
                 text = {
                     Text(
                         "This will free ${model.sizeDisplay} of storage. You can re-download it later.",
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
                 confirmButton = {
@@ -1991,15 +2093,15 @@ private fun LocalModelsSection(
                         }
                         showDeleteConfirm = null
                     }) {
-                        Text("Delete", color = ErrorRed)
+                        Text("Delete", color = MaterialTheme.colorScheme.error)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeleteConfirm = null }) {
-                        Text("Cancel", color = TextSecondary)
+                        Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
-                containerColor = SurfaceCharcoal,
+                containerColor = MaterialTheme.colorScheme.surface,
             )
         }
     }
@@ -2017,11 +2119,11 @@ private fun InstalledModelCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(InnerShape)
-            .background(InputBg)
+            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
             .border(
                 width = if (isActive) 1.dp else 0.5.dp,
-                brush = if (isActive) VioletCyanGradient
-                else Brush.linearGradient(listOf(GlassBorder, GlassBorder)),
+                brush = if (isActive) Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary))
+                else Brush.linearGradient(listOf(MaterialTheme.colorScheme.outlineVariant, MaterialTheme.colorScheme.outlineVariant)),
                 shape = InnerShape,
             )
             .clickable(onClick = onSelect)
@@ -2033,7 +2135,7 @@ private fun InstalledModelCard(
                 modifier = Modifier
                     .size(10.dp)
                     .background(
-                        if (isActive) SuccessGreen else TextMuted.copy(alpha = 0.3f),
+                        if (isActive) SuccessGreen else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
                         CircleShape,
                     ),
             )
@@ -2044,17 +2146,17 @@ private fun InstalledModelCard(
                     style = TextStyle(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                     ),
                 )
                 Spacer(Modifier.height(2.dp))
                 Row {
-                    MiniPill(size, TextMuted)
+                    MiniPill(size, MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(4.dp))
                     MiniPill(model.tier.label, when (model.tier) {
-                        ModelTier.SMALL -> SecondaryCyan
-                        ModelTier.MEDIUM -> PrimaryViolet
-                        ModelTier.LARGE -> TertiaryPink
+                        ModelTier.SMALL -> MaterialTheme.colorScheme.tertiary
+                        ModelTier.MEDIUM -> MaterialTheme.colorScheme.primary
+                        ModelTier.LARGE -> MaterialTheme.colorScheme.error
                     })
                     if (model.supportsToolUse) {
                         Spacer(Modifier.width(4.dp))
@@ -2069,7 +2171,7 @@ private fun InstalledModelCard(
             Icon(
                 Icons.Default.Delete,
                 contentDescription = "Delete model",
-                tint = TextMuted,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .size(20.dp)
                     .clickable(onClick = onDelete),
@@ -2087,8 +2189,8 @@ private fun DownloadProgressCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(InnerShape)
-            .background(InputBg)
-            .border(0.5.dp, SecondaryCyan.copy(alpha = 0.3f), InnerShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+            .border(0.5.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f), InnerShape)
             .padding(14.dp),
     ) {
         Column {
@@ -2098,20 +2200,20 @@ private fun DownloadProgressCard(
                     style = TextStyle(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                     ),
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(onClick = onCancel) {
-                    Text("Cancel", color = ErrorRed, fontSize = 12.sp)
+                    Text("Cancel", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                 }
             }
             Spacer(Modifier.height(8.dp))
             LinearProgressIndicator(
                 progress = { state.progress },
                 modifier = Modifier.fillMaxWidth().height(4.dp).clip(PillShape),
-                color = SecondaryCyan,
-                trackColor = SurfaceCharcoal,
+                color = MaterialTheme.colorScheme.tertiary,
+                trackColor = MaterialTheme.colorScheme.surface,
             )
             Spacer(Modifier.height(6.dp))
             Row(
@@ -2120,19 +2222,19 @@ private fun DownloadProgressCard(
             ) {
                 Text(
                     "${state.progressPercent}% - ${state.downloadedDisplay} / ${state.totalDisplay}",
-                    style = TextStyle(fontSize = 12.sp, color = TextMuted),
+                    style = TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
                 )
                 if (state.speedDisplay.isNotEmpty()) {
                     Text(
                         state.speedDisplay,
-                        style = TextStyle(fontSize = 12.sp, color = SecondaryCyan),
+                        style = TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.tertiary),
                     )
                 }
             }
             Spacer(Modifier.height(2.dp))
             Text(
                 state.etaDisplay,
-                style = TextStyle(fontSize = 11.sp, color = TextSecondary),
+                style = TextStyle(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
             )
         }
     }
@@ -2149,25 +2251,25 @@ private fun ErrorCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(InnerShape)
-            .background(ErrorRed.copy(alpha = 0.08f))
-            .border(0.5.dp, ErrorRed.copy(alpha = 0.3f), InnerShape)
+            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.08f))
+            .border(0.5.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f), InnerShape)
             .padding(14.dp),
     ) {
         Column {
             Text(
                 "Failed to download $modelName",
-                style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ErrorRed),
+                style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error),
             )
             Spacer(Modifier.height(4.dp))
-            Text(message, style = TextStyle(fontSize = 12.sp, color = TextSecondary))
+            Text(message, style = TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant))
             Spacer(Modifier.height(8.dp))
             Row {
                 TextButton(onClick = onRetry) {
-                    Text("Retry", color = SecondaryCyan, fontSize = 13.sp)
+                    Text("Retry", color = MaterialTheme.colorScheme.tertiary, fontSize = 13.sp)
                 }
                 Spacer(Modifier.width(8.dp))
                 TextButton(onClick = onDismiss) {
-                    Text("Dismiss", color = TextMuted, fontSize = 13.sp)
+                    Text("Dismiss", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 }
             }
         }
@@ -2191,8 +2293,8 @@ private fun ModelBrowserDialog(
                 .fillMaxWidth(0.92f)
                 .fillMaxHeight(0.85f)
                 .clip(GlassShape)
-                .background(SurfaceCharcoal)
-                .border(0.5.dp, GlassBorder, GlassShape)
+                .background(MaterialTheme.colorScheme.surface)
+                .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, GlassShape)
                 .padding(20.dp),
         ) {
             Column {
@@ -2203,7 +2305,7 @@ private fun ModelBrowserDialog(
                         style = TextStyle(
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
-                            brush = VioletCyanGradient,
+                            brush = Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)),
                         ),
                     )
                     Spacer(Modifier.weight(1f))
@@ -2212,7 +2314,7 @@ private fun ModelBrowserDialog(
                 Spacer(Modifier.height(4.dp))
                 Text(
                     "Choose a model based on your device's RAM and storage.",
-                    style = TextStyle(fontSize = 13.sp, color = TextSecondary),
+                    style = TextStyle(fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
                 )
                 Spacer(Modifier.height(16.dp))
 
@@ -2227,9 +2329,9 @@ private fun ModelBrowserDialog(
                         if (modelsInTier.isEmpty()) continue
 
                         val tierColor = when (tier) {
-                            ModelTier.SMALL -> SecondaryCyan
-                            ModelTier.MEDIUM -> PrimaryViolet
-                            ModelTier.LARGE -> TertiaryPink
+                            ModelTier.SMALL -> MaterialTheme.colorScheme.tertiary
+                            ModelTier.MEDIUM -> MaterialTheme.colorScheme.primary
+                            ModelTier.LARGE -> MaterialTheme.colorScheme.error
                         }
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2255,7 +2357,7 @@ private fun ModelBrowserDialog(
                                     ModelTier.MEDIUM -> "Recommended for flagship phones"
                                     ModelTier.LARGE -> "For 12GB+ RAM devices"
                                 },
-                                style = TextStyle(fontSize = 11.sp, color = TextMuted),
+                                style = TextStyle(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
                             )
                         }
                         Spacer(Modifier.height(8.dp))
@@ -2292,10 +2394,10 @@ private fun DownloadableModelCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(InnerShape)
-            .background(InputBg)
+            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
             .border(
                 0.5.dp,
-                if (isDownloaded) SuccessGreen.copy(alpha = 0.3f) else GlassBorder,
+                if (isDownloaded) SuccessGreen.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outlineVariant,
                 InnerShape,
             )
             .padding(14.dp),
@@ -2308,13 +2410,13 @@ private fun DownloadableModelCard(
                         style = TextStyle(
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                         ),
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
                         model.description,
-                        style = TextStyle(fontSize = 12.sp, color = TextSecondary),
+                        style = TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant),
                     )
                 }
                 Spacer(Modifier.width(12.dp))
@@ -2326,15 +2428,15 @@ private fun DownloadableModelCard(
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
                             strokeWidth = 2.dp,
-                            color = SecondaryCyan,
+                            color = MaterialTheme.colorScheme.tertiary,
                         )
                     }
                     else -> {
                         Box(
                             modifier = Modifier
                                 .clip(PillShape)
-                                .background(SecondaryCyan.copy(alpha = 0.12f))
-                                .border(0.5.dp, SecondaryCyan.copy(alpha = 0.3f), PillShape)
+                                .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f))
+                                .border(0.5.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f), PillShape)
                                 .clickable(onClick = onDownload)
                                 .padding(horizontal = 14.dp, vertical = 7.dp),
                         ) {
@@ -2343,7 +2445,7 @@ private fun DownloadableModelCard(
                                 style = TextStyle(
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = SecondaryCyan,
+                                    color = MaterialTheme.colorScheme.tertiary,
                                 ),
                             )
                         }
@@ -2352,11 +2454,11 @@ private fun DownloadableModelCard(
             }
             Spacer(Modifier.height(8.dp))
             Row {
-                MiniPill(model.sizeDisplay, TextMuted)
+                MiniPill(model.sizeDisplay, MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(4.dp))
-                MiniPill("RAM: ${model.ramRequired}", TextMuted)
+                MiniPill("RAM: ${model.ramRequired}", MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(4.dp))
-                MiniPill("${model.contextWindow / 1000}K ctx", TextMuted)
+                MiniPill("${model.contextWindow / 1000}K ctx", MaterialTheme.colorScheme.onSurfaceVariant)
                 if (model.supportsToolUse) {
                     Spacer(Modifier.width(4.dp))
                     MiniPill("Tool Use", SuccessGreen)

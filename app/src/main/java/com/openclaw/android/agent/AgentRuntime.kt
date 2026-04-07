@@ -3,7 +3,7 @@ package com.openclaw.android.agent
 import com.openclaw.android.PermissionManager
 import com.openclaw.android.data.SpaceManager
 import com.openclaw.android.llm.*
-import com.openclaw.android.llm.LlamaProvider
+import com.openclaw.android.llm.LiteRTProvider
 import com.openclaw.android.sandbox.SandboxedFileSystem
 import com.openclaw.android.tools.ToolRegistry
 import com.openclaw.android.tools.ToolResult
@@ -84,7 +84,12 @@ class AgentRuntime(
     }
 
     private fun emit(event: AgentEvent) {
-        _events.update { it + event }
+        _events.update { events ->
+            // Cap event list to prevent OOM in long sessions.
+            // Keep the last 500 events — enough for ~50 tool-call rounds.
+            val list = events + event
+            if (list.size > 500) list.drop(list.size - 500) else list
+        }
     }
 
     private fun buildSystemPrompt(): String {
@@ -184,11 +189,21 @@ class AgentRuntime(
                 while (iterations < MAX_TOOL_ITERATIONS && !_isCancelled) {
                     iterations++
 
+                    // Local models: use compact prompt and limit tools to save context.
+                    // The full system prompt (~900 tokens) + 31 tool defs (~2500 tokens)
+                    // easily overflows a 2K-4K context window, causing multi-minute hangs.
+                    val isLocal = activeSelection.isLocal
+                    val effectiveSystemPrompt = if (isLocal) LOCAL_SYSTEM_PROMPT else fullSystemPrompt
+                    val effectiveTools = when {
+                        !activeSelection.modelInfo.supportsToolUse -> null
+                        isLocal -> toolRegistry.getDefinitions().take(8) // Only core tools for local
+                        else -> toolRegistry.getDefinitions()
+                    }
                     val request = ChatRequest(
                         model = activeSelection.modelId,
                         messages = conversationManager.getMessagesForRequest(),
-                        tools = if (activeSelection.modelInfo.supportsToolUse) toolRegistry.getDefinitions() else null,
-                        systemPrompt = fullSystemPrompt,
+                        tools = effectiveTools,
+                        systemPrompt = effectiveSystemPrompt,
                     )
 
                     var responseText = ""
@@ -269,7 +284,7 @@ class AgentRuntime(
 
                     // ── Escalation: local model says it can't handle this ────
                     if (activeSelection.isLocal &&
-                        responseText.contains(LlamaProvider.ESCALATION_MARKER)
+                        responseText.contains(LiteRTProvider.ESCALATION_MARKER)
                     ) {
                         val cloudSelection = modelRouter.selectCloudModel(hasImages, hasAudio)
                         if (cloudSelection != null) {
@@ -286,7 +301,7 @@ class AgentRuntime(
                         }
                         // No cloud model available — show what we got
                         val cleaned = responseText
-                            .replace(LlamaProvider.ESCALATION_MARKER, "")
+                            .replace(LiteRTProvider.ESCALATION_MARKER, "")
                             .trim()
                             .ifBlank { "I need a cloud model for this task, but none is configured. Add an API key in Settings." }
                         try { conversationManager.addAssistantMessage(cleaned) } catch (e: Exception) { Log.e("AgentRuntime", "DB save failed", e) }
@@ -422,6 +437,11 @@ sealed class AgentEvent {
     data class Error(val message: String) : AgentEvent()
     data class Escalation(val from: String, val to: String) : AgentEvent()
 }
+
+/** Compact system prompt for local models (Gemma 4) — fits in 8K context with room to spare. */
+const val LOCAL_SYSTEM_PROMPT = """You are OpenClaw, a helpful AI assistant running on an Android phone. Be concise.
+You can use tools to help: read/write files, search, fetch URLs, manage calendar, contacts, tasks, notes, email, and device settings.
+If a task is too complex for you, respond with: [ESCALATE_TO_CLOUD] <reason>"""
 
 const val DEFAULT_SYSTEM_PROMPT = """You are OpenClaw, a powerful personal executive AI assistant running natively on Android. You act as a digital executive assistant — reducing cognitive load, improving decision-making, and helping the user stay organized across work and life.
 

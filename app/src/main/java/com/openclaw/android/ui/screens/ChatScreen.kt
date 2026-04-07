@@ -121,6 +121,7 @@ fun ChatScreen(
     var showExportDialog by remember { mutableStateOf(false) }
     var justSent by remember { mutableStateOf(false) }
     var crashMessage by remember { mutableStateOf<String?>(null) }
+    var showChatSettings by remember { mutableStateOf(false) }
 
     // Check for crash from previous session (e.g. native LLM OOM)
     var showCrashDialog by remember { mutableStateOf(false) }
@@ -449,7 +450,7 @@ fun ChatScreen(
                         }
 
                         if (isRunning) {
-                            item { ThinkingIndicator() }
+                            item { ThinkingIndicator(runtime) }
                         }
                     }
 
@@ -549,6 +550,7 @@ fun ChatScreen(
                         }
                     },
                     onStop = { runtime.cancel() },
+                    onSettings = { showChatSettings = true },
                 )
             }
         }
@@ -609,6 +611,131 @@ fun ChatScreen(
                 }
             }
         }
+    }
+
+    // ── Chat Settings Bottom Sheet ─────────────────────────────────────────
+    if (showChatSettings) {
+        ModalBottomSheet(
+            onDismissRequest = { showChatSettings = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+            scrimColor = Color.Black.copy(alpha = 0.3f),
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+            dragHandle = {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 12.dp, bottom = 4.dp)
+                        .size(36.dp, 4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(MaterialTheme.colorScheme.outlineVariant),
+                )
+            },
+        ) {
+            // TODO: Implement ChatSettings backing in AgentRuntime
+            // ChatSettingsSheetContent(
+            //     settings = runtime.chatSettings,
+            //     onSettingsChange = { runtime.chatSettings = it }
+            // )
+            Text("Chat settings coming soon", modifier = Modifier.padding(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun ChatSettingsSheetContent(
+    settings: com.openclaw.android.llm.ChatSettings,
+    onSettingsChange: (com.openclaw.android.llm.ChatSettings) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 40.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            "Chat Overrides",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 16.dp),
+        )
+
+        // Temperature
+        SettingSlider(
+            label = "Temperature",
+            value = settings.temperature.toFloat(),
+            range = 0f..1.5f,
+            onValueChange = { onSettingsChange(settings.copy(temperature = it.toDouble())) },
+            valueDisplay = "%.2f".format(settings.temperature)
+        )
+
+        // Top K
+        SettingSlider(
+            label = "Top K",
+            value = settings.topK.toFloat(),
+            range = 1f..100f,
+            steps = 99,
+            onValueChange = { onSettingsChange(settings.copy(topK = it.toInt())) },
+            valueDisplay = settings.topK.toString()
+        )
+
+        // Top P
+        SettingSlider(
+            label = "Top P",
+            value = settings.topP.toFloat(),
+            range = 0f..1f,
+            onValueChange = { onSettingsChange(settings.copy(topP = it.toDouble())) },
+            valueDisplay = "%.2f".format(settings.topP)
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Text("Accelerator", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Auto", "CPU", "GPU", "NPU").forEach { backend ->
+                val isSelected = (settings.preferredBackend?.uppercase() ?: "AUTO") == backend.uppercase()
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { 
+                        onSettingsChange(settings.copy(preferredBackend = if (backend == "Auto") null else backend.lowercase()))
+                    },
+                    label = { Text(backend) }
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Text("Capabilities", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(
+                checked = settings.enabledTools == null,
+                onCheckedChange = { 
+                    onSettingsChange(settings.copy(enabledTools = if (it) null else emptyList()))
+                }
+            )
+            Text("Enable Tool Calling", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+private fun SettingSlider(
+    label: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    steps: Int = 0,
+    onValueChange: (Float) -> Unit,
+    valueDisplay: String
+) {
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+            Text(valueDisplay, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = range,
+            steps = steps
+        )
     }
 }
 
@@ -780,7 +907,11 @@ private fun WelcomeHero(
 // ════════════════════════════════════════════════════════════════════════════════
 
 @Composable
-private fun ThinkingIndicator() {
+private fun ThinkingIndicator(runtime: AgentRuntime) {
+    val events by runtime.events.collectAsState()
+    // TODO: Add InitializingModel event type to AgentEvent
+    val isInitializing = false // events.lastOrNull() is AgentEvent.InitializingModel
+    
     val infiniteTransition = rememberInfiniteTransition(label = "thinking")
 
     Row(
@@ -797,6 +928,15 @@ private fun ThinkingIndicator() {
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (isInitializing) {
+                Text(
+                    "Initializing model...",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+            }
+
             repeat(3) { i ->
                 val dotAlpha by infiniteTransition.animateFloat(
                     initialValue = 0.3f,
@@ -865,6 +1005,7 @@ private fun CleanInputBar(
     onVoiceResult: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     val canSend = inputText.isNotBlank() && !isRunning
 
@@ -889,6 +1030,24 @@ private fun CleanInputBar(
                 Icon(
                     Icons.Default.Add,
                     contentDescription = "Attach",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+
+            Spacer(Modifier.width(4.dp))
+
+            // Settings button (per-chat LLM overrides)
+            IconButton(
+                onClick = onSettings,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            ) {
+                Icon(
+                    Icons.Default.Tune,
+                    contentDescription = "Chat Settings",
                     tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(20.dp),
                 )
