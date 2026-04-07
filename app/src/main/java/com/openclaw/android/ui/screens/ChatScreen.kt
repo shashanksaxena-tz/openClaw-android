@@ -57,12 +57,14 @@ import java.io.ByteArrayOutputStream
 
 // ── Media items for pending attachments ─────────────────────────────────────
 
-data class MediaItem(val mimeType: String, val uri: Uri)
-
-fun mimeTypeToMediaItem(mimeType: String, uri: Uri) = MediaItem(mimeType, uri)
-
-suspend fun mediaItemToContentPart(context: android.content.Context, item: MediaItem): ContentPart? =
-    uriToContentPart(context, item.mimeType, item.uri)
+suspend fun mediaItemToContentPart(context: android.content.Context, item: MediaItem): ContentPart? {
+    return when (item) {
+        is MediaItem.Image -> uriToContentPart(context, "image/*", item.uri)
+        is MediaItem.Video -> uriToContentPart(context, "video/*", item.uri)
+        is MediaItem.Audio -> uriToContentPart(context, "audio/*", item.uri)
+        is MediaItem.File -> uriToContentPart(context, item.mimeType, item.uri)
+    }
+}
 
 suspend fun uriToContentPart(context: android.content.Context, mimeType: String, uri: Uri): ContentPart? {
     return try {
@@ -186,9 +188,15 @@ fun ChatScreen(
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris ->
-        val newMedia = uris.map { uri ->
+        val newMedia = uris.mapNotNull { uri ->
             val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
-            mimeTypeToMediaItem(mimeType, uri)
+            val name = uri.lastPathSegment ?: "file"
+            when {
+                mimeType.startsWith("image/") -> MediaItem.Image(uri, name)
+                mimeType.startsWith("video/") -> MediaItem.Video(uri, name)
+                mimeType.startsWith("audio/") -> MediaItem.Audio(uri, name)
+                else -> MediaItem.File(uri, name, mimeType)
+            }
         }
         pendingMedia = pendingMedia + newMedia
     }
@@ -1123,57 +1131,6 @@ private fun CleanInputBar(
                     enabled = !isRunning,
                     modifier = Modifier.size(40.dp),
                 )
-            }
-        }
-    }
-}
-
-
-// ════════════════════════════════════════════════════════════════════════════════
-// ── Media Preview Strip ──────────────────────────────────────────────────────
-// ════════════════════════════════════════════════════════════════════════════════
-
-@Composable
-fun MediaPreviewStrip(
-    media: List<MediaItem>,
-    onRemove: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        media.forEachIndexed { index, item ->
-            Box(
-                modifier = Modifier
-                    .size(60.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Default.Image,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp),
-                )
-                IconButton(
-                    onClick = { onRemove(index) },
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(20.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surface),
-                ) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = "Remove",
-                        modifier = Modifier.size(12.dp),
-                        tint = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
             }
         }
     }
