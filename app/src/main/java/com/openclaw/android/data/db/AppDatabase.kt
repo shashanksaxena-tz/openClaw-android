@@ -8,13 +8,14 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [ConversationEntity::class, MessageEntity::class, MemoryEntity::class],
-    version = 2,
+    entities = [ConversationEntity::class, MessageEntity::class, MemoryEntity::class, PerChatSettingsEntity::class],
+    version = 3,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun conversationDao(): ConversationDao
     abstract fun memoryDao(): MemoryDao
+    abstract fun perChatSettingsDao(): PerChatSettingsDao
 
     companion object {
         @Volatile
@@ -38,6 +39,9 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v2 → v3: adds spaces and per_chat_settings tables. */
+        private val MIGRATION_2_3 = AppDatabaseMigrations.MIGRATION_2_3
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -45,7 +49,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "openclaw.db",
                 )
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
                 .also { INSTANCE = it }
             }
