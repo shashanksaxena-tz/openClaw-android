@@ -3,24 +3,22 @@ package com.openclaw.android.llm
 import android.content.Context
 import android.util.Log
 import com.google.ai.edge.litertlm.Backend
-import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
-import com.google.ai.edge.litertlm.Message
-import com.google.ai.edge.litertlm.MessageCallback
 import com.google.ai.edge.litertlm.SamplerConfig
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.onCompletion
 import java.io.File
 
 /**
  * Singleton bridge to the LiteRT-LM inference engine.
  *
- * Matches Google's Edge Gallery initialization pattern exactly:
+ * Matches Google's Edge Gallery initialization pattern:
  *  - EngineConfig with cacheDir for optimized weight storage
  *  - CPU backend by default (GPU opt-in to avoid native crashes on some devices)
- *  - MessageCallback for streaming (not Flow<Message>.toString())
- *  - Proper Content.Text extraction from Message objects
+ *  - Streaming via Kotlin Flow
  */
 object LiteRTBridge {
 
@@ -75,7 +73,8 @@ object LiteRTBridge {
         unloadModel()
 
         return try {
-            // Resolve cacheDir the same way Edge Gallery does
+            // Resolve cacheDir the same way Edge Gallery does —
+            // needed for the engine to cache optimized model weights
             val cacheDir = appContext?.getExternalFilesDir(null)?.absolutePath
 
             val engineConfig = EngineConfig(
@@ -102,8 +101,6 @@ object LiteRTBridge {
 
     /**
      * Create a new conversation session with optional configuration.
-     *
-     * Matches Edge Gallery's pattern: engine.createConversation(ConversationConfig(...))
      */
     fun createConversation(
         systemInstruction: String? = null,
@@ -145,17 +142,14 @@ object LiteRTBridge {
     }
 
     /**
-     * Send a message and stream the response token by token.
-     *
-     * Uses the MessageCallback pattern (same as Edge Gallery) instead of
-     * Flow<Message>.toString() which doesn't extract text properly.
+     * Send a message and stream the response token by token via Kotlin Flow.
      *
      * @param message The user's message text
-     * @param onToken Called for each streamed token text.
+     * @param onToken Called for each streamed token. Return false to cancel.
      * @param onDone Called when generation is complete with the full response.
      * @param onError Called if an error occurs during generation.
      */
-    fun sendMessage(
+    suspend fun sendMessage(
         message: String,
         onToken: (String) -> Boolean,
         onDone: (String) -> Unit,
@@ -169,31 +163,24 @@ object LiteRTBridge {
         try {
             val fullResponse = StringBuilder()
 
-            // Use MessageCallback pattern exactly like Edge Gallery
-            conv.sendMessageAsync(
-                Message.user(message),
-                object : MessageCallback {
-                    override fun onMessage(message: Message) {
-                        // Extract text content from Message, same as Edge Gallery
-                        message.contents.filterIsInstance<Content.Text>().forEach { textContent ->
-                            val text = textContent.text
-                            fullResponse.append(text)
-                            onToken(text)
-                        }
-                    }
-
-                    override fun onDone() {
+            conv.sendMessageAsync(message)
+                .catch { e ->
+                    Log.e(TAG, "Stream error", e)
+                    onError(if (e is Exception) e else RuntimeException(e.message, e))
+                }
+                .onCompletion {
+                    if (it == null) {
                         onDone(fullResponse.toString())
                     }
-
-                    override fun onError(throwable: Throwable) {
-                        Log.e(TAG, "Stream error", throwable)
-                        val ex = if (throwable is Exception) throwable
-                                 else RuntimeException(throwable.message, throwable)
-                        onError(ex)
+                }
+                .collect { chunk ->
+                    val tokenText = chunk.toString()
+                    fullResponse.append(tokenText)
+                    val shouldContinue = onToken(tokenText)
+                    if (!shouldContinue) {
+                        return@collect
                     }
-                },
-            )
+                }
         } catch (e: Exception) {
             Log.e(TAG, "sendMessage error", e)
             onError(e)
